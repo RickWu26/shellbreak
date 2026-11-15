@@ -463,22 +463,55 @@
     SB.state.saveMeta(meta);
     return true;
   }
-  function exchangeTideForStardust() {
-    var meta = SB.game.meta();
-    if (!meta || (meta.tide || 0) < 10) return false;
-    meta.tide -= 10;
-    meta.spent = (meta.spent || 0) + 10;
-    meta.stardust = (meta.stardust || 0) + 1;
-    SB.state.saveMeta(meta);
-    return true;
+  /* ── 星屑炼金：双向固定汇率批量兑换（2026-11-15）──
+   * ⚠️ 方向不对称，两处钳制基数不同，写反就会变成「扣 10 点得 10 星屑」：
+   *    正向 tide-to-stardust：消耗 10 轮回点 → 得 1 星屑；可成交 floor(tide / 10) 笔；
+   *    反向 stardust-to-tide：消耗 1 星屑 → 得 10 轮回点；可成交 floor(stardust / 1) 笔。
+   * 汇率只从 CFG.STARDUST_EXCHANGE 读；展示（render.js）与钳制/扣费共用 exchangeRate /
+   * exchangeMaxCount，不另写第二份。n 省略 = 1 笔（旧调用方零改动），n=Infinity = 「全部」。
+   * 返回**实际成交笔数**（0 = 没成交），调用方据此决定要不要重绘。 */
+  function exchangeRate() {
+    var r = (SB.CFG && SB.CFG.STARDUST_EXCHANGE) || {};
+    return { tide: r.tidePerStardust || 10, sd: r.stardustPerBatch || 1 };
   }
-  function exchangeStardustForTide() {
+  function exchangeMaxCount(m, direction) {
+    if (!m) return 0;
+    var r = exchangeRate();
+    var cap = direction === 'tide-to-stardust'
+      ? Math.floor((m.tide || 0) / r.tide)
+      : Math.floor((m.stardust || 0) / r.sd);
+    return cap > 0 ? cap : 0;
+  }
+  function exchangeTideForStardust(n) {
     var meta = SB.game.meta();
-    if (!meta || (meta.stardust || 0) < 1) return false;
-    meta.stardust -= 1;
-    meta.tide = (meta.tide || 0) + 10;
+    if (!meta) return 0;
+    var r = exchangeRate();
+    var want = (n === undefined || n === null) ? 1 : Math.floor(n);
+    var count = Math.min(isFinite(want) ? want : Infinity, exchangeMaxCount(meta, 'tide-to-stardust'));
+    if (!(count > 0) || !isFinite(count)) return 0;
+    meta.tide -= count * r.tide;
+    meta.spent = (meta.spent || 0) + count * r.tide;
+    meta.stardust = (meta.stardust || 0) + count * r.sd;
+    SB.state.saveMeta(meta);   /* 整批只落盘一次，别在循环里调 */
+    return count;
+  }
+  function exchangeStardustForTide(n) {
+    var meta = SB.game.meta();
+    if (!meta) return 0;
+    var r = exchangeRate();
+    var want = (n === undefined || n === null) ? 1 : Math.floor(n);
+    var count = Math.min(isFinite(want) ? want : Infinity, exchangeMaxCount(meta, 'stardust-to-tide'));
+    if (!(count > 0) || !isFinite(count)) return 0;
+    meta.stardust -= count * r.sd;
+    meta.tide = (meta.tide || 0) + count * r.tide;
+    /* ⚠️ 既有口径（2026-11-15 查证，本次**刻意不补**）：反向只加 tide，
+     *    不动 spent / tideEarnedTotal ⇒ 台账残差 earned − tide − spent 每笔漂 −10，
+     *    批量 N 笔漂 −10N。生产代码零个读取方（只有注释 + redeem.mjs 一条礼包码断言
+     *    提到它），玩家可见数字 / 排行榜 / 存档都不受影响。补平要动 spent（可能变负）
+     *    或 tideEarnedTotal（会抬高「最多轮回点」排行榜），都不是零风险，故留现状。
+     *    新套件 star-exchange-batch.mjs 把这条钉死，别有人顺手「修」成守恒。 */
     SB.state.saveMeta(meta);
-    return true;
+    return count;
   }
   function buyPerk(id) {
     var st = perkState(id);
@@ -560,6 +593,7 @@
     buyStarPerk: buyStarPerk,
     exchangeTideForStardust: exchangeTideForStardust,
     exchangeStardustForTide: exchangeStardustForTide,
+    exchangeRate: exchangeRate, exchangeMaxCount: exchangeMaxCount,
     applyPerk: applyPerk,
     toggleAutoResearch: toggleAutoResearch
   };

@@ -126,6 +126,16 @@
       /* 2026-11-05「万众热忱」：基础自动削壳的独立乘区级数（shell.js autoRate 读）。
        * ⚠️ 不放进 coef：breakCoef 另有暖石费率 / 星空槽 / 尤里卡 / 建造日志四类读者。 */
       shellDrive: 0,
+      /* 2026-11-14 军事/文化轮回点节点四条新轴。⚠️ apply 键必须在此列全：
+       *    war.js rate/powerParts 读 soldierPact、executeAction 读 warScaleDamage、
+       *    actionProbabilities 读 warSuccessOdds、softPowerCost 读 cultureCostCut。
+       *    soldierPact 与 economy.js 的 xxPact 同口径（级数，生产侧 ×0.10），
+       *    其余三条直接是倍率/百分点，别按级数再乘一次。
+       * 2026-11-14 第二批：warPopLoss / warSalvage 由 executeAction 读，
+       *    warThreat 由 threatRateOf 读（四处共读），slotMil 由 civics.perkPolicySlots 读。
+       *    ⚠️ slotMil 是「之位」类计数键，与 slotCraft/slotEcon/slotSci 同量纲，别当倍率乘。 */
+      soldierPact: 0, warScaleDamage: 0, warSuccessOdds: 0, cultureCostCut: 0,
+      warPopLoss: 0, warSalvage: 0, warThreat: 0, slotMil: 0,
       recipeCraft: {} };
   }
 

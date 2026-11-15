@@ -13,7 +13,9 @@
     food: 'assets/talent-icons/food.png?v=1',
     steel: 'assets/talent-icons/steel.png?v=1',
     politics: 'assets/talent-icons/politics.png?v=1',
-    vision: 'assets/talent-icons/vision.png?v=1'
+    vision: 'assets/talent-icons/vision.png?v=1',
+    /* 2026-11-14 第 9 树「枕戈待旦」：复用既有军力资源图标，零新增美术资产。 */
+    military: 'assets/resource-icons/militaryPower.png?v=2'
   };
   var RECIPE_ICON_BY_ID = {
     craft_stonebeam: 'assets/resource-icons/stoneBeam.png?v=2',
@@ -34,7 +36,8 @@
     { key: 'food', localeKey: 'food', icon: '✿', iconSrc: TREE_ICON_BY_KEY.food, accent: '#6ed4c1', fallbackTitle: '唯食与犁', fallbackSubtitle: '藻食·珊瑚·御寒' },
     { key: 'steel', localeKey: 'steel', icon: '🔩', iconSrc: TREE_ICON_BY_KEY.steel, accent: '#b8c0cc', fallbackTitle: '百炼成钢', fallbackSubtitle: '精铁·钢·工艺零件' },
     { key: 'politics', localeKey: 'political_economy', icon: '⚖', iconSrc: TREE_ICON_BY_KEY.politics, accent: '#e5a9d6', fallbackTitle: '政经往来', fallbackSubtitle: '商·书·奢侈·幸福' },
-    { key: 'vision', localeKey: 'visionaries', icon: '🔭', iconSrc: TREE_ICON_BY_KEY.vision, accent: '#9eacff', fallbackTitle: '远见之人', fallbackSubtitle: '学者·钻机·薄壳·破壳·倍率' }
+    { key: 'vision', localeKey: 'visionaries', icon: '🔭', iconSrc: TREE_ICON_BY_KEY.vision, accent: '#9eacff', fallbackTitle: '远见之人', fallbackSubtitle: '学者·钻机·薄壳·破壳·倍率' },
+    { key: 'military', localeKey: 'military', icon: '⚔', iconSrc: TREE_ICON_BY_KEY.military, accent: '#e08a7a', fallbackTitle: '枕戈待旦', fallbackSubtitle: '军人·战果·胜算' }
   ];
 
   function formatFallback(value, params) {
@@ -145,6 +148,9 @@
     if (id === 'autoStudy' || id === 'slotSci') return 'assets/resource-icons/science.png?v=2';
     if (id === 'vibrodrill') return 'assets/resource-icons/resonantDrill.png?v=2';
     if (id === 'tengenToppa') return 'assets/tech-icons/era-5/era5-sky-drill.png';
+    /* 2026-11-14 军事/文化轮回点节点（第 9 树 + 政经往来各一组）。 */
+    if (/^(soldierPact|warScaleDamage|warSuccessOdds|warVeteran|warSalvage|warBulwark|slotMil)/.test(id)) return 'assets/resource-icons/militaryPower.png?v=2';
+    if (/^cultureCostCut/.test(id)) return 'assets/resource-icons/culture.png?v=2';
     return '';
   }
 

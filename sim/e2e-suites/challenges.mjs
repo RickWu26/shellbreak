@@ -1013,6 +1013,27 @@ export function run({ SB, check, noop }) {
       check('征服者：enemyRecoveryMul 读档位（一档 1.5 / 三档 3）',
         Math.abs(api.enemyRecoveryMul(cqS1) - 1.5) < 1e-9 && api.enemyRecoveryMul(cqS3) === 3,
         'r1=' + api.enemyRecoveryMul(cqS1) + ' r3=' + api.enemyRecoveryMul(cqS3));
+      /* 2026-11-15：面板奖励文案必须与 def.rewards 同源。46f06e1a 定稿把奖励改成
+       * 「敌国规模上限 −5/−10/−15%」时只改了 challenges.js/war.js，漏改三语词库，
+       * definitionText 的 tr(key, fallback) 命中旧 key ⇒ 玩家一直看到已废弃的
+       * 「初始人口上限 +5/+10/+20」，而代码根本不发这个奖励（玩家报「没生效」）。 */
+      const cqPane = SB.ui.render.paneChallenges();
+      const cqDef = api.byId('conqueror');
+      check('征服者三档面板奖励逐字等于 def.rewards，不再承诺废弃的初始人口上限',
+        cqDef.rewards.every((rw, i) => cqPane.includes('本档奖励：' + rw)) &&
+        !cqPane.includes('初始人口上限') && !cqPane.includes('Starting population cap'),
+        'rewards=' + JSON.stringify(cqDef.rewards) +
+        ' 旧文案残留=' + cqPane.includes('初始人口上限'));
+      /* 同卡第二处：tiers[].cap 是敌方规模恢复倍率，不是产出惩罚。 */
+      check('征服者档位说明写敌方规模恢复 ×1.5/×2/×3，不再印「本轮全产出 −N00%」',
+        cqPane.includes('敌方规模恢复 ×1.5') && cqPane.includes('敌方规模恢复 ×2') &&
+        cqPane.includes('敌方规模恢复 ×3') &&
+        !cqPane.includes('本轮全产出 −150%') && !cqPane.includes('本轮全产出 −200%') &&
+        !cqPane.includes('本轮全产出 −300%'),
+        '实际=' + (cqPane.match(/敌方规模恢复 ×[\d.]+/g) || []).join(','));
+      check('征服者档位说明的 i18n key 已登记且占位符已烘焙',
+        SB.i18n.t('ui.challenge.tier_rule.conqueror', { recoveryMultiplier: 1.5 }) === '敌方规模恢复 ×1.5',
+        't=' + SB.i18n.t('ui.challenge.tier_rule.conqueror', { recoveryMultiplier: 1.5 }));
       /* goalMet 新增 annex 分支：统计已吞并敌国数。 */
       const annexS = { dysonDone: true, war: { enemies: { e1: { status: 'annexed' }, e2: { status: 'annexed' }, e3: { status: 'annexed' } } } };
       check('goalMet(annex,7)：不足 7 为 false', api.goalMet(annexS, { t: 'annex', n: 7 }) === false);

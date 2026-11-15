@@ -131,6 +131,15 @@
     if (handleFolkControlClick(e)) return;
     var t = rawTarget;
     var d = t.dataset || {};
+    /* 星屑炼金批量档位胶囊（2026-11-15）：纯界面动作，不读游戏状态，
+     * 按逃生分支纪律必须排在 `var s = run(); if (!s) return;` 之前。 */
+    var exStepBtn = t.closest && t.closest('[data-exchange-step]');
+    if (!exStepBtn && d.exchangeStep !== undefined) exStepBtn = t;
+    if (exStepBtn) {
+      SB.ui.render.cycleExchangeStep();
+      SB.game.markDirty(); SB.game.renderAll();
+      return;
+    }
     var metaTreeJump = t.closest && t.closest('[data-meta-tree-jump]');
     if (!metaTreeJump && d.metaTreeJump) metaTreeJump = t;
     if (metaTreeJump) {
@@ -885,10 +894,13 @@
       return;
     }
     if (d.starExchange) {
+      /* 档位只从视图态读一次；实际成交笔数由 prestige 层按各自方向的余额钳制，
+       * 不从 DOM 上的 data-* 读（防伪造 / 防余额已变时扣错）。 */
+      var exWant = SB.ui.render.exchangeStep();
       var exchanged = d.starExchange === 'tide-to-stardust'
-        ? SB.prestige.exchangeTideForStardust()
-        : d.starExchange === 'stardust-to-tide' ? SB.prestige.exchangeStardustForTide() : false;
-      if (exchanged) { SB.game.markDirty(); SB.game.renderAll(); }
+        ? SB.prestige.exchangeTideForStardust(exWant)
+        : d.starExchange === 'stardust-to-tide' ? SB.prestige.exchangeStardustForTide(exWant) : 0;
+      if (exchanged > 0) { SB.game.markDirty(); SB.game.renderAll(); }
       return;
     }
     if (d.challengeRelease) {

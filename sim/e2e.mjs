@@ -37,6 +37,8 @@ import { run as runAiStrategy } from './e2e-suites/ai-strategy.mjs';
 import { run as runBreakContinue } from './e2e-suites/break-continue.mjs';
 import { run as runUiPrefs } from './e2e-suites/ui-prefs.mjs';
 import { run as runStarShellPress } from './e2e-suites/star-shell-press.mjs';
+/* 2026-11-15：星屑炼金双向批量兑换（只写不跑，等用户当次明说「跑」）。 */
+import { run as runStarExchangeBatch } from './e2e-suites/star-exchange-batch.mjs';
 import { run as runTideShellDrive } from './e2e-suites/tide-shell-drive.mjs';
 import { run as runTideDrillOverdrive } from './e2e-suites/tide-drill-overdrive.mjs';
 import { run as runChallengePrereq } from './e2e-suites/challenge-prereq.mjs';
@@ -46,6 +48,8 @@ import { run as runTrackCraftJump } from './e2e-suites/track-craft-jump.mjs';
 import { run as runTrackUpgrade } from './e2e-suites/track-upgrade.mjs';
 import { run as runMetaRenderGuard } from './e2e-suites/meta-render-guard.mjs';
 import { run as runWarCampaign } from './e2e-suites/war-campaign.mjs';
+/* 2026-11-14：军事/文化轮回点节点（第 9 树「枕戈待旦」+ 政经往来「文教节流」）。 */
+import { run as runMilitaryPerks } from './e2e-suites/military-perks.mjs';
 /* 2026-11-12：clearNodes 嵌套节点 bug 的防回归锁。自带 faithful DOM 桩加载真实
  * heritage-draft.js，不依赖 e2e 共享的 no-op 假 DOM（那个桩的 removeChild 是空实现，
  * 正是当初漏掉本 bug 的原因）。 */
@@ -310,6 +314,15 @@ if (process.argv.includes('--star-shell-press-only')) {
   process.exit(failedPress.length || errors.length ? 1 : 0);
 }
 
+/* 星屑炼金双向批量兑换（2026-11-15）：汇率单一落点、两向钳制、一次落盘与真实 DOM。
+ * ⚠️ 需用户当次明说「跑」才执行本单套件（09:14 叫停纪律）。 */
+if (process.argv.includes('--star-exchange-only')) {
+  runStarExchangeBatch({ SB, check });
+  const failedEx = checks.filter(c => !c.ok);
+  console.log(`\n星屑炼金批量兑换测试：${checks.length - failedEx.length}/${checks.length} 通过`);
+  process.exit(failedEx.length || errors.length ? 1 : 0);
+}
+
 /* 潮汐之树「万众热忱」三级基础削壳加速（2026-11-05）：单独验独立乘区、加算口径、
  * 「不进 breakCoef」的逐位隔离与真实 DOM，不必跑完整整局 bot。 */
 if (process.argv.includes('--tide-shell-drive-only')) {
@@ -326,6 +339,14 @@ if (process.argv.includes('--tide-drill-overdrive-only')) {
   const failedOver = checks.filter(c => !c.ok);
   console.log(`\n天元突破测试：${checks.length - failedOver.length}/${checks.length} 通过`);
   process.exit(failedOver.length || errors.length ? 1 : 0);
+}
+
+/* 2026-11-14：军事/文化轮回点节点。单跑只验这四组三级链，不跑整局 bot。 */
+if (process.argv.includes('--military-perks-only')) {
+  runMilitaryPerks({ SB, check, noop });
+  const failedMil = checks.filter(c => !c.ok);
+  console.log(`\n军事/文化轮回点测试：${checks.length - failedMil.length}/${checks.length} 通过`);
+  process.exit(failedMil.length || errors.length ? 1 : 0);
 }
 
 /* 流浪泰拉「第 15 周目」开启前置（2026-11-05）：门禁、卡片、确认面板、常驻条同源。 */
@@ -3013,6 +3034,9 @@ runAiStrategy({ SB, check, noop });
 /* 2026-11-05：星屑商店「天外重压」。放全量最尾部——它会临时改 meta.starPerks
  * 与当前局的 perk.thin / iceShell，虽然自带 finally 还原，也别压在整局 bot 前面。 */
 runStarShellPress({ SB, check });
+/* 2026-11-15：星屑炼金双向批量兑换。放最尾部——它临时改 meta 账本 / CFG 汇率 /
+ * saveMeta 与步长视图态，自带 finally 逐项还原，别压在整局 bot 前面。 */
+runStarExchangeBatch({ SB, check });
 /* 2026-11-05：潮汐之树「万众热忱」。放最尾部——它会临时改 meta.perks 与当前局的
  * perk.shellDrive，虽自带 finally 还原，也别压在整局 bot 前面。 */
 runTideShellDrive({ SB, check });
@@ -3032,6 +3056,9 @@ runHeritageClearNodes({ SB, check });/* 2026-11-05：追踪坞「去制造」跳
 runTrackCraftJump({ SB, check, g, sandbox });
 /* 战争系统回归放在最尾部：每项都用独立周目，不依赖整局 bot 状态。 */
 runWarCampaign({ SB, check, noop, doc });
+/* 2026-11-14：军事/文化轮回点节点。放全量最尾部——它临时改 meta.perks 并跑
+ * 真实 executeAction，虽自带 finally 还原，也别压在整局 bot 前面。 */
+runMilitaryPerks({ SB, check, noop });
 console.log('\n================ 汇总 ================');
 // B 档基线：首局（原始时代 → 破冰重置）挂机 8-14 小时 —— 全局标定，默认挂起
 defer('单局时长落在 8-14 小时', runHours >= 8 && runHours <= 14, runHours.toFixed(2) + 'h');

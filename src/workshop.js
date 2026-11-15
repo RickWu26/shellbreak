@@ -560,6 +560,19 @@
     return u ? (SB.economy && SB.economy.scaffoldAdjustedCost
       ? SB.economy.scaffoldAdjustedCost(s, u.cost) : u.cost) : {};
   }
+  /* 前置工具 / 前置升级是否还缺 —— 门禁、追踪坞、面板共用这一份判据（2026-11-14）。
+   * ⚠️ 不要拿 render-info.workshopHasRequirementBlock 代替：那个还含「工坊未建」门，
+   *    而 upgradeBlocked 根本不检查工坊等级 ⇒ 材料齐的追踪项会被误判成前置未完成。 */
+  function upgradeRequirementMissing(s, u) {
+    if (!u) return false;
+    if (u.requiresTools && u.requiresTools.some(function (toolId) {
+      return !(s.tools && s.tools[toolId]);
+    })) return true;
+    if (u.requiresUpgrades && u.requiresUpgrades.some(function (upgradeId) {
+      return !(s.upgrades && s.upgrades[upgradeId]);
+    })) return true;
+    return false;
+  }
   function upgradeBlocked(s, id) {
     var u = upgradeById(id);
     if (!u) return '没有这项升级';
@@ -579,9 +592,12 @@
       if (SB.CIVICS) for (var _ui = 0; _ui < SB.CIVICS.length; _ui++) if (SB.CIVICS[_ui].id === u.needCivic) { un = SB.CIVICS[_ui].name; break; }
       return '需要先完成市政「' + un + '」';
     }
-    if ((u.requiresTools && u.requiresTools.some(function (toolId) { return !(s.tools && s.tools[toolId]); })) ||
-        (u.requiresUpgrades && u.requiresUpgrades.some(function (upgradeId) { return !(s.upgrades && s.upgrades[upgradeId]); }))) {
-      return tr('workshop.upgrade.military_harness.requirement');
+    if (upgradeRequirementMissing(s, u)) {
+      /* ⚠️ fallback 不能省：`tr` 在词库未加载时返回 ''，而 upgradeCanBuy 判的是 `!== null`
+       *    ⇒ 门禁仍生效、UI 却因 `why ?` 为假把按钮画成可点（「显示可买、点了没反应」）。
+       *    与同文件其它 tr 同口径：中文兜底写在第三个参数，TapTap 永远走 zh-CN。 */
+      return tr('workshop.upgrade.military_harness.requirement', null,
+        '先完成「马具」工具和「马镫」升级。');
     }
     var lack = lackText(s, upgradeCost(s, id));
     if (lack) return '还缺 ' + lack;
@@ -810,6 +826,7 @@
     /* 工艺升级项（第三种形态：一次性装填，存 s.upgrades） */
     upgrades: upgradeRows, upgradeById: upgradeById,
     upgradeCost: upgradeCost, upgradeBlocked: upgradeBlocked, upgradeCanBuy: upgradeCanBuy,
+    upgradeRequirementMissing: upgradeRequirementMissing,
     upgradeBuy: upgradeBuy, hasPurchasable: hasPurchasable,
     /* 奇观 */
     wonders: list, wonderById: wonderById,

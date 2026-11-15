@@ -22,7 +22,7 @@
      *   对外文案 / TapTap 版本描述 / README 三处必须同口径。
      * ⚠️ 更新日志系统 2026-10-25 曾被整体删除（CFG.CHANGELOG、自动弹窗、页脚按钮与面板、
      *   meta.seenVersion）；2026-10-27 用户要求恢复，四处一并重建。 */
-    VERSION: 'Ver1.2.2',
+    VERSION: 'Ver1.2.3',
     /* ⚠️ 2026-10-28：Ver1.0.4-test 那三个 TEST_* 开关（静默启动 / 触摸水波纹 / 按下即关）
      *   已按用户拍板**整段摘除**，不再以「置 false」形式留在配置里 —— 留在表里就还有被
      *   误开的风险，也会让 `_repack.py` 的版本名一致性断言失去意义。
@@ -33,6 +33,23 @@
      *   玩家点开面板后才写回 seenVersion 熄灯。
      * 老存档 meta 里没有 seenVersion ⇒ 恢复后第一次进入会亮红点，符合预期。 */
     CHANGELOG: [
+      /* Ver1.2.3（2026-11-15）：Ver1.2.2 上线之后的 8 条玩家可见改动合集。
+       * 排序沿用玩家要求：新增类置段首，其余按「界面 → 修复」分组。
+       * ⚠️ 本次只做「写日志」：VERSION 同步升到 Ver1.2.3；index.html ?v bump、
+       *    _repack.py 的版本断言 / 版本清单 / 131→139 条 key 断言、封包与上传，
+       *    一律留到用户当次明说「发版」时统一做（见 .workbuddy/memory）。 */
+      { v: 'Ver1.2.3', date: '2026-11-15', items: [
+        // —— 新增 ——
+        'changelog.stardust.exchange_batch',
+        'changelog.war.tide_tree_military',
+        'changelog.ui.workshop_craft_owned',
+        // —— 修复 ——
+        'changelog.fix.policy_picker_card_style',
+        'changelog.fix.skydrill_legacy_migration',
+        'changelog.fix.workshop_upgrade_prerequisite',
+        'changelog.fix.military_eureka_condition_text',
+        'changelog.fix.conqueror_reward_wording'
+      ] },
       /* Ver1.2.2（2026-11-13）：1.2.1 之后的战争系统补完、存档修复与挑战奖励；
        * 并补记 2026-11-14 三处玩家直接报障/反馈：离线加载提速、星图页发热、工坊升级项追踪（不另升版）。
        * ⚠️ 补记「批判的武器」：与「武器的批判」同批实装（2026-11-12）却漏写进日志，2026-11-14 补上。
@@ -312,6 +329,13 @@
      * 《空间矢量控制》eff.launchCycle = −2 ⇒ 实际节律 = max(1, 本值 + T.launchCycle)。
      * tick（economy-tick 2f）与 rates（economy-rates 发射场段）必须同读这一处。 */
     LAUNCH_CYCLE: 10,
+    /* 星屑炼金双向汇率（2026-11-15 收口：原先 10 / 1 散落在 prestige.js 4 处 + render.js 2 处）。
+     * ⚠️ 两个方向不对称，别写反：
+     *    正向「轮回点 → 星屑」= 消耗 tidePerStardust(10) 轮回点，得 stardustPerBatch(1) 星屑；
+     *    反向「星屑 → 轮回点」= 消耗 stardustPerBatch(1) 星屑，得 tidePerStardust(10) 轮回点。
+     *    可成交笔数也因此不同：正向按 floor(tide / 10)，反向按 floor(stardust / 1)。
+     * 这里只做「一处定义」，数值一个没改；批量的展示、钳制与扣费都读它。 */
+    STARDUST_EXCHANGE: { tidePerStardust: 10, stardustPerBatch: 1 },
     /* ERA10（2026-10-20）：戴森球通关目标——太阳帆 / 戴森球节点各需此数。
      * 进度 = min(帆/DYSON_SAIL_CAP, 节点/DYSON_NODE_CAP)（双达标取小，用户拍 Q4）。 */
     DYSON_SAIL_CAP: 10000,

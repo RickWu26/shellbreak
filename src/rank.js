@@ -1,11 +1,12 @@
-/* 自海渊至群星：深海文明建设 — TapTap 排行榜封装
+/* 自海渊至群星：深海文明建设 — TapTap / Steam 排行榜适配
  *
  * 环境内置全局对象 `tap`（TapTap 运行时自带，无需引入 SDK）。
  * 关键 API：tap.getLeaderboardManager() → 实例；
  *   mgr.submitScores({ scores:[{leaderboardId, score}], callback }) —— **单次最多 5 条**；
  *   mgr.openLeaderboard({ leaderboardId, collection:"public", callback })。
  *
- * 榜 ID 由 MCP `create_leaderboard` 在**天壳应用**上创建后回填到 SB.CFG.RANK.LB。
+ * Steam 版由 Electron 主进程调用 Steamworks Leaderboard API；后台榜名来自
+ * SB.CFG.RANK.STEAM。两套平台标识互不复用，游戏计算仍共用同一批逻辑 key。
  *
  * ── 参数真值（MCP create_leaderboard 的 schema，不是猜的）────────────────
  *   scoreType : 'numeric' | 'time'  （time = 时间榜）
@@ -29,12 +30,15 @@
   var CFG = SB.CFG || {};
   var mgr = null;
   var inited = false;
+  var steamAvailabilityKnown = false;
+  var steamAvailable = false;
 
-  /* 单次提交上限 5 条，平台硬限制（错误码 500199）。 */
+  /* TapTap 单次提交上限 5 条，平台硬限制（错误码 500199）。 */
   var MAX_BATCH = 5;
 
   function rankCfg() { return (CFG && CFG.RANK) || { LB: {}, MAP: {} }; }
   function lbMap() { return rankCfg().LB || {}; }
+  function steamMap() { return rankCfg().STEAM || {}; }
   function meta() { return rankCfg().MAP || {}; }
 
   function devMode() {
@@ -51,6 +55,29 @@
       try { mgr = root.tap.getLeaderboardManager(); } catch (e) { return null; }
     }
     return mgr;
+  }
+
+  function steamPlatform() {
+    var p = root.shellbreakPlatform;
+    if (!p || p.runtime !== 'electron' || p.localizationEnabled !== true) return null;
+    if (typeof p.steamLeaderboardsAvailable !== 'function'
+        || typeof p.submitSteamLeaderboardScores !== 'function'
+        || typeof p.readSteamLeaderboard !== 'function') return null;
+    if (!steamAvailabilityKnown) {
+      steamAvailabilityKnown = true;
+      try { steamAvailable = !!p.steamLeaderboardsAvailable(); } catch (e) { steamAvailable = false; }
+    }
+    if (!steamAvailable) return null;
+    return p;
+  }
+  function provider() {
+    if (steamPlatform()) return 'steam';
+    if (haveTap()) return 'taptap';
+    return 'none';
+  }
+  function steamNameOf(k) {
+    var v = steamMap()[k];
+    return typeof v === 'string' && /^shellbreak_[a-z0-9_]+$/.test(v) ? v : '';
   }
 
   /* ⛔ 榜 ID 合法性校验（2026-10-07，探针抓到的真bug 的防线）。
@@ -72,7 +99,7 @@
     var out = [];
     for (var k in meta()) {
       if (!Object.prototype.hasOwnProperty.call(meta(), k)) continue;
-      if (idOf(k)) out.push(k);           // 只收有合法 ID 的
+      if (provider() === 'steam' ? !!steamNameOf(k) : !!idOf(k)) out.push(k);
     }
     return out;
   }
@@ -80,7 +107,7 @@
     var out = [];
     for (var k in meta()) {
       if (!Object.prototype.hasOwnProperty.call(meta(), k)) continue;
-      if (!idOf(k)) out.push(k);
+      if (provider() === 'steam' ? !steamNameOf(k) : !idOf(k)) out.push(k);
     }
     return out;
   }
@@ -95,10 +122,10 @@
     }
   }
 
-  /* 控件是否该出现。生产环境需 SDK + **至少一个**榜 ID。 */
+  /* 控件是否该出现。正式运行需可用的平台 SDK 与至少一个配置榜单。 */
   function available() {
     if (devMode()) return true;
-    return !!(haveTap() && readyKeys().length > 0);
+    return !!(provider() !== 'none' && readyKeys().length > 0);
   }
 
   /* 把游戏内值翻译成平台要的整数分数。
@@ -115,10 +142,39 @@
   }
 
   /* 提交一局的成绩。entries = [{key:'fastest', value: 1234}, ...]
-   * 内部会剔掉未回填 ID 的项、剔掉非法值，再按 MAX_BATCH 截断。
+   * 按平台映射逻辑榜单并剔除非法值；TapTap 另受 MAX_BATCH 单次条数限制。
    * onDone(doneCount, sentCount) —— done 是「有多少项算得出成绩」，
-   *   sent 是「真正发出去几条」（两者不等就说明有榜被跳过或被截断）。 */
+   *   TapTap 的 sent 是实际提交数，Steam 的 sent 是成功进入持久队列的成绩数。 */
   function submitRun(entries, onDone) {
+    if (provider() === 'steam') {
+      var platform = steamPlatform();
+      var steamDone = 0, steamScores = [];
+      for (var si = 0; si < (entries || []).length; si++) {
+        var se = entries[si];
+        if (!se || !se.key || !steamNameOf(se.key)) continue;
+        var steamScore = toScore(se.value);
+        if (steamScore === null || steamScore > 2147483647) {
+          if (root.console) root.console.warn('[rank] Steam 分数超出有效范围，已跳过', se.key, se.value);
+          continue;
+        }
+        steamScores.push({ key: se.key, score: steamScore });
+        steamDone++;
+      }
+      if (devMode()) {
+        if (root.console) root.console.log('[rank] (?ranktest) 模拟 Steam 排队', JSON.stringify(steamScores));
+        if (onDone) onDone(steamDone, steamScores.length);
+        return;
+      }
+      if (!platform || !steamScores.length) { if (onDone) onDone(steamDone, 0); return; }
+      platform.submitSteamLeaderboardScores(steamScores).then(function (result) {
+        if (onDone) onDone(steamDone, result && result.ok ? Number(result.queued) || 0 : 0);
+      }).catch(function (error) {
+        if (root.console) root.console.warn('[rank] Steam 排行榜提交失败', error);
+        if (onDone) onDone(steamDone, 0);
+      });
+      return;
+    }
+
     var mgr2 = getMgr();
     var done = 0, scores = [];
     for (var i = 0; i < (entries || []).length; i++) {
@@ -162,6 +218,9 @@
   /* 打开排行榜 UI。key 缺省时打开第一个可用榜。
    * collection: 'public' 全平台总榜 / 'friend' 好友榜。 */
   function open(key, collection) {
+    if (provider() === 'steam') {
+      return readSteam(key, collection === 'friend' ? 'friends' : 'global');
+    }
     var m = getMgr();
     var id = (key && idOf(key)) || idOf(readyKeys()[0]);
     if (!id) { if (root.console) root.console.warn('[rank] 没有可打开的榜'); return false; }
@@ -177,6 +236,12 @@
       });
       return true;
     } catch (e) { return false; }
+  }
+
+  function readSteam(key, mode) {
+    var p = steamPlatform();
+    if (!p || !steamNameOf(key)) return Promise.resolve({ ok: false, code: 'unavailable', entries: [] });
+    return p.readSteamLeaderboard(key, mode === 'friends' ? 'friends' : 'global');
   }
 
   /* 时间榜的展示格式化（分数是整秒）。UI 用；不参与提交。 */
@@ -196,12 +261,14 @@
     init: init,
     submitRun: submitRun,
     open: open,
+    read: readSteam,
+    provider: provider,
     available: available,
     devMode: devMode,
     readyKeys: readyKeys,
     missingKeys: missingKeys,
     fmtSeconds: fmtSeconds,
     toScore: toScore,
-    _reset: function () { mgr = null; inited = false; }
+    _reset: function () { mgr = null; inited = false; steamAvailabilityKnown = false; steamAvailable = false; }
   };
 })(typeof window !== 'undefined' ? window : globalThis);

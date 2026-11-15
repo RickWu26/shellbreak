@@ -111,6 +111,16 @@
     { id: 'scribePactTail', name: '书通汇', subtree: 'politics', layer: 4, cost: 12, scale: 1.5, n: Infinity, apply: { scribePact: 0.5 }, nest: 'scribePact3', desc: '书手系产出再 +5%/级（无上限，每级 ×1.5）' },
     { id: 'autoCivic', name: '市政自转', subtree: 'politics', layer: 4, cost: 20, apply: { autoCivic: 1 }, nest: 'scribePact3', desc: '解锁市政自动研究器（开关在市政页顶部，默认关闭）' },
     { id: 'slotEcon', name: '经济之位', subtree: 'politics', layer: 5, cost: 75, apply: { slotEcon: 1 }, nest: 'happiness', desc: '任意政体额外 +1 民生槽' },
+    /* ── 政经往来 · 传播文化节流（2026-11-14 用户拍板）──
+     * ⚠️ 效果是「传播文化」行动的**市政点消耗**，不是 cultureReduction 的削减幅度：
+     *    cultureReduction 硬顶 0.30（war.js reduceEnemyCap / effectiveMaxScale），
+     *    加幅度只加快到顶、不改变最终上限；用户拍板改为降成本。
+     *    落点 = war.js softPowerCost 的 culture 分支 discount，与政策卡折扣加算，
+     *    共享 max(0, 1 − discount) 下限（不会算出负成本）。
+     * ⚠️ cost 为首轮提议报价，待标定；apply 数值才是已拍板的效果。 */
+    { id: 'cultureCostCut1', name: '文教节流 I', subtree: 'politics', layer: 1, cost: 3, apply: { cultureCostCut: 0.10 }, desc: '传播文化消耗的市政点 −10%' },
+    { id: 'cultureCostCut2', name: '文教节流 II', subtree: 'politics', layer: 2, cost: 6, apply: { cultureCostCut: 0.10 }, nest: 'cultureCostCut1', desc: '传播文化消耗的市政点再 −10%（累计 −20%）' },
+    { id: 'cultureCostCut3', name: '文教节流 III', subtree: 'politics', layer: 3, cost: 9, apply: { cultureCostCut: 0.10 }, nest: 'cultureCostCut2', desc: '传播文化消耗的市政点再 −10%（累计 −30%）' },
     /* ── 远见之人 ── */
     { id: 'scholarPact1', name: '学契 I', subtree: 'vision', layer: 1, cost: 3, apply: { scholarPact: 1 }, desc: '学者系产出 +10%' },
     { id: 'shellSurvey1', name: '钻机测绘 I', subtree: 'vision', layer: 1, cost: 6, apply: { shellSurvey: 4 }, desc: '天穹钻机效率 +20%' },
@@ -139,7 +149,51 @@
      *    削壳 100→200 点/秒；热液能 20/秒与运行态幸福度 −1 都不变（没说要翻倍就别顺手动）。
      *    与钻机测绘 _ss 乘区相乘，与「万众热忱」的①自动削壳段完全隔离。 */
     { id: 'tengenToppa', name: '天元突破', subtree: 'vision', layer: 4, cost: 40, apply: { drillOverdrive: 1 }, nest: 'shellSurvey3', desc: '解锁天穹钻机钻头倍率：可切到 2×，每秒投入两倍共振钻头、换取两倍破壳速度（热液能不变，默认仍 1×）' },
-    { id: 'slotSci', name: '科技之位', subtree: 'vision', layer: 5, cost: 75, apply: { slotSci: 1 }, nest: 'autoStudy', desc: '任意政体额外 +1 科研槽' }
+    { id: 'slotSci', name: '科技之位', subtree: 'vision', layer: 5, cost: 75, apply: { slotSci: 1 }, nest: 'autoStudy', desc: '任意政体额外 +1 科研槽' },
+    /* ── 枕戈待旦（第 9 树，2026-11-14 用户拍板：军事相关轮回点项目）──
+     * ⚠️ 三条轴都落在 war.js 的**现成单点**，绝不并进终局挑战乘区
+     *    （challenges.js warCostMul / soldierOutputMul / lootYieldMul / enemyScaleCapMul）：
+     *    · soldierPact 照抄 economy.js:1016-1053 的 xxPact 口径（apply 值 1 = 10%/级，
+     *      与商契/书契/学契同构）——只乘 rate() 的 soldierOutput 那一项，
+     *      **绝不碰 folk.effJobs**（那会串进全岗位，与 starFolk 重复计账）。
+     *      rate() 与 powerParts() 两处必须同步，否则「分项之和 ≠ 净值」（war.js:206）。
+     *    · warScaleDamage 加算进 war.js:929 的 1 + enemyScaleDamageBonus 括号，
+     *      与工坊三件套（+10/+30/+70%）同乘区、不另造一个乘区。
+     *    · warSuccessOdds 是百分点，在 actionProbabilities 里**从 failure 挪到 success**：
+     *      只加 success 会被 :726-731 的归一化稀释，且把大成功几率一起压低。
+     * ⚠️ 用户否决的「开局军力 +50」与「军力 +10%」不在此列：前者需要新字段且是军力地板，
+     *    后者是「攒军力速度」而非战斗收益，已改用上面三条更精确的轴。
+     * ⚠️ cost 为首轮提议报价，待标定；apply 数值才是已拍板的效果。 */
+    { id: 'soldierPact1', name: '军契 I', subtree: 'military', layer: 1, cost: 2, apply: { soldierPact: 1 }, desc: '军人军力产出 +10%' },
+    { id: 'soldierPact2', name: '军契 II', subtree: 'military', layer: 2, cost: 5, apply: { soldierPact: 1 }, nest: 'soldierPact1', desc: '军人军力产出再 +10%（累计 +20%）' },
+    { id: 'soldierPact3', name: '军契 III', subtree: 'military', layer: 3, cost: 8, apply: { soldierPact: 1 }, nest: 'soldierPact2', desc: '军人军力产出再 +10%（累计 +30%）' },
+    { id: 'warScaleDamage1', name: '破阵 I', subtree: 'military', layer: 1, cost: 3, apply: { warScaleDamage: 0.10 }, desc: '战争行动对敌国规模损耗 +10%' },
+    { id: 'warScaleDamage2', name: '破阵 II', subtree: 'military', layer: 2, cost: 6, apply: { warScaleDamage: 0.10 }, nest: 'warScaleDamage1', desc: '战争行动对敌国规模损耗再 +10%（累计 +20%）' },
+    { id: 'warScaleDamage3', name: '破阵 III', subtree: 'military', layer: 3, cost: 12, apply: { warScaleDamage: 0.10 }, nest: 'warScaleDamage2', desc: '战争行动对敌国规模损耗再 +10%（累计 +30%）' },
+    { id: 'warSuccessOdds1', name: '胜算 I', subtree: 'military', layer: 1, cost: 4, apply: { warSuccessOdds: 0.03 }, desc: '战争行动成功几率 +3 个百分点' },
+    { id: 'warSuccessOdds2', name: '胜算 II', subtree: 'military', layer: 2, cost: 8, apply: { warSuccessOdds: 0.03 }, nest: 'warSuccessOdds1', desc: '战争行动成功几率再 +3 个百分点（累计 +6）' },
+    { id: 'warSuccessOdds3', name: '胜算 III', subtree: 'military', layer: 3, cost: 15, apply: { warSuccessOdds: 0.04 }, nest: 'warSuccessOdds2', desc: '战争行动成功几率再 +4 个百分点（累计 +10）' },
+    /* ── 枕戈待旦 · 减损链 / 军事槽 / 军人无限节点（2026-11-14 第三批，用户拍板结构）──
+     * ⚠️ 前置链（用户 2026-11-14 第三次修订）：
+     *      折冲之训 I → II → 战场回收；胜算 II → 潮线壁垒；
+     *      「折冲之训 III + 胜算 III」双前置 → 军机之位（nests 数组，perkLocked 要求全部 > 0）。
+     *    ⚠️ 战场回收挂在 L2 的折冲之训 II 之后，自身必须是 L3，否则与前置同层、连线画不出来。
+     * ⚠️ 三条效果轴各自单点：warPopLoss → executeAction 的 lostPop（先 ceil 成整数人数再乘折扣，
+     *    不能乘在比率上：0.04×0.9=0.036000000000000004 会让 ceil 多扣 1 人）；
+     *    warSalvage → executeAction 战败时的 resourceRate（复用原本零调用方的 opts.lootOnFailure 分支）；
+     *    warThreat → threatRateOf()（面板 / 警告文案 / 实际累积 / 警告阈值四处共读，不许只改结算）。
+     * ⚠️ slotMil 不是新槽类型：civics.js slotList 已有《军事训练》送的 1 个军事槽，
+     *    这里只是往 PERK_POLICY_SLOTS 映射表加一行，与「之位」三件同构。
+     * ⚠️ 军通汇与另外 10 个「XX通汇」同构：cost 首级价 + scale 几何涨价 + n:Infinity，
+     *    apply 0.5 级 ⇒ +5%/级；轮回共鸣（starInfinite）会把每级效果翻倍，无需另写读点。
+     * ⚠️ cost 40 是用户对「战场回收」的指定价；其余 cost 与 apply 数值为首轮提议，待标定。 */
+    { id: 'warVeteran1', name: '折冲之训 I', subtree: 'military', layer: 1, cost: 2, apply: { warPopLoss: 0.10 }, desc: '战争行动造成的人口损失 −10%' },
+    { id: 'warVeteran2', name: '折冲之训 II', subtree: 'military', layer: 2, cost: 5, apply: { warPopLoss: 0.10 }, nest: 'warVeteran1', desc: '战争行动造成的人口损失再 −10%（累计 −20%）' },
+    { id: 'warVeteran3', name: '折冲之训 III', subtree: 'military', layer: 3, cost: 8, apply: { warPopLoss: 0.10 }, nest: 'warVeteran2', desc: '战争行动造成的人口损失再 −10%（累计 −30%）' },
+    { id: 'warSalvage', name: '战场回收', subtree: 'military', layer: 3, cost: 40, apply: { warSalvage: 0.50 }, nest: 'warVeteran2', desc: '战争行动失败时仍获得 50% 战利品' },
+    { id: 'warBulwark', name: '潮线壁垒', subtree: 'military', layer: 3, cost: 15, apply: { warThreat: 0.20 }, nest: 'warSuccessOdds2', desc: '入侵威胁累积速度 −20%' },
+    { id: 'slotMil', name: '军机之位', subtree: 'military', layer: 4, cost: 75, apply: { slotMil: 1 }, nests: ['warVeteran3', 'warSuccessOdds3'], desc: '任意政体额外 +1 军事槽（只装军事类政策卡）' },
+    { id: 'soldierPactTail', name: '军通汇', subtree: 'military', layer: 4, cost: 10, scale: 1.5, n: Infinity, apply: { soldierPact: 0.5 }, nest: 'soldierPact3', desc: '军人军力产出再 +5%/级（无上限，每级 ×1.5）' }
   ];
 
   /* 星屑商店：星之至宝节点等级写入 meta.starPerks；apply 与 recipe 分别提供数值和工艺效果。 */

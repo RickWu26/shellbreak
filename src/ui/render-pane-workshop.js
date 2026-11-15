@@ -8,6 +8,11 @@
     var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
     return value || fallback || '';
   }
+  /* 属性值转义：whyText 可能带 & / " / <，直接拼进 title 会截断标签。 */
+  function escAttr(v) {
+    return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
   function englishLocale() {
     return !!(SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US');
   }
@@ -260,6 +265,9 @@
       if (why && /^需要先/.test(why)) continue;
       shown++;
       var mul = SB.workshop.craftMul(s, c);
+      /* 「已有数量」= 该配方产物的当前库存（s.res[c.res]，见 workshop.js:299 addRes 落点）。
+       * ⚠️ 是**存量**不是累计（做过多少不代表库里还有多少）；无 c.res 的配方（理论不存在）保 0。 */
+      var owned = c.res ? ((s.res && s.res[c.res]) || 0) : 0;
       var productIcon = c.res ? '<img class="craft-icon" src="assets/resource-icons/' + c.res + '.png?v=2" alt="" aria-hidden="true" width="36" height="36" decoding="async">' : '';
       var costParts = [], costKey;
       for (costKey in c.in) costParts.push(SB.RESS[costKey].name + ' ' + c.in[costKey]);
@@ -269,7 +277,9 @@
         ' ⇒ <b>' + SB.economy.fmtAmt(c.out * mul) + '</b>' +
         tr('ui.workshop.craft.efficiency_bonus', {
           efficiencyBonusPercent: ((mul - 1) * 100).toFixed(0)
-        }, '（效率 +' + ((mul - 1) * 100).toFixed(0) + '%）') + '</div>';
+        }, '（效率 +' + ((mul - 1) * 100).toFixed(0) + '%）') +
+        ' <span class="craft-owned" title="' + tr('ui.workshop.crafting.owned_stock_tooltip', null, '该配方产物当前的库存数量') + '">' +
+        tr('ui.workshop.crafting.owned_stock', { amount: SB.economy.fmtAmt(owned) }, '已有 ' + SB.economy.fmtAmt(owned)) + '</span>' + '</div>';
       h += '<div class="craftbtns">';
       for (j = 0; j < SB.workshop.steps.length; j++) {
         var st = SB.workshop.steps[j];
@@ -486,13 +496,23 @@
             : tr('ui.workshop.upgrade.install.unaffordable', { costSummary: ctxt }, ''))
             : tr('ui.workshop.upgrade.install', { costSummary: ctxt }, '')
         : on ? '已装上'
-          : why ? (/^需要先/.test(why) ? '未解锁' : '材料不够 ' + ctxt)
+          /* ⚠️ 2026-11-14 玩家反馈「材料够了点不了」：requiresTools / requiresUpgrades
+           *    这道门的文案不以「需要先」开头，改前会被一律套成「材料不够」，真因只藏在
+           *    hover title（手机端没有 hover ⇒ 玩家永远看不到）。这里与英文分支已有的
+           *    reqBlocked 判据对齐，把前置门单独报出来；材料门仍走原「材料不够 + 已/需」。 */
+          : why ? (/^需要先/.test(why) ? '未解锁'
+            : reqBlocked ? tr('ui.workshop.upgrade.install.requirement_blocked', null, '前置未完成')
+              : '材料不够 ' + ctxt)
             : '装上 ' + ctxt;
       var _ds = localizedItemDescription('upgrade', u) + tr('ui.workshop.item.cost_note', {
         costSummary: SB.economy.costTxt(cost)
       }, '（成本 ' + SB.economy.costTxt(cost) + '）');
       var _buyBtn = '<button class="btn' + (on || why ? '' : ' buy') + '" data-upgrade="' + u.id + '"' +
-        (on || why ? ' disabled' : '') + ' title="' + (whyText || '') + '">' + label + '</button>';
+        (on || why ? ' disabled' : '') + ' title="' + escAttr(whyText) + '">' + label + '</button>';
+      /* 前置门的完整原因只挂在 hover title 上 ⇒ 手机端按跨端约定补 ⓘ 点按等价物。
+       * 文本只写一份（ⓘ 的 title），浮层由 render.js showHoverInfo 读它，不复制第二份。 */
+      var _reqTip = (why && reqBlocked && whyText)
+        ? '<i class="hover-info-btn" title="' + escAttr(whyText) + '">ⓘ</i>' : '';
       /* 建造追踪（2026-10-29 同族）：材料不足的升级项给一个「追踪」。
        * ⚠️ 未解锁项已被 itemRevealed（upgradeBlocked 以「需要先」开头）整行跳过，
        *    这里 `why` 只剩「材料不够」，与 craft 那段同构。
@@ -508,7 +528,7 @@
         '<div class="nm"><button type="button" class="building-name" data-info-item="upgrade" data-info-id="' + u.id + '" aria-haspopup="dialog">' + localizedItemName('upgrade', u) + '</button>' + (isNewItem('u', u.id) ? ' <span class="tag new">NEW</span>' : '') + (on ? ' <span class="tag ok">' + tr('ui.workshop.upgrade.status.installed', null, '已装填') + '</span>' : '') +
           (SB.ui.renderCommon.challengeTag ? SB.ui.renderCommon.challengeTag(s, u) : '') + '</div>' +
         '<div class="ds">' + _ds + '</div>' +
-        '<div class="upgrade-actions">' + _buyBtn + _trackBtn + '</div></div>';
+        '<div class="upgrade-actions">' + _buyBtn + _reqTip + _trackBtn + '</div></div>';
     }
     if (!shown) return '<div class="row"><div class="nm">' +
       tr(hideDone() && doneCount(s) > 0 ? 'ui.workshop.upgrade.empty.completed' : 'ui.workshop.upgrade.empty.available', null,

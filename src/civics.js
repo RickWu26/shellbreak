@@ -770,8 +770,12 @@
     }
     return m;
   }
-  /* 轮回商店「之位」三件（2026-11-01 用户拍板 A 方案）：**任意政体**额外给一个指定类型的政策槽。
-   *   slotCraft → 工造槽(prod) / slotEcon → 民生槽(grow) / slotSci → 科研槽(sci)。
+  /* 轮回商店「之位」四件（2026-11-01 用户拍板 A 方案；2026-11-14 补军事）：
+   *   **任意政体**额外给一个指定类型的政策槽。
+   *   slotCraft → 工造槽(prod) / slotEcon → 民生槽(grow) / slotSci → 科研槽(sci)
+   *   / slotMil → 军事槽(military)。
+   * ⚠️ slotMil 与《军事训练》自带的那 1 个军事槽是**叠加**关系（slotList 两处各 push 一次），
+   *    不是替换；军事类政策卡早在 SLOT_TYPES.military / cardFits / 槽位 CSS 里就齐了，零 UI 改动。
    *
    * ⚠️【为什么要有这张表】2026-10-23 潮汐之树落地时，这三个键被 `workshop.slotCap()` 当成
    *    「工坊自动制作槽 +1」在读，而 desc 承诺的是**政策卡槽**；当时工坊自动槽还被硬上限 4
@@ -780,13 +784,14 @@
    *    （2026-11-04 工坊自动槽已取消硬上限，更没有理由接回来）。
    *
    * ⚠️ 类型必须是 SLOT_TYPES 里真实存在的键：原来 slotEcon 的 desc 写「经济槽」，而 SLOT_TYPES
-   *    只有 prod/sci/grow/relig/wild，根本没有 econ ⇒ 那个描述从来无法实现，已改「民生槽」。
+   *    只有 prod/sci/grow/relig/military/wild，根本没有 econ ⇒ 那个描述从来无法实现，已改「民生槽」。
    * ⚠️ `s.perk` 由 `state.derivePerksFromMeta()` 每局重算；读档时 `resumeRun` 的
    *    `syncDerivedPerks()` 还会按 meta 账本整表对齐一次（老档不必手工迁移）。 */
   var PERK_POLICY_SLOTS = [
     { key: 'slotCraft', type: 'prod' },
     { key: 'slotEcon', type: 'grow' },
-    { key: 'slotSci', type: 'sci' }
+    { key: 'slotSci', type: 'sci' },
+    { key: 'slotMil', type: 'military' }
   ];
   /* 返回槽数组（与 slotList 同一个形状），供 slotList 合并与回归断言直读。 */
   function perkPolicySlots(s) {
@@ -1564,7 +1569,7 @@
     /* ERA7（2026-10）：超古代市政送的市政政策槽（civicPolicySlots），叠加在政体自带槽之上。 */
     var _ps = civicPolicySlots(s);
     for (var _pi = 0; _pi < _ps; _pi++) out.push({ type: 'wild' });
-    /* 2026-11-01：轮回商店「之位」三件（工造 / 民生 / 科研 各 +1），叠加在政体配方之上。
+    /* 2026-11-01：轮回商店「之位」四件（工造 / 民生 / 科研 / 军事 各 +1），叠加在政体配方之上。
      * 与上面三处同构，只是类型不是 wild —— 它们各自只吃对应类型的政策卡。 */
     var _pk = perkPolicySlots(s);
     for (var _pki = 0; _pki < _pk.length; _pki++) out.push(_pk[_pki]);

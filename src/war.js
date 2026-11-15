@@ -196,6 +196,12 @@
         + spacecraftCount * wonderEffectValue('wonder_goddard_rod', 'spacecraftSoldierOutputBonus', 0.05);
     }
     soldierOutput *= 1 + soldierUpgradeBonus + soldierWonderBonus;
+    /* 2026-11-14「军契」三级：与 economy.js:1016-1053 的 xxPact 同口径
+     * （s.perk.soldierPact 是级数，每级 10%）。⚠️ 只乘士兵这一项，不乘军校项、
+     * 不碰 folk.effJobs（effJobs 已吃族民通用产出乘区，重复乘会与 starFolk 双算）。
+     * powerParts() 必须同步这一行，否则「分项之和 ≠ 净值」（见 :206）。 */
+    var soldierPactMul = 1 + 0.10 * nonNegative(s && s.perk && s.perk.soldierPact);
+    soldierOutput *= soldierPactMul;
     var academyOutput = nonNegative(s.pop) * academyLevel * nonNegative(B.militaryAcademyPowerPerPopulationPerLevel);
     var total = (soldierOutput + academyOutput) * conquestProductionMultiplier(s);
     return isFinite(total) ? Math.max(0, total) : 0;
@@ -237,6 +243,9 @@
     /* 工坊升级(加成)与上帝之杖(奇观)同为加法叠加，合成一个乘区 chip，保证 b×m===v。 */
     var soldierBonusFactor = 1 + soldierUpgradeBonus + soldierWonderBonus;
     soldierOutput *= soldierBonusFactor;
+    /* 与 rate() 同一行、同一系数（2026-11-14 军契）：b×m 必须仍等于 v。 */
+    var soldierPactMul = 1 + 0.10 * nonNegative(s && s.perk && s.perk.soldierPact);
+    soldierOutput *= soldierPactMul;
     var academyOutput = nonNegative(s.pop) * academyLevel * nonNegative(B.militaryAcademyPowerPerPopulationPerLevel);
     var conquestMul = conquestProductionMultiplier(s);
     var parts = [];
@@ -245,6 +254,7 @@
       if (barracksFactor !== 1) sm.push([tr('building.barracks.name'), barracksFactor]);
       if (soldierChallengeMul !== 1) sm.push([tr('challenge.definition.totalwar_doctrine.name'), soldierChallengeMul]);
       if (soldierBonusFactor !== 1) sm.push([tr('ui.resource.detail.power.soldier_bonus'), soldierBonusFactor]);
+      if (soldierPactMul !== 1) sm.push([tr('ui.resource.detail.power.soldier_pact', null, '军契'), soldierPactMul]);
       if (conquestMul !== 1) sm.push([tr('ui.resource.detail.power.conquest'), conquestMul]);
       parts.push({ l: tr('job.soldier.name'), v: soldierOutput * conquestMul, b: soldierBase, m: sm });
     }
@@ -411,6 +421,17 @@
     if (!(defensePower > 0)) return 0.80;
     return clamp(0.25 + 0.25 * (Math.log(enemyPower / defensePower) / Math.LN2), 0, 0.80);
   }
+  /* 2026-11-14「潮线壁垒」：入侵威胁速率的**唯一落点**。
+   * ⚠️ 面板倒计时(invasionStatus)、警告文案(beginInvasionWarning)、实际累积(advanceInvasion)、
+   *    警告阈值(invasionWarningThreshold 的入参)必须共读这一个值，否则「显示的剩余时间」
+   *    与「真正结算的时刻」分叉 —— 只改结算不改面板，玩家会看着倒计时归零却没被入侵。
+   * ⚠️ scaleForRate 由调用方给：面板/警告用当前规模，结算用 tick 首尾规模均值；
+   *    这里只统一乘折扣，绝不改规模基数的原有口径。 */
+  function threatRateOf(s, scaleForRate, maxScale) {
+    var base = maxScale > 0 ? clamp(Number(scaleForRate) / maxScale, 0, 1) : 0;
+    var cut = clamp(nonNegative(s && s.perk && s.perk.warThreat), 0, 1);
+    return clamp(base * (1 - cut), 0, 1);
+  }
   function invasionWarningThreshold(threatRate) {
     return INVASION_CYCLE_SECONDS - INVASION_WARNING_SECONDS * clamp(threatRate, 0, 1);
   }
@@ -418,7 +439,7 @@
     var state = ensureState(s), enemy = currentEnemy(s);
     var maxScale = effectiveMaxScale(enemy);
     var scale = currentScale(enemy), atRisk = scale > 0;
-    var threatRate = maxScale > 0 ? clamp(scale / maxScale, 0, 1) : 0;
+    var threatRate = threatRateOf(s, scale, maxScale);
     var threatTime = threatRate > 0
       ? Math.max(0, (INVASION_CYCLE_SECONDS - (state ? state.invasionThreat : 0)) / threatRate) : 0;
     return {
@@ -576,7 +597,7 @@
     state.invasionWarning = INVASION_WARNING_SECONDS;
     state.invasionWarningPending = true;
     var maxScale = effectiveMaxScale(enemy);
-    var threatRate = maxScale > 0 ? clamp(currentScale(enemy) / maxScale, 0, 1) : 0;
+    var threatRate = threatRateOf(s, currentScale(enemy), maxScale);
     var threatTime = threatRate > 0
       ? Math.max(0, (INVASION_CYCLE_SECONDS - state.invasionThreat) / threatRate) : Infinity;
     if (emit) emit(translated('ui.war.invasion.warning', {
@@ -603,7 +624,7 @@
     var maxScale = effectiveMaxScale(enemy);
     if (!(maxScale > 0)) return;
     var currentStrength = currentScale(enemy);
-    var threatRate = clamp(((Number(scaleAtStart) + currentStrength) / 2) / maxScale, 0, 1);
+    var threatRate = threatRateOf(s, (Number(scaleAtStart) + currentStrength) / 2, maxScale);
     var warningAt = invasionWarningThreshold(threatRate);
     while (remaining > 1e-9) {
       if (offlineCatchup && state.offlineInvasionResolved) return;
@@ -723,6 +744,15 @@
     odds.failure = Math.max(floor, odds.failure);
     odds.success = Math.max(0, odds.success);
     odds.greatSuccess = Math.max(0, odds.greatSuccess);
+    /* 2026-11-14「胜算」三级：百分点**从 failure 挪到 success**。
+     * ⚠️ 绝不能只加 success：下面按 total 归一化后，+0.10 实得只有 +2.73pp，
+     *    且大成功从 5.00% 被压到 4.55%。一减一加则 total 恒 1、大成功不变。
+     * ⚠️ clip 到「当前失败率 − 要塞下限」，避免撞上面 :723 的 floor 后
+     *    total > 1 又被归一化稀释（与 fortressProbabilityAdjustment 同款兜底）。 */
+    var perkDelta = Math.min(nonNegative(s && s.perk && s.perk.warSuccessOdds),
+      Math.max(0, odds.failure - floor));
+    odds.failure -= perkDelta;
+    odds.success += perkDelta;
     var total = odds.failure + odds.success + odds.greatSuccess;
     if (total <= 0) return null;
     /* Policy adjustments are applied as percentage points. Normalize defensively to keep a valid roll. */
@@ -789,6 +819,10 @@
         discount += nonNegative(builtWonders)
           * policyNumber(s, 'card_overseas_advertising', 'cultureCostDiscountPerWonder', 0.01);
       }
+      /* 2026-11-14「文教节流」三级：与两张政策卡的折扣**加算**，共享 max(0,…) 下限。
+       * ⚠️ 只在 culture 分支生效；faith（传道信仰）分支的 cost 不受影响。
+       * ⚠️ 这是软实力成本，不是 cultureReduction 的削减幅度（后者硬顶 0.30）。 */
+      discount += nonNegative(s && s.perk && s.perk.cultureCostCut);
       cost *= Math.max(0, 1 - discount);
     }
     /* 和平主义者通关奖励（2026-11-12）：软实力（信仰 / 文化渗透）成本 -20%，永久生效。
@@ -926,15 +960,26 @@
     var scaleLoss = cost * result.scaleLoss;
     if (outcomeId !== 'failure' && SB.faith && SB.faith.successfulWarScaleReduction)
       scaleLoss += SB.faith.successfulWarScaleReduction(s, currentScale(enemy));
-    scaleLoss *= 1 + enemyScaleDamageBonus;
+    /* 2026-11-14「破阵」三级：与工坊三件套（+10/+30/+70%）**加算进同一个括号**，
+     * 不另造乘区。独立乘区会让满配 2.10×1.30=2.73 而不是 2.40。
+     * ⚠️ 只削 currentScale，不动 effectiveMaxScale / enemyScaleCapMul（征服者挑战轴）。 */
+    scaleLoss *= 1 + enemyScaleDamageBonus + nonNegative(s && s.perk && s.perk.warScaleDamage);
     var scaleBefore = currentScale(enemy);
     enemy.currentScale = Math.max(0, scaleBefore - scaleLoss);
     /* 2026-11-12：损失从「军人比率」改为「国家人口比率」，不可被调岗规避。
      * popLoss 为人口损失比率（向上取整）；优先减军人岗位，剩余落普通人口由 trimJobsToPop 兜底。
      * 胜利日游行卡（card_victory_day_parade）豁免成功时的人口损失，与原「豁免军人损失」口径一致。 */
+    /* 2026-11-14「折冲之训」：只削**战争行动**的人口损失，不碰入侵结算的惩罚
+     *    （resolveInvasion 走 invasionPenalty，与本行无关）。
+     * ⚠️ 折扣必须落在「整数人数」而不是「损失比率」上：若在比率上先乘 0.9，
+     *    0.04 × 0.9 = 0.036000000000000004，× 1000 = 36.00000000000001，
+     *    Math.ceil 会多扣 1 人（40 → 37，实际只减了 7.5%）。先 ceil 成人数再乘，
+     *    40 × 0.9 = 36 精确；未点亮时 cut=0 ⇒ ceil(n × 1) = n，行为零变更。 */
     var popLossRate = outcomeId !== 'failure' && policyEquipped(s, 'card_victory_day_parade')
       ? 0 : (result.popLoss || 0);
-    var lostPop = Math.ceil(nonNegative(s.pop) * popLossRate);
+    var rawLostPop = Math.ceil(nonNegative(s.pop) * popLossRate);
+    var lostPop = Math.ceil(rawLostPop
+      * (1 - clamp(nonNegative(s && s.perk && s.perk.warPopLoss), 0, 1)));
     if (lostPop > 0) {
       var soldierBefore = nonNegative(s.jobs && s.jobs.soldier);
       var soldierPart = Math.min(soldierBefore, lostPop);
@@ -945,7 +990,13 @@
     var capAward = Math.min(result.popCap, Math.max(0, nonNegative(enemy.popCapPool) - nonNegative(enemy.popCapClaimed)));
     enemy.popCapClaimed = nonNegative(enemy.popCapClaimed) + capAward;
     state.popCap += capAward;
-    var resourceRate = outcomeId === 'failure' && opts.lootOnFailure !== true ? 0 : lootRateBeforeAction;
+    /* 2026-11-14「战场回收」：战败时按天赋给保底战利品（0 → 0.50）。
+     * ⚠️ opts.lootOnFailure 是历史遗留的「全额」开关（全库零调用方），保留其语义；
+     *    新天赋与它取其一、绝不叠乘；未点亮时 warSalvage=0 ⇒ 仍为 0，默认行为零变更。 */
+    var failureLootFrac = opts.lootOnFailure === true ? 1
+      : clamp(nonNegative(s && s.perk && s.perk.warSalvage), 0, 1);
+    var resourceRate = outcomeId === 'failure'
+      ? lootRateBeforeAction * failureLootFrac : lootRateBeforeAction;
     var lootAmount = resourceRate * spec.lootSeconds;
     /* grubby 通关奖励（2026-11-12）：战利品产出 +20% 永久生效。 */
     var lootYieldMul = (SB.challenges && SB.challenges.lootYieldMul) ? SB.challenges.lootYieldMul(s) : 1;
@@ -994,6 +1045,8 @@
     enemy: enemyOf,
     currentEnemy: currentEnemy,
     invasionStatus: invasionStatus,
+    /* 供回归断言直读：面板/警告/结算/阈值共用的威胁速率单点。 */
+    threatRateOf: threatRateOf,
     /* 供 ui/war-toast.js 复用：toast 正文与事件日志必须是同一份译文，不另造口径。 */
     invasionReportMessages: invasionReportMessages,
     drainInvasionReports: drainInvasionReports,

@@ -215,16 +215,29 @@
       for (var ui = 0; ui < U.length; ui++) if (U[ui].id === id) { u = U[ui]; break; }
       if (!u) return null;
       if (s.upgrades && s.upgrades[id]) return null;            // 已装上
-      if (SB.workshop.upgradeBlocked) {
-        var uwhy = SB.workshop.upgradeBlocked(s, id);
-        if (uwhy && /^需要先/.test(uwhy)) return null;          // 未解锁（需求未达成）
-      }
+      var uwhy = SB.workshop.upgradeBlocked ? SB.workshop.upgradeBlocked(s, id) : null;
+      if (uwhy && /^需要先/.test(uwhy)) return null;          // 未解锁（科技 / 市政）
       var rowsU = costRows(s, SB.workshop.upgradeCost(s, id));
+      var readyU = allOk(rowsU);
       var upInfo = infoParts();
       var upName = upInfo.localizedWorkshopItemName
         ? upInfo.localizedWorkshopItemName('upgrade', u.id, u.name)
         : (SB.i18n && SB.i18n.contentName ? SB.i18n.contentName(u.id, u.name) : u.name);
-      return { kind: kind, id: id, title: upName, rows: rowsU, ready: allOk(rowsU) };
+      /* ⚠️ 2026-11-14 玩家反馈「材料够了点不了」：requiresTools / requiresUpgrades 这道门的
+       *    文案是「先完成…」，**不以「需要先」开头** ⇒ 上面的前缀判据漏它。材料一够，小框
+       *    就印「· 可以装填」，而工坊按钮其实被前置门禁用 —— 两个面板互相打脸。
+       *    改用与 upgradeBlocked 同源的结构化判据（单一事实源在 workshop.js），前置没齐时
+       *    把真实原因作为一行 txt 打进造价行（复用 r.txt 现成形态），ready 钉死为 false。
+       *    追踪项保留（点它仍能跳到工坊页）。 */
+      var reqU = !!(SB.workshop.upgradeRequirementMissing &&
+        SB.workshop.upgradeRequirementMissing(s, u));
+      if (reqU) {
+        rowsU.push({
+          txt: uwhy || tr('ui.workshop.upgrade.install.requirement_blocked', null, '前置未完成'),
+          short: true
+        });
+      }
+      return { kind: kind, id: id, title: upName, rows: rowsU, ready: readyU && !reqU };
     }
 
     /* ── 尤里卡 / 鼓舞 ──────────────────────────────────────────

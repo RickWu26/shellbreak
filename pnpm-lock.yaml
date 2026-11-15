@@ -8,9 +8,9 @@ importers:
 
   .:
     dependencies:
-      steamworks.js:
-        specifier: 0.4.0
-        version: 0.4.0
+      '@cozycoast/steamworks.js':
+        specifier: https://github.com/crimson-med/cozy-steamworks/releases/download/v0.8.0/cozycoast-steamworks.js-0.8.0.tgz
+        version: https://github.com/crimson-med/cozy-steamworks/releases/download/v0.8.0/cozycoast-steamworks.js-0.8.0.tgz
     devDependencies:
       electron:
         specifier: 45.2.3
@@ -20,6 +20,11 @@ importers:
         version: 26.18.1(electron-builder-squirrel-windows@26.18.1)(supports-color@7.2.0)
 
 packages:
+
+  '@cozycoast/steamworks.js@https://github.com/crimson-med/cozy-steamworks/releases/download/v0.8.0/cozycoast-steamworks.js-0.8.0.tgz':
+    resolution: {integrity: sha512-cxqzaA9IOITbPUpEf9n1le49YsEW6LmOVyXe73ORhUmZqyVdVv8ZjOwH4/zhnFXM/fw7S3PN11UCMUdO4RyxAQ==, tarball: https://github.com/crimson-med/cozy-steamworks/releases/download/v0.8.0/cozycoast-steamworks.js-0.8.0.tgz}
+    version: 0.8.0
+    engines: {node: '>= 14'}
 
   '@electron-internal/extract-zip@1.0.8':
     resolution: {integrity: sha512-8iajeLFbzNwM0m3AsQZSZgYREWglAImyGvvFSWU34FgMW8sHlzdwj9QKvv9dgN7jMP591EFUF/sLOC3Jl9YIjQ==}
@@ -905,10 +910,6 @@ packages:
     resolution: {integrity: sha512-jH9EhtKIjuXZ2cWxmXS8ZP80XyC3iasQxMDV8jzhNJpfDb7VbQLVW4Wvsxz9QZvzV+G4YoSfBUVKDOyxLzi/sg==}
     engines: {node: '>= 6'}
 
-  steamworks.js@0.4.0:
-    resolution: {integrity: sha512-O5TTRs7ucCRql4IA/kYUIQYeghTsXqf3rAm81sC22RDId264LQYqQjuaMEUSqL60I5LdULiGu0W2/A+ZDcKBKA==}
-    engines: {node: '>= 14'}
-
   string-width@4.2.3:
     resolution: {integrity: sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g==}
     engines: {node: '>=8'}
@@ -1047,6 +1048,10 @@ packages:
     engines: {node: '>=10'}
 
 snapshots:
+
+  '@cozycoast/steamworks.js@https://github.com/crimson-med/cozy-steamworks/releases/download/v0.8.0/cozycoast-steamworks.js-0.8.0.tgz':
+    dependencies:
+      '@types/node': 26.6.6
 
   '@electron-internal/extract-zip@1.0.8': {}
 
@@ -2075,10 +2080,6 @@ snapshots:
     optional: true
 
   stat-mode@1.0.0: {}
-
-  steamworks.js@0.4.0:
-    dependencies:
-      '@types/node': 26.6.6
 
   string-width@4.2.3:
     dependencies:

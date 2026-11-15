@@ -107,6 +107,9 @@ html[data-ui-theme="day"] .qbtn{background:#e4efec;border-color:#9bb9b9;color:#1
 .workshop-crafts>.row .craftbtns{grid-area:actions;display:flex;flex-wrap:wrap;gap:5px}
 .workshop-crafts>.row .craftbtns .btn{flex:1 1 48px;min-height:30px;margin:0;padding:5px 7px;font-size:10px}
 .workshop-crafts>.row .craftauto{grid-area:auto;margin:0;padding-top:5px;border-top:1px solid var(--line-soft)}
+/* 「已有数量」小药丸：挂在配方行 .ds 末尾，强调当前库存、不与效率文案抢视线。 */
+.workshop-crafts>.row .ds .craft-owned{display:inline-block;margin-left:6px;padding:0 6px;border-radius:7px;background:rgba(127,208,200,.16);color:#56c2b4;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+html[data-ui-theme="day"] .workshop-crafts>.row .ds .craft-owned{background:rgba(36,150,138,.16);color:#1f8e80}
 .workshop-section>.note{margin:0 0 8px;padding:8px 10px}
 html[data-ui-theme="day"] .workshop-overview{background:linear-gradient(120deg,#e3efec,#f7faf8)}
 html[data-ui-theme="day"] .workshop-mark{background:#dcefed;border-color:#aed0cc;color:#176d75}
@@ -332,6 +335,14 @@ html[data-ui-theme="day"] #pane-folk .folk-growth{background:#f3f8f5;border-colo
 html[data-ui-theme="day"] #pane-folk .folk-idle{background:#fbf6e8;border-color:#e8d7aa}
 html[data-ui-theme="day"] #pane-folk .folk-job-row{background:linear-gradient(120deg,#fbfdfb,#f0f5f2);border-color:#cbdad7}
 html[data-ui-theme="day"] #pane-folk .folk-job-controls .fc-step{color:#0f6d7b;background:#e0f2f0;border-color:#9ccfd0}
+/* 星屑炼金批量档位（2026-11-15）：与族民 fc-step 同形，挂在轮回/星屑商店页。
+ * 手机端点按循环，不依赖 hover；完整档位说明在 title，由跨端 ⓘ 通道读取。 */
+#pane-meta .star-exchange-group .exchange-step{margin-left:auto;align-self:center;min-width:44px;padding:2px 8px;color:var(--cyan);border-color:rgba(105,226,223,.3);background:rgba(17,58,66,.3);font-weight:700;white-space:nowrap}
+#pane-meta .star-exchange-group .exchange-batch{margin-top:4px;color:var(--cyan)}
+#pane-meta .star-exchange-group .meta-buy{min-width:76px}
+#pane-meta .star-exchange-group .hover-info-btn{margin-left:0}
+html[data-ui-theme="day"] #pane-meta .star-exchange-group .exchange-step{color:#0f6d7b;background:#e0f2f0;border-color:#9ccfd0}
+html[data-ui-theme="day"] #pane-meta .star-exchange-group .exchange-batch{color:#0f6d7b}
 @media(max-width:760px){
   #pane-village .bzone .row{grid-template-columns:minmax(0,1fr);gap:9px}
   #pane-village .bzone .row .buy-actions{width:100%;justify-self:stretch}

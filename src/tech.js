@@ -587,13 +587,22 @@
         var _cd = !!(s.cards && s.cards.indexOf(c.id) >= 0);
         return { txt: (_cd ? '已装备' : '需装备') + '政策卡「' + policyName(c.id) + '」', now: _cd ? 1 : 0, need: 1 };
       }
+      /* ⚠️ 2026-11-15 修复「新增军事科技卡片上尤里卡条件是空的」：
+       *    tr() 是**英文专用覆盖层**（只有 en-US 才查词库，否则返回 fallback），
+       *    而全树其它 cond 类型的中文都在这里硬编码。改前这两条把中文也交给 tr
+       *    且 fallback 传空串 ⇒ zh-CN / zh-TW 下 txt=''：树卡只剩「尤里卡 · 」+ 进度条，
+       *    详情卡退化成占位「尤里卡条件」，追踪坞印一行空白。
+       *    中文必须与 zh-CN 词库那四个 key 的文案逐字一致；英文由外层 condShort()
+       *    用 en-US key 覆盖，不在这里管。 */
       case 'campaignStage': {
         var _cs = s.war && s.war.campaignStage || 0;
-        return { txt: tr('tech.condition.progress.campaign_stage', { current: _cs, required: c.n || 1 }, ''), now: _cs, need: c.n || 1 };
+        return { txt: tr('tech.condition.progress.campaign_stage', { current: _cs, required: c.n || 1 },
+          '已吞并敌国 ' + _cs + ' / ' + (c.n || 1)), now: _cs, need: c.n || 1 };
       }
       case 'warPower': {
         var _wp = s.war && Number(s.war.power) || 0;
-        return { txt: tr('tech.condition.progress.war_power', { current: Math.floor(_wp), required: c.n || 0 }, ''), now: _wp, need: c.n || 0 };
+        return { txt: tr('tech.condition.progress.war_power', { current: Math.floor(_wp), required: c.n || 0 },
+          '现有军力 ' + Math.floor(_wp) + ' / ' + (c.n || 0)), now: _wp, need: c.n || 0 };
       }
       /* geekEnceladus / challenge 的「还差多少」，与 condMet 同口径。 */
       case 'geekEnceladus': {
@@ -1395,8 +1404,11 @@
       case 'cycle': return '轮回数 ' + c.n + ' 周目';
       case 'civic': return '完成市政「' + civicName(c.id) + '」';
       case 'card': return '装备政策卡「' + policyName(c.id) + '」';
-      case 'campaignStage': return tr('tech.condition.description.campaign_stage', { required: c.n || 1 }, '');
-      case 'warPower': return tr('tech.condition.description.war_power', { required: c.n || 0 }, '');
+      /* 同上：中文走硬编码 fallback（与 zh-CN 词库逐字一致），英文由外层 condText() 覆盖。 */
+      case 'campaignStage': return tr('tech.condition.description.campaign_stage', { required: c.n || 1 },
+        '吞并 ' + (c.n || 1) + ' 个敌国');
+      case 'warPower': return tr('tech.condition.description.war_power', { required: c.n || 0 },
+        '军力达到 ' + (c.n || 0));
       /* ERA8 新条件类型的纯文案（不碰状态）。 */
       case 'cap': return resName(c.r) + '上限达到 ' + c.n;
       case 'starPct': return '星空探索进度 ' + (c.n || 0) + '%';

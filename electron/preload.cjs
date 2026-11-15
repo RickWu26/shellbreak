@@ -9,5 +9,8 @@ contextBridge.exposeInMainWorld('shellbreakPlatform', Object.freeze({
   writeAutoCloudSave: (raw) => ipcRenderer.sendSync('shellbreak:auto-cloud-save:write', raw),
   removeAutoCloudSave: () => ipcRenderer.sendSync('shellbreak:auto-cloud-save:remove'),
   unlockSteamAchievement: (apiName) => ipcRenderer.sendSync('shellbreak:steam-achievement:unlock', apiName),
-  syncSteamBuildingProgress: (apiName, progress) => ipcRenderer.send('shellbreak:steam-building-progress:sync', apiName, progress)
+  syncSteamBuildingProgress: (apiName, progress) => ipcRenderer.send('shellbreak:steam-building-progress:sync', apiName, progress),
+  steamLeaderboardsAvailable: () => ipcRenderer.sendSync('shellbreak:steam-leaderboard:available'),
+  submitSteamLeaderboardScores: (entries) => ipcRenderer.invoke('shellbreak:steam-leaderboard:submit', entries),
+  readSteamLeaderboard: (key, mode) => ipcRenderer.invoke('shellbreak:steam-leaderboard:read', key, mode)
 }));

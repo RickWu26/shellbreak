@@ -441,11 +441,20 @@
       if (!rawTechs[k]) continue;
       // 当前存活 id 不被 legacy 迁走；只有真正已删除的旧 id 才走映射。
       var nid = _curTechIds[k] ? k : (legacy[k] || k);
+      var hit = false, _tdef = null;
       if (SB.TECHS) {
-        var hit = false;
-        for (var ti = 0; ti < SB.TECHS.length; ti++) if (SB.TECHS[ti].id === nid) hit = true;
+        for (var ti = 0; ti < SB.TECHS.length; ti++)
+          if (SB.TECHS[ti].id === nid) { hit = true; _tdef = SB.TECHS[ti]; break; }
         if (!hit) continue;
       }
+      /* ⚠️ legacy 映射不得折算成带严格门禁的节点（2026-11-14 修「天穹钻机凭空已掌握」）。
+       * 这条路径只写 `techs[nid] = true`，**不经过 canStudy** ⇒ 只要目标带 reqs 或尤里卡
+       * 条件，就等于一次绕过纪元 / 尤里卡 / 前置 / 成本四道门白送一个关键节点。
+       * 旧 id 没有等价物就该按丢弃处理（同 ignition / heat / pick 口径，见 techs.js 注释）。
+       * 当前存活 id（_curTechIds 直过）不受影响，守卫只管真正走 legacy 的那一条路。 */
+      if (!_curTechIds[k] && legacy[k] && _tdef &&
+          ((_tdef.reqs && _tdef.reqs.length) ||
+           (_tdef.cond && _tdef.cond.t && _tdef.cond.t !== 'default' && _tdef.cond.t !== 'always'))) continue;
       out.techs[nid] = true;
     }
     out.techLv = {};
@@ -642,6 +651,31 @@
     for (var _gk in _gb) {
       if (typeof _gb[_gk] === 'boolean') out.geek[_gk] = (typeof rawGeek[_gk] === 'boolean') ? rawGeek[_gk] : _gb[_gk];
       else out.geek[_gk] = (typeof rawGeek[_gk] === 'number' && isFinite(rawGeek[_gk]) && rawGeek[_gk] >= 0) ? rawGeek[_gk] : _gb[_gk];
+    }
+
+    /* ⚠️ 已掌握科技合法性校验（2026-11-14 修「天穹钻机凭空已掌握 / 尤里卡门禁失效」）。
+     * 存量脏档：LEGACY_MAP 曾把 pick（以及 2026-11-12 之前的 siegeT）折算成 skydrill，
+     * 老档里写死的 `techs.skydrill=true` 会一直保留 —— 当前存活 id 由 _curTechIds 直过，
+     * 上面的映射守卫管不到它；metOf 第一档「已掌握即铁证」又让它永远合法。
+     * ⇒ 读档末尾反查一遍**静态尤里卡门**：奇观建成即永久持有、存档忠实重建，
+     *   「已掌握但 cond 要求的两座奇观没建成」在任何正常路径下都造不出来，零误杀。
+     * 只取这一条：rate / res / gathered 等条件依赖运行时 rates()，读档态未必完整，
+     *   拿它们反查会把正常存档洗掉；reqs 门由上方映射守卫从源头堵新增，不在这里做
+     *   （顺着前置链连锁判断会清掉「门禁加入前就研究过」的合法老档）。
+     * free（揭示即掌握）与 challengeOnly（挑战周目临时科技，通关后 s.challenge 已清空）跳过。 */
+    if (SB.TECHS && SB.tech && SB.tech.condMet) {
+      var _illegal = [];
+      for (var _ci = 0; _ci < SB.TECHS.length; _ci++) {
+        var _ct = SB.TECHS[_ci];
+        if (!out.techs[_ct.id] || _ct.challengeOnly || _ct.free) continue;
+        if (_ct.cond && _ct.cond.t === 'wonders' && !SB.tech.condMet(out, _ct.cond)) _illegal.push(_ct.id);
+      }
+      /* 判定与删除分两遍：判定读的是清洗前的完整 techs 快照，顺序无关、不产生连锁。 */
+      for (var _di = 0; _di < _illegal.length; _di++) {
+        delete out.techs[_illegal[_di]];
+        if (out.techLv) delete out.techLv[_illegal[_di]];
+      }
+      if (_illegal.length) out.techVer = (out.techVer | 0) + 1;   // ⚠️ tech.mul 缓存契约
     }
 
     return out;

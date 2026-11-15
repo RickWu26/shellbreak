@@ -118,4 +118,53 @@ export function run({ SB, check, sandbox }) {
   /* ④ 脏值稳妥：未知 kind / 不存在的升级 id → null，绝不抛 */
   check('未知 kind → null', T.resolve(SB.state.freshRun(), 'weird:x') === null);
   check('不存在的升级 id → null', T.resolve(SB.state.freshRun(), 'upgrade:__nope__') === null);
+
+  /* ⑤ 2026-11-14 玩家反馈「工坊升级材料够了点不了」：
+   *    upg_military_harness 带 requiresTools / requiresUpgrades，材料全够也点不了。
+   *    改前：面板把这道门误写成「材料不够」、追踪坞误报「可以装填」。
+   *    ⚠️ 夹具口径必须与生产写入路径一致：s.upgrades / s.tools 只写 true（见 upgradeBuy）。 */
+  {
+    const ID = 'upg_military_harness';
+    const zh = !SB.i18n.getLocale || SB.i18n.getLocale() === 'zh-CN';
+    const s = SB.state.freshRun();
+    s.lvl = s.lvl || {}; s.lvl.workshop = 1;
+    s.techs = s.techs || {}; s.techs.horsemanship = true;
+    s.tools = s.tools || {}; s.tools.tool_harnes = true;
+    s.upgrades = s.upgrades || {};
+    delete s.upgrades[ID]; delete s.upgrades.upg_horseshoe;
+    s.res = s.res || {};
+    s.res.rope = 1e7; s.res.silt = 5000; s.res.science = 1e5;
+
+    const why = SB.workshop.upgradeBlocked(s, ID);
+    check('材料足 + 缺马镫 ⇒ blocked 是前置门文案（非「还缺」/「需要先」）',
+      !!why && !/^需要先/.test(why) && !/^还缺/.test(why), 'why=' + JSON.stringify(why));
+    check('材料足 + 缺马镫 ⇒ upgradeCanBuy 仍为 false',
+      SB.workshop.upgradeCanBuy(s, ID) === false);
+
+    const pane = SB.ui.render.paneUpgradeRows(s);
+    const at = pane.indexOf('data-upgrade="' + ID + '"');
+    const btn = at < 0 ? '' : pane.slice(Math.max(0, at - 200), at + 200);
+    const label = at < 0 ? '' : ((pane.slice(at, at + 500).match(/>([^<>]+)</) || [])[1] || '');
+    check('面板该按钮仍禁用', at >= 0 && /disabled/.test(btn), 'at=' + at);
+    check('面板该按钮不再写「材料不够」', label.indexOf('材料不够') !== 0, 'label=' + label);
+    if (zh) check('面板该按钮写「前置未完成」', label.indexOf('前置未完成') === 0, 'label=' + label);
+    check('前置门给手机端补了 ⓘ（hover-info-btn）',
+      at >= 0 && /hover-info-btn/.test(pane.slice(at, at + 600)), 'tip=' + pane.slice(at, at + 300));
+
+    const rr = T.resolve(s, 'upgrade:' + ID);
+    check('追踪坞不再误报 ready', !!rr && rr.ready === false, 'ready=' + (rr && rr.ready));
+    check('追踪坞把真实原因打进 rows（txt 行 + 标红）',
+      !!rr && rr.rows.some(r => r.txt && r.short === true),
+      JSON.stringify(rr && rr.rows.map(r => r.txt || r.name)));
+
+    /* 补齐前置 ⇒ 按钮、门禁、追踪坞三处一起转正 */
+    s.upgrades.upg_horseshoe = true;
+    check('补上马镫 ⇒ upgradeCanBuy 转 true', SB.workshop.upgradeCanBuy(s, ID) === true);
+    const pane2 = SB.ui.render.paneUpgradeRows(s);
+    const at2 = pane2.indexOf('data-upgrade="' + ID + '"');
+    const label2 = at2 < 0 ? '' : ((pane2.slice(at2, at2 + 500).match(/>([^<>]+)</) || [])[1] || '');
+    check('补上马镫 ⇒ 按钮写「装上」', label2.indexOf('装上') === 0, 'label=' + label2);
+    const rr2 = T.resolve(s, 'upgrade:' + ID);
+    check('补上马镫 ⇒ 追踪坞 ready=true', !!rr2 && rr2.ready === true, 'ready=' + (rr2 && rr2.ready));
+  }
 }

@@ -1093,7 +1093,12 @@
        * 禁用按钮会让买不起的卡彻底点不动）。 */
       var hard = why && why.indexOf('市政点') === -1;
       var gt = p.type || 'wild';
-      h += '<article class="policy-card policy-card-' + gt + '">' +
+      /* ⚠️ 2026-11-14：卡片配色变量 --policy-* 只定义在 .policy-group* 上（20-panels.css:44-50）。
+       * 卡库页每张卡有 <section class="policy-group policy-group-xxx"> 祖先，本弹窗没有 ⇒
+       * var() 无 fallback ⇒ border / background / ::before 顶条三条声明整体失效，卡片变裸文字。
+       * 补 policy-group-<gt> 让变量落在卡片自身（.policy-group* 是类选择器、不挑元素，
+       * 且只定义变量不带 margin），按卡类型复用现成 7 组配色，日间主题自动生效。 */
+      h += '<article class="policy-card policy-card-' + gt + ' policy-group-' + gt + '">' +
         '<div class="policy-card-top"><span class="tag t' + gt + '">' + slotName(gt) + '</span>' +
           (SB.ui.renderCommon.challengeTag ? SB.ui.renderCommon.challengeTag(s, p) : '') + '</div>' +
         '<div class="policy-card-name">' + policyName(p) + '</div>' +

@@ -132,6 +132,37 @@ console.log('\n=== 科技树形状 ===');
   check('全部科技尤里卡与市政鼓舞条件文案不含英文/内部键（允许名称中的罗马数字）', conditionLeaks.length === 0,
     conditionLeaks.join('；'));
 
+  /* 2026-11-15：新增军事科技（攻城学 warPower / 弹道学 campaignStage）在中文端
+   * 条件文案曾**全空** —— condShortZh / condTextZh 把中文交给英文专用的 tr() 且
+   * fallback 传 ''。上面那条用 if (text && ...) ⇒ 空串直接跳过，是假绿；玩家在
+   * 树卡上只看到「尤里卡 · 」+ 进度条、详情卡退化成占位、追踪坞一行空白。
+   * ⇒ 补一条非空遍历：除 t:'default'（本来就无需条件）外，每个 cond 的进度文案
+   *   与目标描述都必须有中文，防下一个新条件类型再漏同一处。 */
+  const blankConds = [];
+  const scanCond = (kind, id, cond) => {
+    if (!cond || cond.t === 'default') return;
+    const sh = SB.tech.condShort(humanRun, cond);
+    const tx = SB.tech.condText(cond);
+    if (!sh || !sh.txt || !tx) {
+      blankConds.push(kind + ':' + id + '(' + cond.t + ') short=' + JSON.stringify(sh && sh.txt) +
+        ' text=' + JSON.stringify(tx));
+    }
+  };
+  T.forEach(t => scanCond('tech', t.id, t.cond));
+  SB.CIVICS.forEach(c => scanCond('civic', c.id, c.boost));
+  check('全部科技尤里卡与市政鼓舞条件都有非空中文文案（default 除外）', blankConds.length === 0,
+    blankConds.join('；'));
+
+  /* 锁住「卡片上到底写什么」，而不只是「不为空」；e2e 恒 zh-CN，故逐字比对。 */
+  const wpCond = { t: 'warPower', n: 1000 }, csCond = { t: 'campaignStage', n: 1 };
+  const wpShort = SB.tech.condShort(humanRun, wpCond).txt;
+  const csShort = SB.tech.condShort(humanRun, csCond).txt;
+  check('攻城学/弹道学的尤里卡进度与目标文案逐字正确',
+    wpShort === '现有军力 0 / 1000' && csShort === '已吞并敌国 0 / 1' &&
+    SB.tech.condText(wpCond) === '军力达到 1000' &&
+    SB.tech.condText(csCond) === '吞并 1 个敌国',
+    JSON.stringify([wpShort, csShort, SB.tech.condText(wpCond), SB.tech.condText(csCond)]));
+
   /* 空 eff 的科技不能再把设计备注塞进「效果」栏；玩家文案必须有明确归属。 */
   const noEffect = T.filter(t => !t.eff || Object.keys(t.eff).length === 0);
   const noCopy = noEffect.filter(t => !t.effectDesc && !t.unlockDesc).map(t => t.id);

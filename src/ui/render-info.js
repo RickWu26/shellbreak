@@ -339,6 +339,27 @@
     }
     return null;
   }
+  function localizedCivicDescription(item) {
+    if (!item) return '';
+    var key = 'civic.data.' + item.id + '.description', special = {};
+    if (item.id !== 'supreme_directive') return localizedStaticText(key, item.desc || '');
+    var directCard = null, savingCard = null, policies = SB.POLICIES || [];
+    for (var i = 0; i < policies.length; i++) {
+      if (policies[i].id === 'card_supreme_directive') directCard = policies[i];
+      else if (policies[i].id === 'card_saving') savingCard = policies[i];
+    }
+    if (directCard && typeof directCard.launchCycle === 'number') {
+      special.launchProductionTimeReductionSeconds = Math.abs(directCard.launchCycle);
+    }
+    if (savingCard && typeof savingCard.launchHydroMul === 'number') {
+      special.launchHydrothermalConsumptionReductionPercent = Math.round((1 - savingCard.launchHydroMul) * 100);
+    }
+    if (savingCard && typeof savingCard.happyConsumeMul === 'number') {
+      special.merfolkHappinessUpkeepIncreasePercent = Math.round((savingCard.happyConsumeMul - 1) * 100);
+    }
+    var params = englishTemplateParams(key, item.desc, special);
+    return localizedContentDescription(key, item.desc || '', params || {});
+  }
   function localizedStaticText(key, fallback) {
     if (!englishLocale()) return fallback || '';
     var value = tr(key, null, '');
@@ -527,7 +548,7 @@
     var effect = tech
       ? (SB.tech.effectDisplayText ? SB.tech.effectDisplayText(item) : SB.tech.effectText(item))
       : item.desc;
-    if (!tech) effect = localizedStaticText('civic.data.' + id + '.description', effect);
+    if (!tech) effect = localizedCivicDescription(item);
     var unlockText = tech && item.unlockDesc
       ? localizedContentDescription('tech.' + id + '.unlock_desc', item.unlockDesc,
         englishTemplateParams('tech.' + id + '.unlock_desc', item.unlockDesc))

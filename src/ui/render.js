@@ -1235,6 +1235,18 @@
   }
 
   /* 星屑商店：星屑结算、永久强化和轮回点兑换。 */
+  /* 星屑炼金批量档位（2026-11-15，仿族民 jobStep）：×1 → ×10 → ×100 → 全部 循环。
+   * 视图状态，不进存档；两个方向共用一份，重载回 ×1 是故意的（大多数兑换是单笔）。
+   * 档位印进按钮文字与本批小结 ⇒ 自动进 lastMetaHTML 指纹，节流守卫不必改。 */
+  var EXCHANGE_STEPS = [1, 10, 100, Infinity];
+  var exchangeStepIndex = 0;
+  function cycleExchangeStep() { exchangeStepIndex = (exchangeStepIndex + 1) % EXCHANGE_STEPS.length; return true; }
+  function exchangeStep() { return EXCHANGE_STEPS[exchangeStepIndex]; }
+  function exchangeStepLabel() {
+    var n = exchangeStep();
+    return isFinite(n) ? '×' + n : tr('ui.stardust.exchange.batch.step_all', null, '全部');
+  }
+
   function paneStarDome() {
     var s = res(); if (!s) return '';
     var m = meta();
@@ -1271,7 +1283,14 @@
       if (ownedStar.lv > 0) litStarNodes++;
       starLevels += ownedStar.lv;
     }
-    var exchangeParams = { prestigePointsPerExchange: 10, stardustPerExchange: 1 };
+    /* 汇率只从 prestige.exchangeRate 读（= CFG.STARDUST_EXCHANGE 单一落点）。
+     * ⚠️ 两个方向的钳制基数不同：正向按轮回点余额，反向按星屑余额，别共用一个 cap。 */
+    var exRate = SB.prestige.exchangeRate();
+    var exchangeParams = { prestigePointsPerExchange: exRate.tide, stardustPerExchange: exRate.sd };
+    var exStep = exchangeStep();
+    var exStepLabel = exchangeStepLabel();
+    var nT2S = Math.min(exStep, SB.prestige.exchangeMaxCount(m, 'tide-to-stardust'));
+    var nS2T = Math.min(exStep, SB.prestige.exchangeMaxCount(m, 'stardust-to-tide'));
     var facilitySummary = tr('prestige.stardust.facility_yield.summary', {
       starProgress: Math.floor(starPct * 100),
       facilityList: facilityNames.length ? facilityNames.map(htmlText).join(englishLocale() ? ', ' : '、') : tr('ui.render.pane_star_dome.none_yet', null, '尚无')
@@ -1329,9 +1348,28 @@
         accent: tree.accent, layout: 'layered', nodes: starNodes
       });
     }
-    h += '</div><section class="meta-shop-group star-exchange-group"><div class="meta-section-title"><b>' + htmlText(tr('ui.render.star_perk_name.stardust_exchange', null, '星屑炼金')) + '</b><span>' + htmlText(tr('ui.render.star_perk_name.fixed_exchange_rate_both_ways_with_no', null, '双向固定汇率，无手续费')) + '</span></div><div class="meta-shop-grid">' +
-      '<article class="meta-perk-card"><div class="meta-perk-copy"><div class="nm">' + htmlText(tr('ui.stardust.exchange.prestige_to_stardust', exchangeParams, '10 轮回点 → 1 星屑')) + '</div><div class="ds">' + htmlText(tr('ui.stardust.exchange.prestige_to_stardust.description', exchangeParams, '消耗 10 轮回点，兑换 1 星屑。')) + '</div></div><button class="btn buy meta-buy" data-star-exchange="tide-to-stardust"' + ((m.tide || 0) < 10 ? ' disabled' : '') + '>' + htmlText(tr('ui.render.star_perk_name.exchange', null, '兑换')) + '</button></article>' +
-      '<article class="meta-perk-card"><div class="meta-perk-copy"><div class="nm">' + htmlText(tr('ui.stardust.exchange.stardust_to_prestige', { stardustPerExchange: 1, prestigePointsPerExchange: 10 }, '1 星屑 → 10 轮回点')) + '</div><div class="ds">' + htmlText(tr('ui.stardust.exchange.stardust_to_prestige.description', { stardustPerExchange: 1, prestigePointsPerExchange: 10 }, '消耗 1 星屑，兑换 10 轮回点。')) + '</div></div><button class="btn buy meta-buy" data-star-exchange="stardust-to-tide"' + (sd < 1 ? ' disabled' : '') + '>' + htmlText(tr('ui.render.star_perk_name.exchange', null, '兑换')) + '</button></article>' +
+    /* 批量档位胶囊放在组标题里，两个方向共用一份；本批小结把「扣什么 / 得多少」写清楚，
+     * 免得玩家在 ×100 / 全部档一下点掉一大笔余额。
+     * ⚠️ 方向锁死：正向扣 n×tide 点得 n×sd 星屑；反向扣 n×sd 星屑得 n×tide 点。 */
+    var exButtonText = function (count) {
+      return htmlText(tr('ui.stardust.exchange.batch.button', { batchCount: count }, '兑换 ×{batchCount}'));
+    };
+    var exInsufficient = htmlText(tr('ui.stardust.exchange.batch.insufficient', null, '余额不足，无法兑换'));
+    var exBatchT2S = htmlText(tr('ui.stardust.exchange.batch.tide_to_stardust', {
+      batchCount: nT2S, tideCost: nT2S * exRate.tide, stardustGain: nT2S * exRate.sd
+    }, '本批 {batchCount} 笔：消耗 {tideCost} 轮回点 → 获得 {stardustGain} 星屑'));
+    var exBatchS2T = htmlText(tr('ui.stardust.exchange.batch.stardust_to_tide', {
+      batchCount: nS2T, stardustCost: nS2T * exRate.sd, tideGain: nS2T * exRate.tide
+    }, '本批 {batchCount} 笔：消耗 {stardustCost} 星屑 → 获得 {tideGain} 轮回点'));
+    var exStepTip = htmlText(tr('ui.stardust.exchange.batch.step_tooltip', null, '点击切换批量档位：×1 → ×10 → ×100 → 全部'));
+    h += '</div><section class="meta-shop-group star-exchange-group"><div class="meta-section-title"><b>' + htmlText(tr('ui.render.star_perk_name.stardust_exchange', null, '星屑炼金')) + '</b><span>' + htmlText(tr('ui.render.star_perk_name.fixed_exchange_rate_both_ways_with_no', null, '双向固定汇率，无手续费')) + '</span>' +
+      '<button class="btn exchange-step" data-exchange-step="1" title="' + exStepTip + '">' + htmlText(exStepLabel) + '</button>' +
+      /* 跨端约定：档位说明只在桌面 hover 可见 ⇒ 手机端补 ⓘ 点按等价物（文本同源，不复制第二份）。 */
+      '<i class="hover-info-btn" title="' + exStepTip + '">ⓘ</i></div><div class="meta-shop-grid">' +
+      '<article class="meta-perk-card"><div class="meta-perk-copy"><div class="nm">' + htmlText(tr('ui.stardust.exchange.prestige_to_stardust', exchangeParams, '{prestigePointsPerExchange} 轮回点 → {stardustPerExchange} 星屑')) + '</div><div class="ds">' + htmlText(tr('ui.stardust.exchange.prestige_to_stardust.description', exchangeParams, '消耗 {prestigePointsPerExchange} 轮回点，兑换 {stardustPerExchange} 星屑。')) + '</div>' +
+        '<div class="ds exchange-batch">' + exBatchT2S + '</div></div><button class="btn buy meta-buy" data-star-exchange="tide-to-stardust"' + (nT2S < 1 ? ' disabled title="' + exInsufficient + '"' : '') + '>' + exButtonText(nT2S) + '</button></article>' +
+      '<article class="meta-perk-card"><div class="meta-perk-copy"><div class="nm">' + htmlText(tr('ui.stardust.exchange.stardust_to_prestige', exchangeParams, '{stardustPerExchange} 星屑 → {prestigePointsPerExchange} 轮回点')) + '</div><div class="ds">' + htmlText(tr('ui.stardust.exchange.stardust_to_prestige.description', exchangeParams, '消耗 {stardustPerExchange} 星屑，兑换 {prestigePointsPerExchange} 轮回点。')) + '</div>' +
+        '<div class="ds exchange-batch">' + exBatchS2T + '</div></div><button class="btn buy meta-buy" data-star-exchange="stardust-to-tide"' + (nS2T < 1 ? ' disabled title="' + exInsufficient + '"' : '') + '>' + exButtonText(nS2T) + '</button></article>' +
       '</div></section>' +
       '<div class="note meta-shop-note">' + htmlText(tr('ui.render.star_perk_name.stardust_is_granted_at_eligible_prestige_settlem', null, '星屑由合格轮回结算发放。强化与兑换后的余额均跨周目保留。')) + '</div>' +
       '</div>';
@@ -2038,6 +2076,7 @@
       dyson: 'leaderboard.fastest_dyson_sphere',
       void: 'leaderboard.fastest_verge_ascension',
       drift: 'leaderboard.fastest_wandering_terra_launch',
+      dysonrush: 'leaderboard.fastest_starsea_race',
       pollution: 'leaderboard.lowest_pollution_clear'
     };
     var rows = keys.map(function (k) {
@@ -2056,10 +2095,118 @@
     for (var i = 0; i < btns.length; i++) {
       btns[i].onclick = function () {
         var k = this.getAttribute('data-rank-key');
-        hideModal();
-        if (SB.rank && SB.rank.open) SB.rank.open(k);
+        if (SB.rank && SB.rank.provider && SB.rank.provider() === 'steam') showSteamLeaderboard(k, 'global');
+        else {
+          hideModal();
+          if (SB.rank && SB.rank.open) SB.rank.open(k);
+        }
       };
     }
+  }
+  var _steamRankViewToken = 0;
+  var STEAM_RANK_TITLE_KEYS = {
+    fastest: 'leaderboard.fastest_ice_shellbreak',
+    firstFaith: 'leaderboard.fastest_faith_established',
+    dev: 'leaderboard.highest_development_score',
+    wonder: 'leaderboard.most_legacy_wonders',
+    cycle: 'leaderboard.prestige_count',
+    star: 'leaderboard.most_stardust',
+    tide: 'leaderboard.most_prestige_points',
+    dyson: 'leaderboard.fastest_dyson_sphere',
+    void: 'leaderboard.fastest_verge_ascension',
+    drift: 'leaderboard.fastest_wandering_terra_launch',
+    dysonrush: 'leaderboard.fastest_starsea_race',
+    pollution: 'leaderboard.lowest_pollution_clear'
+  };
+  function steamRankTitle(key) {
+    var map = (SB.CFG && SB.CFG.RANK && SB.CFG.RANK.MAP) || {};
+    var fallback = (map[key] && map[key].title) || key;
+    var titleKey = STEAM_RANK_TITLE_KEYS[key];
+    return titleKey ? tr(titleKey, null, fallback) : fallback;
+  }
+  function steamRankScoreText(key, score) {
+    var map = (SB.CFG && SB.CFG.RANK && SB.CFG.RANK.MAP) || {};
+    var value = Number(score) || 0;
+    if (map[key] && map[key].scoreType === 'time') {
+      return tr('leaderboard.seconds_unit', { score: value }, '{score} 秒');
+    }
+    var locale = SB.i18n && SB.i18n.getLocale ? SB.i18n.getLocale() : 'zh-CN';
+    try { return value.toLocaleString(locale); } catch (e) { return String(value); }
+  }
+  function renderSteamRankFailure(body, key, mode) {
+    body.innerHTML = '<div class="steam-rank-state" role="alert">' +
+      htmlText(tr('leaderboard.load_error', null, '排行榜暂时无法读取。')) +
+      '<button type="button" class="btn steam-rank-retry">' +
+      htmlText(tr('leaderboard.retry', null, '重试')) + '</button></div>';
+    var retry = body.querySelector('.steam-rank-retry');
+    if (retry) retry.onclick = function () { loadSteamLeaderboard(key, mode); };
+  }
+  function loadSteamLeaderboard(key, mode) {
+    var body = el('steamRankBody');
+    if (!body || !SB.rank || !SB.rank.read) return;
+    var token = ++_steamRankViewToken;
+    body.innerHTML = '<div class="steam-rank-state" role="status" aria-live="polite">' +
+      htmlText(tr('leaderboard.loading', null, '正在加载排行榜…')) + '</div>';
+    SB.rank.read(key, mode).then(function (result) {
+      if (token !== _steamRankViewToken) return;
+      var current = el('steamRankBody');
+      if (!current) return;
+      if (!result || !result.ok) { renderSteamRankFailure(current, key, mode); return; }
+      var entries = Array.isArray(result.entries) ? result.entries : [];
+      if (!entries.length) {
+        current.innerHTML = '<div class="steam-rank-state" role="status">' +
+          htmlText(tr('leaderboard.empty', null, '暂无成绩')) + '</div>';
+        return;
+      }
+      var rows = entries.map(function (entry) {
+        var id = String(entry.steamId || '');
+        var player = entry.playerName || tr('leaderboard.unknown_player', { id: id.slice(-6) }, '玩家 {id}');
+        return '<tr' + (entry.isLocalPlayer ? ' class="steam-rank-self"' : '') + '>' +
+          '<td>' + htmlText(entry.rank) + '</td>' +
+          '<td title="' + htmlText(id) + '">' + htmlText(player) + '</td>' +
+          '<td>' + htmlText(steamRankScoreText(key, entry.score)) + '</td></tr>';
+      }).join('');
+      current.innerHTML = '<table class="steam-rank-table"><thead><tr>' +
+        '<th scope="col">' + htmlText(tr('leaderboard.rank_column', null, '名次')) + '</th>' +
+        '<th scope="col">' + htmlText(tr('leaderboard.player_column', null, '玩家')) + '</th>' +
+        '<th scope="col">' + htmlText(tr('leaderboard.score_column', null, '成绩')) + '</th>' +
+        '</tr></thead><tbody>' + rows + '</tbody></table>';
+    }).catch(function () {
+      if (token !== _steamRankViewToken) return;
+      var current = el('steamRankBody');
+      if (current) renderSteamRankFailure(current, key, mode);
+    });
+  }
+  function showSteamLeaderboard(key, mode) {
+    var box = el('modalBox'), modal = el('modal');
+    if (!box || !modal) return;
+    resetModalChrome();
+    var currentMode = mode === 'friends' ? 'friends' : 'global';
+    box.innerHTML = '<div class="modal-hd"><b>' + htmlText(steamRankTitle(key)) + '</b>' +
+      '<button type="button" class="modal-x" data-modal-close="1" aria-label="' +
+      htmlText(tr('ui.action.close', null, '关闭')) + '">×</button></div>' +
+      '<div class="steam-rank-tabs">' +
+      '<button type="button" class="btn steam-rank-tab' + (currentMode === 'global' ? ' active' : '') + '" data-rank-mode="global" aria-pressed="' + (currentMode === 'global') + '">' +
+      htmlText(tr('leaderboard.global_tab', null, '全服榜')) + '</button>' +
+      '<button type="button" class="btn steam-rank-tab' + (currentMode === 'friends' ? ' active' : '') + '" data-rank-mode="friends" aria-pressed="' + (currentMode === 'friends') + '">' +
+      htmlText(tr('leaderboard.friends_tab', null, '好友榜')) + '</button></div>' +
+      '<div id="steamRankBody"></div>';
+    box.classList.add('steam-rank-box');
+    modal.classList.remove('hidden');
+    bodyModalClass(true);
+    var tabs = box.querySelectorAll('.steam-rank-tab');
+    for (var i = 0; i < tabs.length; i++) {
+      tabs[i].onclick = function () {
+        currentMode = this.getAttribute('data-rank-mode') === 'friends' ? 'friends' : 'global';
+        for (var j = 0; j < tabs.length; j++) {
+          var selected = tabs[j].getAttribute('data-rank-mode') === currentMode;
+          tabs[j].classList.toggle('active', selected);
+          tabs[j].setAttribute('aria-pressed', String(selected));
+        }
+        loadSteamLeaderboard(key, currentMode);
+      };
+    }
+    loadSteamLeaderboard(key, currentMode);
   }
   /* 更新日志面板（2026-10-27 恢复；原实现 2026-10-25 被整体删除）：点页脚「更新日志」按钮，
    * 或新版本首次进入时自动弹出。列出 CFG.CHANGELOG（最新在前），复用 #modal 遮罩 +
@@ -2546,7 +2693,7 @@
    *   不许再靠「记得删掉哪几个类」——漏删 offline-summary-modal 正是这样发生的。 */
   var MODAL_VARIANT_CLASSES = ['offline-summary-modal', 'tree-modal', 'tree-tech', 'tree-civic',
     'break-modal', 'void-ending-modal', 'terra-ending-modal', 'void-civic-modal', 'story-modal', 'gov-picker-modal'];
-  var MODAL_BOX_VARIANT_CLASSES = ['tree-detail-box', 'story-box'];
+  var MODAL_BOX_VARIANT_CLASSES = ['tree-detail-box', 'story-box', 'steam-rank-box'];
   function resetModalChrome() {
     var modal = el('modal'), box = el('modalBox'), i;
     if (modal && modal.classList) {
@@ -3105,6 +3252,7 @@
     openGovPicker: openGovPicker,
     armCard: armCard, disarmCard: disarmCard, armedCard: getArmedCard,
     cycleJobStep: cycleJobStep, jobStep: getJobStep, paintGrow: paintGrow,
+    cycleExchangeStep: cycleExchangeStep, exchangeStep: exchangeStep, exchangeStepLabel: exchangeStepLabel,
     setWorkshopView: SB.ui.renderParts.setWorkshopView,
     showBuildingInfo: showBuildingInfo,
     openWorkshopFromInfo: openWorkshopFromInfo,

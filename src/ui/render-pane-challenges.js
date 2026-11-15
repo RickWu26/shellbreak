@@ -304,6 +304,12 @@
           var tierState = tierActive ? challengeStatus(activeTimedOut ? 'tier_timed_out' : 'challenge_in_progress') :
             ti < done ? challengeStatus('tier_cleared') :
               ti === done && !blocked && !exhausted ? challengeStatus('next_tier') : challengeStatus('locked');
+          /* ⚠️ 2026-11-15 玩家报「征服者人口上限没生效」顺带查出的第二处文案错：
+           *    conqueror 的 tiers[].cap 是「敌方规模恢复倍率」(1.5 / 2 / 3)，**不是产出惩罚**。
+           *    改前没有专属分支，落到 production_penalty 模板 ⇒ 面板印
+           *    「本轮全产出 −150% / −200% / −300%」，数学上不可能，也与卡头
+           *    「本轮限制：敌方规模恢复速度按档位 ×1.5 / ×2 / ×3」自相矛盾。
+           *    奖励文案同源问题在三语词库的 conqueror.reward.tier_*（改后对齐 def.rewards）。 */
           var tierRule = d.id === 'science' ? tr('ui.challenge.tier_rule.science', {
             scribeName: scribeName,
             staffCap: td.cap
@@ -312,7 +318,9 @@
           }, '') : d.id === 'eternity_moment' ? tr('ui.challenge.tier_rule.eternity_moment', {
             researchCostMultiplier: td.cap,
             endgameGoalMultiplier: td.cap
-          }, '') : tr('ui.challenge.tier_rule.production_penalty', {
+          }, '') : d.id === 'conqueror' ? tr('ui.challenge.tier_rule.conqueror', {
+            recoveryMultiplier: td.cap
+          }, '敌方规模恢复 ×' + td.cap) : tr('ui.challenge.tier_rule.production_penalty', {
             productionPenaltyPercent: Math.round(td.cap * 100)
           }, '');
           var tierLabel = definitionText(d, 'tierLabel', ti);
