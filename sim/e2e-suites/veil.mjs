@@ -1,0 +1,176 @@
+/* e2e suite: 帷幕之后 · 大轮回（ERA11「α」+ 二层 prestige）
+ * 2026-11-17 实装（spec docs/ERA11_VEIL_SPEC_v0.1.md + VEIL_HUB_SPEC_v0.1.md）。
+ *
+ * ⚠️ 这一族的共同背景：飞升系统全是**跨周目账本 + 原子清零**，错了不会报错——只会
+ *    ①首次掀幕永远掀不动（veil===null 死锁，2026-11-17 用户静态核查抓到）；
+ *    ②掀一次幕把玩家历史成绩抹掉；③周期账越算越大可以无限刷点。
+ *    所以这里一律**行为断言**：给一个最小态，真调生产函数，比对「该变的变了、不该动的没动」。
+ *
+ * ⚠️ 数值全部是占位待标定（447M 是 44.7M×10 的拍板值，飞升点换算 10000/1000 也是拍板值）；
+ *    改数值请改 techs.js / prestige.js，本文件的期望值若被改必须连带说明谁拍的板。
+ * ⚠️ 本 suite 会**真掀幕**（清 meta 账本 + startRun），所以挂在 e2e 最尾部，
+ *    自带 finally 快照还原，绝不压在整局 bot 前面。 */
+
+export function run({ SB, check }) {
+  console.log('\n=== 帷幕之后 · 大轮回（ERA11）===');
+  const near = (a, b, eps) => Math.abs(a - b) < (eps === undefined ? 1e-9 : eps);
+  const M = SB.game.meta();
+  const snapMeta = JSON.parse(JSON.stringify(M));
+  const restore = () => {
+    for (const k of Object.keys(M)) delete M[k];
+    Object.assign(M, JSON.parse(JSON.stringify(snapMeta)));
+  };
+
+  try {
+    /* ---------------- ① 纪元 / 科技形状 ---------------- */
+    const E = SB.ERAS || [];
+    check('ERAS 第 11 项 = 「α」（用户 2026-11-16 拍板：ERA11 叫 α）',
+      E.length === 11 && E[10].id === 11 && E[10].name === 'α',
+      E.length + ' 项 / 末位=' + (E[10] ? E[10].id + ':' + E[10].name : '缺失'));
+
+    const bv = (SB.TECHS || []).filter(t => t.id === 'beyond_veil')[0];
+    const uf = (SB.TECHS || []).filter(t => t.id === 'unified_field')[0];
+    check('《掀起帘幕》存在且 era=11 / key:true / 前置=大统一方程',
+      !!bv && bv.era === 11 && bv.key === true && bv.reqs.join() === 'unified_field',
+      bv ? ('era=' + bv.era + ' key=' + bv.key + ' reqs=' + bv.reqs.join()) : '缺失');
+    check('成本 = 当前最高科技《大统一方程》× 10 = 447,000,000',
+      !!bv && !!uf && uf.cost === 44700000 && bv.cost === uf.cost * 10,
+      bv ? ('uf=' + (uf && uf.cost) + ' → bv=' + bv.cost) : '缺失');
+    check('尤里卡 = 本周期累计星屑 ≥ 1000（复用现成 gathered 类型，零新增 cond）',
+      !!bv && !!bv.cond && bv.cond.t === 'gathered' && bv.cond.r === 'stardust' && bv.cond.n === 1000,
+      bv ? JSON.stringify(bv.cond) : '缺失');
+    check('《大统一方程》自己的戴森 80% 尤里卡一字未动（2026-11-16 拍板 #9）',
+      !!uf && !!uf.cond && uf.cond.t === 'dysonPct' && uf.cond.n === 80,
+      uf ? JSON.stringify(uf.cond) : '缺失');
+    const condTxt = bv ? SB.tech.condText(bv.cond) : '';
+    check('尤里卡文案可渲染且说的是星屑（condText 走通，不需要新 cond 类型）',
+      typeof condTxt === 'string' && /星屑/.test(condTxt), '文案=' + condTxt);
+
+    /* ERA11 没有市政 ⇒ 市政树不能凭空长出一个空纪元。 */
+    const ve = SB.civic.visibleEra(SB.state.freshRun(false));
+    check('ERA11 无市政 ⇒ 市政树可见纪元上限夹在 10（不渲染空纪元）', ve <= 10, 'visibleEra=' + ve);
+
+    /* ---------------- ② 首次掀幕：账本引导（2026-11-17 死锁回归锁） ---------------- */
+    /* 造「真·首次掀幕」形状：veil === null（#4 口径 A 要求），但历史累计已够。
+     * ⚠️ 这就是用户抓到的死锁现场：veil 为 null 时周期账恒为 0 ⇒ 门禁永不成立。 */
+    M.veil = null;
+    M.tideEarnedTotal = 25000;
+    M.spent = 0;
+    M.tide = 25000;
+    M.stardustEarned = 600;
+    M.stardust = 600;
+    const sNo = SB.state.freshRun(false);       // 未建《神学》⇒ 本局无未结算收益
+    const per0 = SB.prestige.veilPeriod(M, sNo);
+    check('未掀幕档：周期账引导自存档累计（tide/stardust earned），不凭空造账',
+      per0.hasLedger === false && per0.baseTide === 25000 && per0.baseStar === 600,
+      'hasLedger=' + per0.hasLedger + ' base=' + per0.baseTide + '/' + per0.baseStar);
+    check('飞升点 = round(tide/10000 + star/1000, 2)（不取整、留两位小数）',
+      near(per0.points, 3.1), 'points=' + per0.points + '（期望 3.10）');
+    const pv0 = SB.prestige.veilPreview(sNo);
+    check('首次掀幕也能拿到预览（此前 veilPreview 返回 null ⇒ 整条路走不通）',
+      !!pv0 && pv0.hasLedger === false && pv0.nextPath === 'si', pv0 ? 'nextPath=' + pv0.nextPath : 'null');
+
+    /* ---------------- ③ 门槛：周期星屑 < 1000 ⇒ 拒绝且不改任何状态 ---------------- */
+    const sLow = SB.state.freshRun(false);
+    sLow.techs.beyond_veil = true;
+    sLow.civics.theology = true;
+    let lowErr = null;
+    try { SB.prestige.doVeil(sLow, () => {}); } catch (e) { lowErr = e; }
+    check('周期星屑 600/1000 ⇒ 掀幕被拒（抛错，不静默返回）', !!lowErr, lowErr ? lowErr.message : '没有抛错');
+    check('被拒时账本都没建（原子性：失败不留半个 veil / 不清档）',
+      M.veil === null && M.tideEarnedTotal === 25000 && M.stardustEarned === 600,
+      'veil=' + JSON.stringify(M.veil) + ' earned=' + M.tideEarnedTotal + '/' + M.stardustEarned);
+
+    /* ---------------- ④ 达标掀幕：原子事务的「清 / 保留」两列 ---------------- */
+    M.stardustEarned = 1500;      // 跨过 1000 门槛
+    M.stardust = 1500;
+    const s1 = SB.state.freshRun(false);
+    s1.techs.beyond_veil = true;
+    s1.civics.theology = true;    // 过资格门 ⇒ 本局未结算部分要计入
+    s1.peak = 12;
+    const pv1 = SB.prestige.veilPreview(s1);
+    check('掀幕前把「本局未结算收益」并入周期账（否则打穿一局换不来一点飞升点）',
+      pv1.pendingActive === true && pv1.cycleStar >= 1500,
+      'pending=' + pv1.pendingTide + '/' + pv1.pendingStar + ' cycleStar=' + pv1.cycleStar);
+
+    const gained = pv1.points;
+    const r1 = SB.prestige.doVeil(s1, () => {});
+    check('首飞：第 1 重帷幕 / 强制只开一条（si）/ 实发点数 === 预览点数',
+      r1.count === 1 && r1.opened.join() === 'si' && near(r1.points, gained) && r1.firstVeil === true,
+      'count=' + r1.count + ' opened=' + r1.opened.join() + ' points=' + r1.points + ' vs ' + gained);
+    check('清资产：轮回点 / 星屑余额归零，潮汐之树清空',
+      M.tide === 0 && M.stardust === 0 && Object.keys(M.perks || {}).length === 0,
+      'tide=' + M.tide + ' stardust=' + M.stardust);
+    check('保留历史：tideEarnedTotal / stardustEarned 一字不动（决策 #1 / §2 保留列）',
+      M.tideEarnedTotal === 25000 && M.stardustEarned === 1500,
+      'earned=' + M.tideEarnedTotal + '/' + M.stardustEarned);
+    check('定损方程不破：tideEarnedTotal − tide − spent ≡ 0（补发逻辑据此判断「丢了没」）',
+      near(M.tideEarnedTotal - M.tide - M.spent, 0),
+      'residual=' + (M.tideEarnedTotal - M.tide - M.spent) + ' spent=' + M.spent);
+    check('周期账归零（下个周期的 1000 要重新攒）',
+      M.veil.cycleTide === 0 && M.veil.cycleStar === 0,
+      M.veil.cycleTide + '/' + M.veil.cycleStar);
+    check('第 1 重帷幕后飞升点已入账、累计值同步',
+      near(M.veil.points, gained) && near(M.veil.lifetimePoints, gained),
+      'points=' + M.veil.points + ' lifetime=' + M.veil.lifetimePoints);
+    check('新局从 ERA1 重建（删档重来）', SB.game.run().era === 1, 'era=' + SB.game.run().era);
+
+    /* ---------------- ⑤ 口径 A：星屑种子切本周期 ---------------- */
+    check('口径 A：未掀幕档星屑种子 = 历史累计（存量档行为零变化）',
+      SB.state.starEarnedSeed({ veil: null, stardustEarned: 4321 }) === 4321,
+      String(SB.state.starEarnedSeed({ veil: null, stardustEarned: 4321 })));
+    check('口径 A：已掀幕档星屑种子 = 本帷幕周期（历史不再喂工坊/尤里卡）',
+      SB.state.starEarnedSeed({ veil: { cycleStar: 37 }, stardustEarned: 4321 }) === 37,
+      String(SB.state.starEarnedSeed({ veil: { cycleStar: 37 }, stardustEarned: 4321 })));
+    check('新局 got.stardust 也走新口径（=0），不会开局白送尤里卡',
+      SB.game.run().got.stardust === 0, 'got.stardust=' + SB.game.run().got.stardust);
+
+    /* ---------------- ⑥ 逐次解锁：1 → 2 → 3，之后不再追加 ---------------- */
+    const prime = () => {
+      const s = SB.game.run();
+      s.techs.beyond_veil = true;
+      s.civics.theology = false;     // 不带未结算收益，让周期账只由本行决定
+      M.veil.cycleStar = 1000;
+      M.veil.cycleTide = 0;
+    };
+    prime(); const r2 = SB.prestige.doVeil(SB.game.run(), () => {});
+    check('第 2 重帷幕开第二条（vo）', r2.opened.join() === 'si,vo', r2.opened.join());
+    prime(); const r3 = SB.prestige.doVeil(SB.game.run(), () => {});
+    check('第 3 重帷幕三条全开（si,vo,gn）', r3.opened.join() === 'si,vo,gn', r3.opened.join());
+    prime(); const r4 = SB.prestige.doVeil(SB.game.run(), () => {});
+    check('第 4 次不再追加（三张卡保留为永久入口，不重复解锁 / count 照涨）',
+      r4.opened.length === 3 && r4.count === 4, 'opened=' + r4.opened.join() + ' count=' + r4.count);
+
+    /* ---------------- ⑦ 已掀幕档：doBreak 增量累加周期账 ---------------- */
+    M.veil.cycleStar = 0;
+    M.veil.cycleTide = 0;
+    const sB = SB.game.run();
+    sB.techs.beyond_veil = true;
+    sB.civics.theology = true;
+    sB.breakSettled = false;
+    sB.peak = 12;
+    const beforeTide = M.veil.cycleTide, beforeStar = M.veil.cycleStar;
+    const rb = SB.prestige.doBreak(sB, () => {}, { silent: true });
+    check('已掀幕档：合格轮回把本局结算值累加进周期账（不另算一遍）',
+      !!rb && near(M.veil.cycleTide - beforeTide, rb.tidePoints) && near(M.veil.cycleStar - beforeStar, rb.stardust),
+      'Δ=' + (M.veil.cycleTide - beforeTide) + '/' + (M.veil.cycleStar - beforeStar) +
+      ' vs 结算=' + (rb && rb.tidePoints) + '/' + (rb && rb.stardust));
+    check('结算当场写回 s.got.stardust = 本周期累计（W2 与 freshRun 同源）',
+      near(sB.got.stardust, SB.state.starEarnedSeed(M)),
+      'got=' + sB.got.stardust + ' seed=' + SB.state.starEarnedSeed(M));
+
+    /* ---------------- ⑧ UI：轮回商店页的常驻重开入口 ---------------- */
+    /* 2026-11-17 用户静态核查 #4：帷幕主界面此前只在「刚掀完幕」自动弹出，关掉即失联。 */
+    M.shopUnlocked = true;
+    const html = SB.ui.render.paneMeta();
+    check('轮回商店页渲染出「进入帷幕」常驻入口（data-veil-open，走 document 级委托）',
+      typeof html === 'string' && html.indexOf('data-veil-open') >= 0 &&
+      html.indexOf('meta-veil') >= 0, 'len=' + (html || '').length);
+    check('入口里写明第几重帷幕 / 已开路径数 / 飞升点余额',
+      /第 \d+ 重帷幕/.test(html) && /已开启 \d+ \/ 3/.test(html) && /飞升点/.test(html), '');
+  } finally {
+    restore();
+    /* 掀幕把本局换成了 ERA1 新局；还原账本后再开一局，别让后续/收尾读到半截状态。 */
+    try { SB.state.saveMeta(M); SB.game.startRun(); } catch (e) { /* 收尾不阻断断言结果 */ }
+  }
+}

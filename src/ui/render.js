@@ -362,6 +362,9 @@
      *     ③ 饿死 / 冻死 → 破壳结算报告里按增量报（game.js 的结算 lines）；
      *     ④ 冰封期 → 天壳条上的「冰封期」徽标。
      *   留着它的坏处是它同时是**每帧重画的**（季节会变），一个纯读数却挂在顶栏。 */
+    /* 随行资源面板：复用本次 renderRes 已算好的 rate，只回填 textContent，不重建 DOM。
+     * ⚠️ 不在这里另调 rates() —— 生产层聚合函数每帧多跑一次是没必要的开销。 */
+    if (SB.ui.walkPanel && SB.ui.walkPanel.paint) SB.ui.walkPanel.paint(s, rate);
   }
 
   /* ══ 顶栏资源详情（2026-10-29 · 用户：「点最上方的材料，先显示介绍和当前产出是怎么算的」
@@ -1408,6 +1411,42 @@
    * 记上一次 HTML，指纹没变就跳过重写。⚠️ 已知局限：尤里卡进度条随资源每帧变，
    * 含进度条的节点会使整块 HTML 变化、指纹不命中（方案 A 治标，根治见方案 B 局部更新）。 */
   var lastTechHTML = null;
+  /* 其余 pane（folk / diplomacy / workshop / wonder / challenges / achievements /
+   * village / faith / company）此前**没有任何指纹**：每 2 秒壁钟 + 任意置脏都无条件
+   * `innerHTML = …`。而调用时长最长的恰是 village / folk 两个主屏 ——
+   * 2026-11-16 真实浏览器实测：8 秒内每个这样的 pane 各被重写 5 次。
+   * 这里按 key 记指纹，内容没变就不写（与 meta/civic/tech 同一副药）。 */
+  /* ⚠️ lastMetaHTML / lastCivicHTML / lastTechHTML 与下面的 lastPaneHTML 存的是
+   * **liveSig() 归一化后的签名**，不是原始 HTML 串（2026-11-16 起）。判据 = 签名变了没；
+   * 写进 DOM 的永远是**原始** HTML（里面有真数字），回填交给 renderPanes 末尾的
+   * paintLive / paintLiveCost。
+   * 早一版把归一化后的串直接写进 DOM，结果是签名干净了、但假 DOM（e2e 没有
+   * querySelectorAll）不会回填 ⇒ 断言读 pane 文本会读到一堆空 span。这一版已改回写原始串。
+   * （lastStarMapHTML 例外：星图是 iframe 组件、没有 data-live-* 标记，仍存原始串。） */
+  var lastPaneHTML = Object.create(null);
+  /* 活数值归一化（2026-11-16，方案 B 的落地）：科技/市政卡片里嵌着随 tick 变的数字
+   * （尤里卡「存量 硅 12345 / 5000」、科技点进度条、百分比）。它们一波动，
+   * 整块 HTML 字符串就变 ⇒ 指纹恒不命中 ⇒ 每 2 秒把 166 张卡全拆了重建。
+   * 现在这些数字在 markup 里挂了 data-live-* 标记：**比对指纹前先抹平它们**，
+   * 真正的数值交给 paintLive() 在原节点上原地改（textContent / style.width），不重建 DOM。
+   * ⚠️ 只抹「会持续增长的计数器」那几类（res/gathered/sunSails/dysonPct/pollution）；
+   *    rate 类刻意不抹 —— 它只在产能变化时才变，而那时本来就该重建一次。 */
+  function liveSig(html) {
+    if (!html || html.indexOf('data-live-') < 0) return html;
+    return html
+      .replace(/(data-live-cond="[^"]*"[^>]*>)[^<]*/g, '$1')
+      .replace(/(data-live-pct="[^"]*"[^>]*>)[^<]*/g, '$1')
+      .replace(/(data-live-num="[^"]*"[^>]*>)[^<]*/g, '$1')
+      /* 成本「已有 / 需要」与缺料差额（2026-11-16）：巢穴建筑行 / 奇观按钮。
+       * 需求量本身留在签名里（需求变了就该整块重绘），会变的只有「已有」那半段。 */
+      .replace(/(data-live-cost="[^"]*"[^>]*>)[^<]*/g, '$1')
+      .replace(/(data-live-short="[^"]*"[^>]*>)[^<]*/g, '$1')
+      /* 进度条宽度：**只抹挂了 data-live-bar 的那几条**（科技点条 / 尤里卡条 / 鼓舞条）。
+       * ⚠️ 不能写成「全局抹掉所有 style="width:NN%"」——巢穴页的发射进度条、星图页的
+       *    各种 bar 都是**靠整块重绘**才动的，抹平它们的宽度等于让进度条冻在原地
+       *    （2026-11-16 自查：上一版就是全局抹，这里收窄到标记上）。 */
+      .replace(/(<i[^>]*data-live-bar[^>]*style="width:)[\d.]+%/g, '$1%');
+  }
   /* 市政树（civicScroll）与科技长卷同一个病、同一副药（2026-09-28 用户报：
    * 「市政树界面和之前科技树界面一样，固定时间会被拉到最左边」）。
    * 机制一模一样：PANE_REFRESH 每 2 秒壁钟重画一次 renderPanes，innerHTML 一重写，
@@ -1464,6 +1503,13 @@
   function scheduleTechJumpTo(px) { techJumpTo = px; }
 
   function renderPanes() {
+    /* 触点闸门（2026-11-16）：指针按下到抬起之间，**任何路径**都不重建 pane。
+     * 旧版只在 game.js 的 PANE_REFRESH 分支读这个标志，而 dirty 有 30+ 处置位、走
+     * `if (dirty) renderAll()` 那条路完全绕过闸门。重写一旦落在 pointerdown 与合成
+     * click 之间，被按的节点已被替换 ⇒ 浏览器不合成 click ⇒ 玩家说的「点了没反应」。
+     * 收在这里 = 一处覆盖全部调用方（主循环 / 动作回调 / 直接调 renderAll 的地方）。
+     * 代价：这一趟整体跳过，最多晚一个 PANE_REFRESH 补上，抬起后立刻恢复。 */
+    if (SB.ui && SB.ui.isPanePointerInteracting && SB.ui.isPanePointerInteracting()) return;
     /* 科技 tab 的灰态随开门那一刻翻转，所以每次画面板都同步一次（5 个节点，很便宜）。
      * 放在这里而不是只在 initTabs 做一次：开门是由建造动作触发的，那时 initTabs 早跑完了。 */
     syncTabLocks();
@@ -1589,24 +1635,38 @@
          * 重建 #pane-folk，就会让浏览器丢掉 click target。动作 click 到达后会立刻恢复正常渲染。 */
         continue;
       } else if (k === 'faith' || k === 'company' || k === 'village') {
+        /* 三页的正文写在 -body 容器里（标题/命名框留在卡片上），同样按签名跳过重写。
+         * village 的成本 / 缺料差额挂了 data-live-*，签名把它们抹平 ⇒ 只剩数字在动时不重建。 */
         var body = el('pane-' + k + '-body');
-        if (body) body.innerHTML = PANES[k]();
+        if (body) {
+          var bodyHtml = PANES[k]();
+          var bodySig = liveSig(bodyHtml);
+          if (bodySig !== lastPaneHTML[k]) { body.innerHTML = bodyHtml; lastPaneHTML[k] = bodySig; }
+        }
       } else if (k === 'meta') {
         /* 轮回/星屑商店：内容指纹没变就跳过整块重写（见 lastMetaHTML 声明处注释），根治反复闪。
          * 买节点导致 HTML 变化时仍会重写一次，现有 restoreTalentScroll 会恢复天赋树横向位置。 */
         var metaHtml = cardHeadHTML(k) + PANES[k]();
-        if (metaHtml !== lastMetaHTML) { node.innerHTML = metaHtml; lastMetaHTML = metaHtml; }
+        var metaSig = liveSig(metaHtml);
+        if (metaSig !== lastMetaHTML) { node.innerHTML = metaHtml; lastMetaHTML = metaSig; }
       } else if (k === 'civic') {
         /* 市政卷轴闪动修复（见 lastCivicHTML 声明处注释）：内容指纹没变就跳过整块重写。 */
         var civicHtml = cardHeadHTML(k) + PANES[k]();
-        if (civicHtml !== lastCivicHTML) { node.innerHTML = civicHtml; lastCivicHTML = civicHtml; }
+        var civicSig = liveSig(civicHtml);
+        if (civicSig !== lastCivicHTML) { node.innerHTML = civicHtml; lastCivicHTML = civicSig; }
       } else if (k === 'tech') {
-        /* 科技树闪动修复（方案 A，见 lastTechHTML 声明处注释）：内容指纹没变就跳过整块重写。
-         * ⚠️ 尤里卡进度条每帧变会导致指纹不命中（治标），根治需局部更新（方案 B）。 */
+        /* 科技树闪动修复（方案 A → 方案 B，见 lastTechHTML 声明处注释）：内容指纹没变就跳过整块重写。
+         * 活数值已被 data-live-* 标记并由 liveSig 抹平 ⇒ 进度条不再让指纹失效，
+         * 数值由循环结束后的 paintLive() 原地更新。 */
         var techHtml = cardHeadHTML(k) + PANES[k]();
-        if (techHtml !== lastTechHTML) { node.innerHTML = techHtml; lastTechHTML = techHtml; }
+        var techSig = liveSig(techHtml);
+        if (techSig !== lastTechHTML) { node.innerHTML = techHtml; lastTechHTML = techSig; }
       } else {
-        node.innerHTML = cardHeadHTML(k) + PANES[k]();
+        /* folk / diplomacy / workshop / wonder / challenges / achievements：
+         * 原先无条件重写（最贵的是 folk，玩家停留最久的主屏之一）。同样按签名跳过。 */
+        var paneHtml = cardHeadHTML(k) + PANES[k]();
+        var paneSig = liveSig(paneHtml);
+        if (paneSig !== lastPaneHTML[k]) { node.innerHTML = paneHtml; lastPaneHTML[k] = paneSig; }
       }
     }
     /* 重写结束：把被中间态钳掉的滚动位置写回（见循环前那段注释）。 */
@@ -1615,6 +1675,24 @@
       if (typeof _now === 'number' && isFinite(_now) && Math.abs(_now - _sy) > 1) _se.scrollTop = _sy;
     }
     SB.ui.renderCommon.paintHappy(res());
+    /* 活数值原地回填（2026-11-16）：指纹把 data-live-* 抹平了，所以「只有数值变了」时
+     * 不会重建 DOM —— 这里把真正的数字写回原节点（textContent / style.width）。
+     * 每次 renderPanes 必调：首帧也要填，否则新插入的 meter 会停在标记里的样子。
+     * 假 DOM（e2e）没有 querySelectorAll，paintLive 内部自行判存在，这里再兜一层 try。 */
+    try {
+      if (SB.ui.renderParts && SB.ui.renderParts.research && SB.ui.renderParts.research.paintLive) {
+        SB.ui.renderParts.research.paintLive(res());
+      }
+    } catch (e) {}
+    /* 成本 / 缺料差额的原地回填（2026-11-16）：巢穴建筑行与奇观按钮上的「已有 / 需要」
+     * 同样被 liveSig 抹平了，这里把真值写回（详见 renderCommon.paintLiveCost）。
+     * 与上面 paintLive 分开是因为标记类型不同、归属模块也不同 —— 但都必须在**每一趟**
+     * renderPanes 末尾跑：内容没重建时（签名命中）这是唯一一次数字刷新机会。 */
+    try {
+      if (SB.ui.renderCommon && SB.ui.renderCommon.paintLiveCost) {
+        SB.ui.renderCommon.paintLiveCost(res());
+      }
+    } catch (e) {}
     techShown = shown;
     box = el('techScroll');
     /* ⚠️ 写回要连 **0** 一起写（炸开的只有「跳回纪元一」这一种情况：目标就是 0，
@@ -1706,6 +1784,29 @@
       cyc.title = tr(qual
         ? 'ui.render.render_break_btn.end_this_run_to_earn_prestige_points'
         : 'ui.render.render_break_btn.theology_isn_t_researched_this_will_restart');
+    }
+
+    /* 帷幕之后 · 掀幕按钮（ERA11 spec §6 决策 #10）：学完《掀起帘幕》才出现，
+     * 放在轮回按钮下方静态 .foot 行。预估/门槛/拆分数字全部走 prestige.veilPeriod()，
+     * 与确认面板、最终结算**同源**（2026-11-17 修：此前这里直读 v.cycleTide，
+     * 未掀幕档 v 是 null ⇒ 提示恒为「0 轮回点 + 0 星屑」，与门禁各算一套）。 */
+    var vf = el('veilFoot'), vb = el('btnVeil'), vh = el('veilHint');
+    var canVeil = !!(s.techs && s.techs.beyond_veil);
+    if (vf) vf.hidden = !canVeil;
+    if (vb) vb.disabled = !canVeil;
+    if (vh && canVeil && SB.prestige && SB.prestige.veilPeriod) {
+      var per = SB.prestige.veilPeriod(null, s);
+      var txt;
+      if (per.star < 1000) {
+        txt = '星屑 ' + Math.round(per.star) + ' / 1000，未满足《掀起帘幕》尤里卡'
+          + ' · 当前预估 ' + per.points.toFixed(2) + ' 飞升点';
+      } else {
+        txt = '当前掀幕预估：' + per.points.toFixed(2) + ' 飞升点（本周期 '
+          + Math.round(per.tide) + ' 轮回点 + ' + Math.round(per.star) + ' 星屑）';
+      }
+      /* 未结算的本局收益也计入 —— 明说一句，免得玩家以为「踢掉本局数字会变」是 bug。 */
+      if (per.pending && per.pending.active) txt += ' · 含本局未结算';
+      vh.textContent = txt;
     }
 
     var breakPreview = opened && qual ? SB.prestige.breakReport(s) : null;
@@ -2692,7 +2793,10 @@
    * 【纪律】凡是往 #modal 里写内容的函数，写之前先 resetModalChrome()，再 add 自己的变体类。
    *   不许再靠「记得删掉哪几个类」——漏删 offline-summary-modal 正是这样发生的。 */
   var MODAL_VARIANT_CLASSES = ['offline-summary-modal', 'tree-modal', 'tree-tech', 'tree-civic',
-    'break-modal', 'void-ending-modal', 'terra-ending-modal', 'void-civic-modal', 'story-modal', 'gov-picker-modal'];
+    'break-modal', 'void-ending-modal', 'terra-ending-modal', 'void-civic-modal', 'story-modal', 'gov-picker-modal',
+    /* 2026-11-17：补算闸门专用。见 showOfflineModal 里的 is-catchup 注 —— 它是唯一
+     * 会在**每 250ms 改一次 DOM**的面板，必须能单独关掉 backdrop-filter。 */
+    'is-catchup'];
   var MODAL_BOX_VARIANT_CLASSES = ['tree-detail-box', 'story-box', 'steam-rank-box'];
   function resetModalChrome() {
     var modal = el('modal'), box = el('modalBox'), i;
@@ -3082,6 +3186,11 @@
         : '<div class="foot" style="justify-content:flex-end;margin-top:14px"><button class="big" id="mOk">' + o.ok + '</button></div>';
     }
     box.innerHTML = html;
+    /* 2026-11-17：补算闸门是全作**唯一一个每 250ms 改一次 DOM** 的面板（进度条 width）。
+     * .modal 带 backdrop-filter:blur(5px)，手机上每次重绘都要把整屏模糊重算一遍；
+     * 而闸门背后就是一片被盖死的游戏界面，模糊没有任何信息价值（底色已经 0.84 不透明）。
+     * ⇒ 补算期专属类关掉它，省掉的是每一次进度条跳动的全屏合成。 */
+    if (o.showProgress) { lastOffPct = -1; modal.classList.add('is-catchup'); }
     modal.classList.remove('hidden'); bodyModalClass(true);
     var okBtn = el('mOk');
     if (okBtn) okBtn.onclick = function () {
@@ -3093,10 +3202,19 @@
     };
     return true;
   }
+  /* 2026-11-17：进度条只在**整数百分比变化**时写 DOM。
+   * 原先 drainCatchUp 每轮（250ms）调一次，8h 补算就是几千次 style.width 写入 +
+   * 几千次文本重排；而玩家肉眼只认整数百分比 —— 同一百分比重复写是纯浪费。
+   * ⚠️ 必须由 showOfflineModal 重置成 -1，否则第二次补算的 0% 会被当成「同值」跳过。 */
+  var lastOffPct = -1;
   function setOfflineProgress(p) {
+    var v = Math.max(0, Math.min(100, p * 100)).toFixed(1);
+    var whole = Math.round(Number(v));
+    if (whole === lastOffPct) return;
+    lastOffPct = whole;
     var pr = el('offPr'), pct = el('offPct');
-    if (pr) pr.style.width = Math.max(0, Math.min(100, p * 100)).toFixed(1) + '%';
-    if (pct) pct.textContent = tr('ui.offline.progress.completed', { progressPercent: (p * 100).toFixed(0) }, '已完成 {progressPercent}%');
+    if (pr) pr.style.width = v + '%';
+    if (pct) pct.textContent = tr('ui.offline.progress.completed', { progressPercent: String(whole) }, '已完成 {progressPercent}%');
   }
 
   var INTRO = SB.ui.renderContent.INTRO;

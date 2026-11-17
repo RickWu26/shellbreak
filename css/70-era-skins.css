@@ -645,3 +645,799 @@ html[data-ui-theme="day"][data-era="5"] #pane-village .bzone .row .btn.buy:disab
   background-image: linear-gradient(180deg, #e4e4dc, #d6d7d0);
   box-shadow: inset 0 1px rgba(255, 255, 255, .72);
 }
+
+html[data-era] .tabs {
+  background-color: var(--pilot-surface-card);
+  background-image: none;
+  border-color: var(--pilot-edge);
+  box-shadow: inset 0 1px var(--era-edge), 0 8px 20px var(--pilot-shadow);
+}
+html[data-era] .tab { color: var(--pilot-copy); }
+html[data-era] .tab.on {
+  color: var(--era-accent);
+  background: color-mix(in srgb, var(--era-accent) 16%, var(--pilot-surface-item));
+  border-color: color-mix(in srgb, var(--era-accent) 62%, var(--pilot-edge));
+  box-shadow: inset 0 -3px var(--era-accent);
+}
+html[data-ui-theme="day"] .tabs .tab.locked { opacity: .78; }
+
+/* Navigation icon pilot: small Era-material badges add a visual anchor without changing labels or tab behavior. */
+:root {
+  --nav-icon-box: 20px;
+  --nav-icon-glyph: 14px;
+  --nav-icon-gap: 7px;
+}
+html[data-era] .tabs .tab { gap: var(--nav-icon-gap); }
+html[data-era] .tabs .tab .tab-icon {
+  display: inline-grid;
+  flex: 0 0 var(--nav-icon-box);
+  width: var(--nav-icon-box);
+  height: var(--nav-icon-box);
+  place-items: center;
+  box-sizing: border-box;
+  border: 1px solid color-mix(in srgb, var(--era-accent) 48%, var(--pilot-edge));
+  border-radius: var(--era-button-radius);
+  background-image:
+    linear-gradient(145deg,
+      color-mix(in srgb, var(--era-accent) 18%, var(--pilot-surface-item)),
+      var(--pilot-surface-card)),
+    var(--era-texture);
+  background-size: auto, 160px 120px;
+  box-shadow: inset 0 1px var(--era-edge), 0 1px 3px var(--pilot-shadow);
+}
+html[data-era] .tabs .tab .tab-icon .tab-glyph {
+  display: block;
+  width: var(--nav-icon-glyph);
+  height: var(--nav-icon-glyph);
+  color: var(--era-accent);
+  overflow: visible;
+}
+html[data-era] .tabs .tab.on .tab-icon {
+  border-color: var(--era-accent);
+  background-image:
+    linear-gradient(145deg,
+      color-mix(in srgb, var(--era-accent) 30%, var(--pilot-surface-item)),
+      var(--pilot-surface-card)),
+    var(--era-texture);
+  box-shadow: inset 0 1px var(--era-edge), 0 0 9px var(--era-glow);
+}
+
+/* P0 pilot: resources, environment and village surfaces.
+ * Shared geometry and event hooks stay intact; theme chooses luminance, Era chooses accent/material. */
+:root {
+  --pilot-surface-card: #0d1d2d;
+  --pilot-surface-item: #172d3e;
+  --pilot-surface-row: #12283a;
+  --pilot-copy: #c1d0db;
+  --pilot-edge: rgba(151, 192, 214, .46);
+  --pilot-shadow: rgba(0, 0, 0, .36);
+}
+html[data-ui-theme="day"] {
+  --pilot-surface-card: #dce9e5;
+  --pilot-surface-item: #f6faf8;
+  --pilot-surface-row: #e2ece8;
+  --pilot-copy: #26454d;
+  --pilot-edge: rgba(41, 77, 84, .42);
+  --pilot-shadow: rgba(31, 61, 66, .18);
+}
+
+html[data-era] .overview-grid { align-items: stretch; }
+html[data-era] .overview-grid > .card,
+html[data-era] #pane-village {
+  background-color: var(--pilot-surface-card);
+  background-image:
+    linear-gradient(145deg,
+      color-mix(in srgb, var(--pilot-surface-card) 96%, transparent),
+      var(--pilot-surface-card)),
+    var(--era-texture);
+  background-size: auto, 320px 240px;
+  border-color: color-mix(in srgb, var(--era-accent) 34%, var(--pilot-edge));
+  box-shadow: inset 0 1px var(--era-edge), 0 12px 28px var(--pilot-shadow);
+}
+html[data-era] .overview-grid > .card {
+  padding: 18px;
+  border-top: 3px solid var(--era-accent);
+}
+html[data-era] #pane-village { border-left: 3px solid var(--era-accent); }
+html[data-era] #card-res { display: flex; flex-direction: column; }
+html[data-era] #card-res > #res { flex: 1 1 auto; align-content: center; }
+html[data-era] .overview-grid .cardhd,
+html[data-era] #pane-village > .cardhd {
+  margin-bottom: 16px;
+  font-size: 15px;
+  letter-spacing: .5px;
+}
+
+html[data-era] .overview-grid .res,
+html[data-era] #pane-village .bzone .row {
+  background-color: var(--pilot-surface-item);
+  background-image:
+    linear-gradient(120deg,
+      color-mix(in srgb, var(--pilot-surface-item) 90%, var(--era-accent) 10%),
+      var(--pilot-surface-item)),
+    var(--era-texture);
+  background-size: auto, 320px 240px;
+  border-color: color-mix(in srgb, var(--era-accent) 30%, var(--pilot-edge));
+}
+html[data-era] #pane-village .bzone .row { background-color: var(--pilot-surface-row); }
+html[data-era] .overview-grid .res {
+  min-height: 104px;
+  padding: 14px 16px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--era-accent) 18%, transparent);
+}
+html[data-era] .overview-grid .res b {
+  color: var(--era-accent);
+  font-size: 28px;
+  line-height: 1.05;
+}
+html[data-era] .overview-grid .res span,
+html[data-era] .overview-grid .res i.cap,
+html[data-era] #card-env .note,
+html[data-era] #card-env .envsplit,
+html[data-era] #card-env .shellbar {
+  color: var(--pilot-copy);
+}
+html[data-era] .overview-grid .res span { font-size: 13px; font-weight: 650; }
+html[data-era] .overview-grid .res i.cap { font-size: 12px; }
+html[data-era] #card-env .shellbar { font-size: 13px; font-weight: 650; }
+html[data-era] #card-env #shellTxt { color: var(--era-accent); font-size: 15px; font-weight: 800; }
+html[data-era] #card-env .shellwrap { height: 14px; border: 1px solid var(--pilot-edge); }
+html[data-era] #card-env .note,
+html[data-era] #card-env .envsplit { font-size: 13px; line-height: 1.6; }
+html[data-era] #pane-village .gather-row .ds {
+  color: var(--pilot-copy);
+  font-size: 13px;
+  line-height: 1.6;
+}
+html[data-era] #pane-village .gather-row .ds b { color: var(--txt); }
+html[data-era] #pane-village .bzone .bztitle { font-size: 13px; letter-spacing: 1px; }
+html[data-era] #pane-village .bzone .row { min-height: 82px; padding: 14px; box-shadow: inset 3px 0 var(--era-accent); }
+html[data-era] #pane-village .bzone .row .nm { grid-template-columns: minmax(170px, 205px) minmax(0, 1fr); column-gap: 10px; }
+html[data-era] #pane-village .bzone .row .bld-label { width: auto; }
+html[data-era] #pane-village .bzone .row .btn.buy { height: 44px; font-size: 12px; font-weight: 700; }
+html[data-ui-theme="night"] #pane-village .bzone .row .btn.buy:disabled {
+  color: #c1d0db;
+  background: #263c4d;
+  border-color: #587184;
+}
+html[data-era] #pane-village .gather-row .gather-btns .btn { min-height: 46px; font-size: 13px; font-weight: 700; }
+/* Desktop P1: material archive + climate station.
+ * Let the resource art and live world state carry the surface; remove the repeated dashboard tiles. */
+#card-res { container: resource-panel / inline-size; min-width: 0; }
+#card-env { container: environment-card / inline-size; min-width: 0; }
+
+html[data-era] #card-res > #res,
+html[data-era] #card-res #res-craft {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-content: start;
+  gap: 4px 8px;
+}
+.grid#res,
+.grid#res-craft {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px 8px;
+}
+html[data-era] #card-res > #res {
+  flex: 0 0 auto;
+  align-content: start;
+}
+html[data-era] #card-res .res {
+  position: relative;
+  min-width: 0;
+  min-height: 76px;
+  padding: 9px 12px 9px 11px;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 0 11px;
+  overflow: hidden;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--pilot-edge) 48%, transparent);
+  border-radius: 0;
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--era-accent) 7%, var(--pilot-surface-item)),
+    color-mix(in srgb, var(--pilot-surface-item) 72%, transparent) 76%, transparent);
+  box-shadow: inset 2px 0 color-mix(in srgb, var(--era-accent) 28%, transparent);
+  transition: background .18s, transform .18s, box-shadow .18s;
+}
+html[data-era] #card-res .res:hover {
+  transform: translateX(2px);
+  border-bottom-color: color-mix(in srgb, var(--era-accent) 50%, var(--pilot-edge));
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--era-accent) 15%, var(--pilot-surface-item)),
+    color-mix(in srgb, var(--pilot-surface-item) 82%, transparent) 76%, transparent);
+  box-shadow: inset 3px 0 var(--era-accent);
+}
+html[data-era] #card-res .res.neg {
+  box-shadow: inset 2px 0 var(--red);
+}
+html[data-era] #card-res .res.neg:hover { box-shadow: inset 3px 0 var(--red); }
+html[data-era] #card-res .res.neg b,
+html[data-era] #card-res .res i.cap.full {
+  color: var(--red);
+  font-weight: 750;
+}
+html[data-era] #card-res .res > .res-icon {
+  width: 40px;
+  height: 40px;
+  border: 1px solid color-mix(in srgb, var(--era-accent) 24%, var(--pilot-edge));
+  border-radius: 7px 12px 7px 12px;
+  filter: drop-shadow(0 2px 3px var(--pilot-shadow));
+}
+html[data-era] #card-res .res b {
+  margin: 0 0 3px;
+  color: var(--txt);
+  font-size: 25px;
+  line-height: 1.05;
+  letter-spacing: -.035em;
+}
+html[data-era] #card-res .res-details {
+  gap: 3px 8px;
+  min-height: 18px;
+  line-height: 1.3;
+}
+html[data-era] #card-res .res-label .res-name { color: var(--pilot-copy); }
+html[data-era] #card-res .res i.cap { color: var(--dim); font-size: 11px; }
+html[data-era] #card-res .res i.rate { font-size: 11px; font-weight: 650; }
+
+/* Keep the resource archive at three columns at every window size.
+ * Compact the resource rows against the actual panel width so a narrow window
+ * does not turn the archive into a long single-column list. */
+@container resource-panel (max-width: 760px) {
+  #card-res > #res,
+  #card-res #res-craft,
+  html[data-era] #card-res > #res,
+  html[data-era] #card-res #res-craft { gap: 4px 6px; }
+  #card-res .res,
+  html[data-era] #card-res .res {
+    min-height: 66px;
+    padding: 7px 6px;
+    grid-template-columns: 28px minmax(0, 1fr);
+    gap: 0 6px;
+  }
+  #card-res .res > .res-icon,
+  html[data-era] #card-res .res > .res-icon { width: 26px; height: 26px; }
+  #card-res .res b,
+  html[data-era] #card-res .res b {
+    font-size: clamp(12px, 2.8cqi, 19px);
+    overflow-wrap: anywhere;
+  }
+  #card-res .res-details,
+  html[data-era] #card-res .res-details { gap: 2px 4px; font-size: clamp(8px, 1.5cqi, 10px); }
+  #card-res .res i.cap,
+  #card-res .res i.rate,
+  html[data-era] #card-res .res i.cap,
+  html[data-era] #card-res .res i.rate { font-size: clamp(8px, 1.45cqi, 10px); }
+}
+
+@container resource-panel (max-width: 420px) {
+  #card-res > #res,
+  #card-res #res-craft,
+  html[data-era] #card-res > #res,
+  html[data-era] #card-res #res-craft { gap: 4px; }
+  #card-res .res,
+  html[data-era] #card-res .res {
+    min-height: 64px;
+    padding: 5px 4px;
+    grid-template-columns: 20px minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    gap: 1px 4px;
+  }
+  #card-res .res > .res-icon,
+  html[data-era] #card-res .res > .res-icon {
+    grid-column: 1;
+    grid-row: 2;
+    width: 20px;
+    height: 20px;
+  }
+  #card-res .res-content,
+  html[data-era] #card-res .res-content { display: contents; }
+  #card-res .res-content > b,
+  html[data-era] #card-res .res-content > b {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    margin: 0;
+    font-size: clamp(10px, 2.6cqi, 12px);
+    line-height: 1.1;
+  }
+  #card-res .res-details,
+  html[data-era] #card-res .res-details {
+    grid-column: 2;
+    grid-row: 2;
+    min-height: 0;
+    gap: 1px 3px;
+    font-size: clamp(7px, 1.7cqi, 8px);
+    line-height: 1.2;
+  }
+  #card-res .res i.cap,
+  #card-res .res i.rate,
+  html[data-era] #card-res .res i.cap,
+  html[data-era] #card-res .res i.rate { font-size: clamp(7px, 1.6cqi, 8px); }
+}
+html[data-era] #card-res #res-craft-wrap {
+  margin-top: 13px;
+  padding-top: 11px;
+  border-top: 1px solid color-mix(in srgb, var(--era-accent) 32%, var(--pilot-edge));
+}
+html[data-era] #card-res .restitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 7px 2px;
+  color: var(--era-accent);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: .08em;
+}
+html[data-era] #card-res .restitle::before {
+  content: "";
+  width: 16px;
+  height: 2px;
+  background: var(--era-accent);
+  opacity: .72;
+}
+
+/* Environment tiers: progress, machines, climate controls, then the separate hydro flow panel. */
+html[data-era] #card-env {
+  display: flex;
+  flex-flow: column nowrap;
+  align-items: stretch;
+  align-content: flex-start;
+  gap: 0;
+}
+html[data-era] #card-env > .env-tier {
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  width: 100%;
+  min-width: 0;
+}
+html[data-era] #card-env .env-tier--progress {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 0;
+  padding-bottom: 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--era-accent) 26%, var(--pilot-edge));
+}
+html[data-era] #card-env .env-tier--machines,
+html[data-era] #card-env .env-tier--climate {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 11px;
+  padding: 13px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--pilot-edge) 44%, transparent);
+}
+html[data-era] #card-env .env-tier--machines:has(> #envDrill[style*="none"]):has(> #envGeek[style*="none"]),
+html[data-era] #card-env .env-tier--core:has(> #envCore[style*="none"]) { display: none; }
+html[data-era] #card-env .env-tier--core {
+  padding: 10px 0 13px;
+  border-bottom: 1px solid color-mix(in srgb, var(--pilot-edge) 44%, transparent);
+}
+html[data-era] #card-env .shellbar {
+  align-items: baseline;
+  margin: 2px 0 6px;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+html[data-era] #card-env #shellTxt { font-variant-numeric: tabular-nums; }
+html[data-era] #card-env .shellwrap {
+  position: relative;
+  overflow: hidden;
+  box-shadow: inset 0 2px 5px rgba(0,0,0,.24), 0 1px var(--era-edge);
+}
+html[data-era] #card-env .note {
+  max-width: 68ch;
+  margin: 6px 0 3px;
+  padding-left: 10px;
+  border-left: 1px solid color-mix(in srgb, var(--era-accent) 42%, transparent);
+}
+html[data-era] #card-env .row.envsplit {
+  box-sizing: border-box;
+  min-width: 0;
+  flex: 1 1 100%;
+  margin: 0;
+  padding: 9px 10px 9px 12px;
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--pilot-edge) 56%, transparent);
+  border-left: 2px solid color-mix(in srgb, var(--era-accent) 38%, transparent);
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--era-accent) 5%, var(--pilot-surface-card)),
+    transparent 82%);
+}
+html[data-era] #card-env .row.envsplit .nm { color: var(--era-accent); }
+html[data-era] #card-env .row.envsplit .ds {
+  max-width: 72ch;
+  font-size: 13px;
+  line-height: 1.5;
+}
+html[data-era] #card-env #envVolcano {
+  display: block;
+  min-width: 0;
+  margin: 0;
+  padding: 11px 13px 10px;
+  border: 1px solid color-mix(in srgb, var(--era-accent) 34%, var(--pilot-edge));
+  border-left: 3px solid var(--era-accent);
+  border-radius: 2px 16px 2px 12px;
+  background:
+    radial-gradient(ellipse at 0 55%, color-mix(in srgb, var(--era-accent) 16%, transparent), transparent 58%),
+    linear-gradient(118deg, var(--pilot-surface-item), color-mix(in srgb, var(--pilot-surface-card) 88%, var(--era-accent)) 76%);
+  box-shadow: inset 0 1px var(--era-edge);
+}
+html[data-era] #card-env #envVolcano .nm {
+  margin-bottom: 3px;
+  font-size: 14px;
+  letter-spacing: .02em;
+}
+
+@container environment-card (min-width: 760px) {
+  html[data-era] #card-env .env-tier--machines,
+  html[data-era] #card-env .env-tier--climate {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  html[data-era] #card-env .row.envsplit:not(#envVolcano) {
+    align-self: stretch;
+    padding: 10px 11px;
+    border-top-color: color-mix(in srgb, var(--pilot-edge) 42%, transparent);
+    background: linear-gradient(145deg,
+      color-mix(in srgb, var(--pilot-surface-item) 62%, transparent),
+      color-mix(in srgb, var(--pilot-surface-card) 82%, transparent));
+  }
+  html[data-era] #card-env .env-tier--machines:has(> #envGeek[style*="none"]) > #envDrill,
+  html[data-era] #card-env .env-tier--machines:has(> #envDrill[style*="none"]) > #envGeek {
+    grid-column: 1 / -1;
+  }
+  html[data-era] #card-env .env-tier--climate > #envPollution { grid-column: 1 / -1; }
+  html[data-era] #card-env .env-tier--climate:has(> #envWarm[style*="none"]) > #envVolcano { grid-column: 1 / -1; }
+}
+@container environment-card (min-width: 500px) {
+  /* Share one desktop control silhouette; keep the warmstone working cue inside the button. */
+  html[data-era] #card-env .row.envsplit > button,
+  html[data-era] #card-env .row.envsplit .env-drill-ops > button {
+    box-sizing: border-box;
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 104px;
+    min-width: 104px;
+    height: 44px;
+    min-height: 44px;
+    padding: 0 9px;
+    line-height: 1.25;
+    white-space: nowrap;
+  }
+  html[data-era] #card-env #envWarm > .btn.tog.burning {
+    border-color: color-mix(in srgb, var(--green) 70%, var(--amber));
+    box-shadow: inset 3px 0 0 var(--amber);
+  }
+}
+
+/* Hydro is shown as one routed current in its own final panel. */
+html[data-era] #card-env > #envHydro {
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  width: 100%;
+  min-width: 0;
+  container: hydro-flow / inline-size;
+  margin-top: 17px;
+  padding-top: 15px;
+  border-top: 1px solid color-mix(in srgb, var(--era-accent) 34%, var(--pilot-edge));
+}
+html[data-era] #card-env .hydro-panel {
+  padding: 13px 2px 3px;
+  border: 0;
+  border-radius: 2px 14px 2px 2px;
+  background: radial-gradient(ellipse at 0 0,
+    color-mix(in srgb, var(--era-accent) 11%, transparent), transparent 68%);
+  box-shadow: none;
+}
+html[data-era] #card-env .hydro-head { gap: 11px; }
+html[data-era] #card-env .hydro-icon {
+  width: 38px;
+  height: 38px;
+  border-color: color-mix(in srgb, var(--era-accent) 45%, var(--pilot-edge));
+  border-radius: 8px 14px 8px 14px;
+  background: color-mix(in srgb, var(--era-accent) 12%, var(--pilot-surface-item));
+}
+html[data-era] #card-env .hydro-title b { color: var(--era-accent); font-size: 14px; }
+html[data-era] #card-env .hydro-title span { color: var(--pilot-copy); font-size: 11px; }
+html[data-era] #card-env .hydro-metrics {
+  gap: 0;
+  margin-top: 13px;
+  border-top: 1px solid color-mix(in srgb, var(--pilot-edge) 52%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--pilot-edge) 52%, transparent);
+}
+html[data-era] #card-env .hydro-metric {
+  justify-content: center;
+  min-height: 60px;
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+html[data-era] #card-env .hydro-metric + .hydro-metric {
+  border-left: 1px solid color-mix(in srgb, var(--pilot-edge) 52%, transparent);
+}
+html[data-era] #card-env .hydro-metric>span { font-size: 10px; letter-spacing: .04em; }
+html[data-era] #card-env .hydro-metric>b { font-size: 20px; }
+html[data-era] #card-env .hydro-metric-balance {
+  background: linear-gradient(110deg,
+    color-mix(in srgb, var(--era-accent) 10%, transparent), transparent 86%);
+}
+html[data-era] #card-env .hydro-track { height: 8px; margin-top: 9px; }
+html[data-era] #card-env .hydro-routing {
+  gap: 5px;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 0;
+}
+html[data-era] #card-env .hydro-route {
+  grid-template-columns: 44px minmax(0, 1fr);
+  padding-top: 7px;
+  border-top: 1px solid color-mix(in srgb, var(--pilot-edge) 38%, transparent);
+  font-size: 11px;
+}
+html[data-era] #card-env .hydro-route>b { color: var(--era-accent); }
+html[data-era] #card-env .hydro-route>span { color: var(--pilot-copy); }
+html[data-era] #card-env .hydro-foot { margin-top: 8px; text-align: left; font-size: 10px; }
+html[data-ui-theme="day"][data-era] #card-env .hydro-panel {
+  background: radial-gradient(ellipse at 0 0,
+    color-mix(in srgb, var(--era-accent) 9%, transparent), transparent 68%);
+}
+html[data-ui-theme="day"][data-era] #card-env .hydro-metric>b { color: var(--txt); }
+html[data-ui-theme="day"][data-era] #card-env .hydro-metric-balance.is-positive>b { color: var(--green); }
+html[data-ui-theme="day"][data-era] #card-env .hydro-metric-balance.is-negative>b { color: var(--red); }
+
+/* Actual village building panel: turn repeated table rows into grouped facility cards. */
+html[data-era] #pane-village .bzone .bzbody {
+  display: grid;
+  /* Keep the same card slot when a zone has only one remaining building. */
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 500px), 1fr));
+  align-items: stretch;
+  gap: 12px;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+html[data-era] #pane-village .bzone .bzbody > .row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  align-content: stretch;
+  align-items: stretch;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 12px 16px;
+  box-sizing: border-box;
+  border: 1px solid color-mix(in srgb, var(--era-line) 62%, var(--pilot-edge));
+  border-radius: 12px;
+  background-color: color-mix(in srgb, var(--pilot-surface-row) 92%, var(--era-accent) 8%);
+  box-shadow: inset 0 1px color-mix(in srgb, var(--era-edge) 48%, transparent),
+    0 4px 12px color-mix(in srgb, var(--pilot-shadow) 65%, transparent);
+  break-inside: avoid;
+  vertical-align: top;
+  transition: border-color .18s ease, background-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+html[data-era] #pane-village .bzone .bzbody > .row::before {
+  width: 3px;
+  border-radius: 12px 0 0 12px;
+  background: var(--hc, var(--era-accent));
+  opacity: .62;
+}
+html[data-era] #pane-village .bzone .bzbody > .row:hover {
+  border-color: color-mix(in srgb, var(--era-accent) 55%, var(--era-line));
+  background-color: color-mix(in srgb, var(--pilot-surface-row) 86%, var(--era-accent) 14%);
+  box-shadow: 0 7px 18px color-mix(in srgb, var(--pilot-shadow) 72%, transparent);
+  transform: translateY(-1px);
+}
+html[data-era] #pane-village .bzone .bzbody > .row.is-ready,
+html[data-era] #pane-village .bzone .bzbody > .row.is-unaffordable {
+  border-color: color-mix(in srgb, var(--era-line) 70%, var(--pilot-edge));
+}
+html[data-era] #pane-village .bzone .bzbody > .row.is-ready::before,
+html[data-era] #pane-village .bzone .bzbody > .row.is-unaffordable::before {
+  background: var(--hc, var(--era-accent));
+  opacity: .62;
+}
+html[data-era] #pane-village .bzone .bzbody > .row.is-unaffordable {
+  border-color: color-mix(in srgb, #d9a34d 34%, var(--era-line));
+}
+html[data-era] #pane-village .bzone .bzbody > .row.is-unaffordable::before { background: #d9a34d; opacity: .9; }
+html[data-era] #pane-village .bzone .bzbody > .row.is-blocked { opacity: .82; }
+html[data-era] #pane-village .bzone .bzbody > .row.is-maxed { border-style: dashed; }
+
+html[data-era] #pane-village .bzone .bzbody > .row .bld-main {
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+}
+html[data-era] #pane-village .bzone .bzbody > .row .bld-main:not(.has-building-icon)::before {
+  width: 38px;
+  height: 38px;
+}
+html[data-era] #pane-village .bzone .bzbody > .row .building-icon {
+  width: 38px;
+  height: 38px;
+  border: 1px solid color-mix(in srgb, var(--era-line) 62%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--pilot-surface-card) 78%, transparent);
+}
+html[data-era] #pane-village .bzone .bzbody > .row .bld-copy { width: 100%; min-width: 0; }
+html[data-era] #pane-village .bzone .bzbody > .row .nm {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  width: 100%;
+  line-height: 1.4;
+}
+html[data-era] #pane-village .bzone .bzbody > .row .bld-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-self: auto;
+  justify-content: flex-start;
+  gap: 6px 9px;
+  width: 100%;
+}
+html[data-era] #pane-village .bzone .bzbody > .row .bld-label .building-name {
+  display: inline-block;
+  width: auto;
+  max-width: 100%;
+  text-align: left;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  font-size: 15px;
+  font-weight: 800;
+}
+html[data-era] #pane-village .bzone .bzbody > .row .bld-label .tag { width: auto; padding-inline: 8px; }
+html[data-era] #pane-village .bzone .bzbody > .row .bld-run-controls {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  margin-left: auto;
+}
+html[data-era] #pane-village .bzone .bzbody > .row .bld-run-controls .furnctl {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 4px;
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+}
+html[data-era] #pane-village .bzone .bzbody > .row .bld-run-controls .fnum { min-width: 50px; }
+html[data-era] #pane-village .bzone .bzbody > .row .bld-run-controls .fdraw {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  margin-left: 2px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+html[data-era] #pane-village .bzone .bzbody > .row .bld-ops {
+  display: flex;
+  flex: 1 1 100%;
+  align-items: center;
+  align-content: center;
+  gap: 7px;
+  width: 100%;
+  min-height: 0;
+  margin-top: 0;
+  padding-top: 8px;
+  border-top: 1px solid color-mix(in srgb, var(--pilot-edge) 48%, transparent);
+}
+html[data-era] #pane-village .bzone .bzbody > .row .ds {
+  display: -webkit-box;
+  min-width: 0;
+  margin-top: 0;
+  color: var(--pilot-copy);
+  font-size: 12px;
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+html[data-era] #pane-village .bzone .bzbody > .row .bld-shortfalls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-width: 0;
+  margin-top: 8px;
+}
+html[data-era] #pane-village .bzone .bzbody > .row .bld-shortfall-item {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 3px 7px;
+  border: 1px solid color-mix(in srgb, #d9a34d 48%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, #d9a34d 12%, var(--pilot-surface-card));
+  color: #efc778;
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+html[data-ui-theme="day"][data-era] #pane-village .bzone .bzbody > .row .bld-shortfall-item {
+  border-color: color-mix(in srgb, #9b6415 42%, transparent);
+  background: color-mix(in srgb, #e2a83b 12%, #fffdf7);
+  color: #80520e;
+}
+html[data-era] #pane-village .bzone .bzbody > .row .bld-storage-cap-warning {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 3px 7px;
+  border: 1px solid color-mix(in srgb, var(--red) 54%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--red) 12%, var(--pilot-surface-card));
+  color: var(--red);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+html[data-era] #pane-village .bzone .bzbody > .row > .buy-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-self: stretch;
+  justify-content: flex-end;
+  gap: 7px;
+  min-width: 0;
+  padding-top: 8px;
+  border-top: 1px solid color-mix(in srgb, var(--pilot-edge) 48%, transparent);
+}
+html[data-era] #pane-village .bzone .bzbody > .row > .buy-actions > .bld-shortfalls {
+  flex: 1 1 180px;
+  justify-content: flex-start;
+  align-self: center;
+  margin: 0 auto 0 0;
+}
+html[data-era] #pane-village .bzone .bzbody > .row .buy-actions > .auto-upgrade-toggle,
+html[data-era] #pane-village .bzone .bzbody > .row .buy-actions > .btn.buy,
+html[data-era] #pane-village .bzone .bzbody > .row .buy-actions > .track-toggle {
+  border-radius: 8px;
+}
+html[data-era] #pane-village .bzone .bzbody > .row .buy-actions.has-auto-toggle > .btn.buy {
+  flex: 0 1 176px;
+  border-left-width: 1px;
+}
+html[data-era] #pane-village .bzone .bzbody > .row .buy-actions.has-track > .btn.buy {
+  border-right-width: 1px;
+}
+html[data-era] #pane-village .bzone .bzbody > .row.is-ready .btn.buy:not(:disabled) {
+  border-color: color-mix(in srgb, var(--green) 54%, var(--era-line));
+  background: color-mix(in srgb, var(--green) 18%, var(--pilot-surface-card));
+  color: var(--green);
+}
+html[data-ui-theme="day"][data-era] #pane-village .bzone .bzbody > .row.is-ready .btn.buy:not(:disabled) {
+  background: color-mix(in srgb, var(--green) 12%, #fffdf7);
+}
+html[data-era] #pane-village .bzone .bzbody > .row.is-unaffordable .btn.buy:disabled,
+html[data-era] #pane-village .bzone .bzbody > .row.is-blocked .btn.buy:disabled,
+html[data-era] #pane-village .bzone .bzbody > .row.is-maxed .btn.buy:disabled {
+  border-color: color-mix(in srgb, var(--pilot-edge) 68%, transparent);
+  background: color-mix(in srgb, var(--pilot-surface-card) 82%, transparent);
+  color: var(--pilot-copy);
+  opacity: .78;
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-era] #pane-village .bzone .bzbody > .row { transition: none; }
+  html[data-era] #pane-village .bzone .bzbody > .row:hover { transform: none; }
+}
+
+
+@container hydro-flow (min-width: 700px) {
+  html[data-era] #card-env .hydro-routing { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 18px; }
+}

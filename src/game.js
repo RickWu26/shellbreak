@@ -821,6 +821,18 @@
    *          而无条件的泵等于悄悄把「只在脏标记时重画」变成了「每 0.2 秒重画」）。
    *    面板读数的周期刷新不靠这里，挪到 loop 里的 PANE_REFRESH（**墙钟**，不随倍速放大）。 */
   var TECH_PUMP = 2;
+  /* 补算专用的泵周期（2026-11-17）。
+   * 为什么必须与 TECH_PUMP 分开：泵周期的唯一作用是「揭示/自动化能多快响应」，
+   * 而离线补算期间没人看着面板，一次 8h 补算里泵要跑上万次，其中绝大多数是空扫。
+   * 但 TECH_PUMP 是在线**手感**参数（玩家点建造要 ≤2 秒看到尤里卡），动它等于让在线变钝。
+   * 实测（tmp/_cdp_stepsize.mjs，1h gap）：只把 OFFLINE_STEP 抬到 8 完全无效 ——
+   *   offlineStep 里 `dt = min(dt, TECH_PUMP - j.tp)` 会立刻把它夹回 2 秒；
+   *   两者一起放到 8，步数 4.1× 减少、墙钟 5.1×，且 1h 终态逐字段一致
+   *   （季节/生育/饥荒/暖石/生长期在 offlineStep 里各自独立夹刀，不受泵影响）。
+   * ⚠️ 代价：补算期间自动建造/自动研究的响应从 2 游戏秒放宽到 8 游戏秒。
+   *   对 8h 总量无实质影响，但**前期/中期档**（离线期间还在自动解锁）体感会变钝，
+   *   所以这个数只给补算用。在线与 30× 快进仍走 TECH_PUMP。 */
+  var CATCHUP_PUMP = 8;
   function pumpTech(s, emit) {
     if (!s || !SB.tech || !SB.tech.pump) return;
     var eraBefore = s.era;
@@ -1316,6 +1328,10 @@
   var STEP = 0.1;                   // 逻辑步长（秒）。与渲染解耦，保证数值与帧率无关
   var FAST_SPEED_THRESHOLD = 10;    // 高倍速改走既有离线分段积分器，避免每 0.1 秒重算整套经济
   var OFFLINE_STEP = (SB.CFG && SB.CFG.OFFLINE_STEP != null) ? SB.CFG.OFFLINE_STEP : 2;  // 单一来源：只读 src/config.js 的 CFG.OFFLINE_STEP，避免两套常量漂移
+  /* 补算专用步长（2026-11-17，见 CFG.OFFLINE_CATCHUP_STEP 的注释）：
+   * 只给 drainCatchUp 用；在线 30× 快进仍走 OFFLINE_STEP，手感不变。
+   * 兜底值与 config 一字不差（e2e 沙箱可能未注入全 CFG）。 */
+  var CATCHUP_STEP = (SB.CFG && SB.CFG.OFFLINE_CATCHUP_STEP != null) ? SB.CFG.OFFLINE_CATCHUP_STEP : 8;
   /* 2026-10-24 分级离线（用户拍板）：离开多久以内算「短暂」⇒ 静默补算（不弹闸门 / 结算）。
    * 单一来源同 OFFLINE_STEP：只读 src/config.js 的 CFG.OFFLINE_SETTLE_MIN；
    * e2e 沙箱里 SB.CFG 可能未注入全，兜底 1800 与 config 保持一字不差。 */
@@ -1397,6 +1413,33 @@
     var rawElapsed = Math.max(0, (now - last) / 1000);
     var elapsed = Math.min(acceleratedBackgroundAI ? SB.CFG.OFFLINE_MIN : MAX_STEP, rawElapsed);
     last = now;
+    /* ══ 2026-11-17 补算期总闸门（玩家报「离线 8h 回来补算 10 分钟、进度十几秒才涨 1%、
+     *    最后 80% 卡没了」）══
+     * 【为什么需要】补算不是独立循环，它挂在主循环里：每 250ms 只拿前 CATCHUP_BUDGET(225ms)
+     *   算数，剩下的 renderAll / renderTick / tickStar / 点击事件 / 新手引导 / 挑战判定
+     *   全排在它**后面**同一轮里。于是真实周期 = 225 + X ms，补算的占空比被 X 稀释成
+     *   225/(225+X)。而这段时间整个界面被离线闸门 modal 盖死，玩家根本看不见重建结果
+     *   ⇒ 这些工作是纯浪费，只会把补算的墙钟拖长。
+     * 【闸门盖着就该什么都不画】补算期间直接 return，算完那一帧自然回落到完整流程
+     *   （那时 loop.job 已由 finishCatchUp 清掉），全量重建也就自动补上了。
+     * ⚠️ 保留三件事，缺一个就出问题：
+     *   ① loop.acc 归零 —— 补算期流逝的墙钟已在 drainCatchUp 里按真实秒算过，
+     *      不能再攒进 acc 等补算结束按实时推第二遍（原实现会攒到 backlogCap=60 秒，
+     *      补算一结束就一口气多推 60 秒，是既有的重复计时）。
+     *   ② loop._lastPane **不更新** —— 于是补算结束的第一个 now - _lastPane 必然 ≥
+     *      PANE_REFRESH，PANE_REFRESH 那条分支会自动置脏并触发那一次「补做全量」，
+     *      不需要另写调用点（少一处就少一处漂移）。
+     *   ③ 存档不能停 —— 它是「补算中途被杀、重启还能续算」的唯一保障：snapshot 里的 _ts
+     *      与已推进进度是同一次落盘，重启后 gap 从 _ts 起算。频率 5s→30s：
+     *      8h 补算只落 4 次左右，被杀最多丢 30 秒，换回来的主线程时间更值。 */
+    if (loop.job) {
+      loop.acc = 0;
+      if (now - (loop._lastSave || 0) > 30000) {
+        loop._lastSave = now;
+        SB.state.saveRun(snapshot(S));
+      }
+      return;
+    }
     /* 广告时间银行按**真实墙钟**流逝（不看倍速）：开着开关且还有余额时，这一帧扣掉 elapsed 毫秒。
      * 扣到 0 的那一帧置脏一次，让顶栏立刻从「2× 生效」翻成「无加速」。开关关着时冻结余额 = 囤着不用。 */
     /* 广告时间银行按**真实墙钟**流逝（不看倍速）：开着开关且还有余额时，这一帧扣掉 elapsed 毫秒。
@@ -1621,14 +1664,17 @@
   /* 分段快进：稳定区间最多跨过一个 2 秒泵周期；事件跨越点提前切开。
    * 暖石还会被熔炉等系统消耗。若本块其他暖石净消耗可能让保温库存跨过阈值，
    * 回到在线步长，使工业消耗与保温按同一时间顺序交错结算。 */
-  function offlineStep(s, j, gameLeft) {
-    var dt = Math.min(OFFLINE_STEP, gameLeft);
+  function offlineStep(s, j, gameLeft, maxDt, pumpPeriod) {
+    var dt = Math.min(maxDt || OFFLINE_STEP, gameLeft);
     var seasonLeft = SB.economy.seasonLeftTicks(s);
     // tick 在推进 s.t 后换季，所以跨季的最后一个 0.1s tick 用新季倍率。
     // 留出这一步单独结算，避免整块 dt 在边界处提前套用新季节。
     if (seasonLeft > STEP + 1e-9) dt = Math.min(dt, seasonLeft - STEP);
     else if (seasonLeft > 1e-9) dt = Math.min(dt, STEP);
-    var pumpLeft = TECH_PUMP - (j.tp || 0);
+    /* 泵周期由调用方决定：补算传 CATCHUP_PUMP（8），在线快进不传 ⇒ TECH_PUMP（2）。
+     * ⚠️ 夹刀值与「扣减 j.tp 时的阈值」必须同一个数，否则要么永远不触发泵、
+     *    要么同一秒触发多次 —— 两处都在下方调用点附近，改一处必改另一处。 */
+    var pumpLeft = (pumpPeriod || TECH_PUMP) - (j.tp || 0);
     if (pumpLeft > 1e-9) dt = Math.min(dt, pumpLeft);
     if (!SB.economy.isFull(s) && s.res.kelp > SB.CFG.GROW_KEEP) {
       var growLeft = SB.economy.growthDuration(s) - (s._grow || 0);
@@ -1681,7 +1727,7 @@
       var realDone = 0;
       var inner = 0;
       while (gameLeft > 1e-9 && !j.breakReached) {
-        var dt = offlineStep(j.s, j, gameLeft);
+        var dt = offlineStep(j.s, j, gameLeft, CATCHUP_STEP, CATCHUP_PUMP);
         var tPrev = j.s.t;                       // 仅用于 integrateFoodPop 的 t0 参数，与预算基准无关
         // 食物/人口积分器在 0.1s 微步内自行推进 happyStep（与食物同栅格重采样），故 tick 侧
         // 同时跳过 food 与 happy（skipFoodPop + skipHappy），避免 happy/奢侈品被双重推进。
@@ -1693,7 +1739,7 @@
         gameLeft -= dt;
         realDone += dt / mul;
         if (mul > 1) j.s.ad.ms = Math.max(0, j.s.ad.ms - dt / mul * 1000);
-        if (j.tp >= TECH_PUMP - 1e-9) { j.tp = Math.max(0, j.tp - TECH_PUMP); pumpTech(j.s, null); pumpCivic(j.s, null); }
+        if (j.tp >= CATCHUP_PUMP - 1e-9) { j.tp = Math.max(0, j.tp - CATCHUP_PUMP); pumpTech(j.s, null); pumpCivic(j.s, null); }
         /* ⚠️ 2026-11-03：破壳不再是补算终点。
          *   旧流程里破壳要玩家在「留在本局 / 结算轮回」之间做选择，所以补算必须停在那里等。
          *   现在破壳后本局继续跑 ERA10（发射场 → 戴森球），停在这里等于把破壳之后那段
@@ -2835,6 +2881,9 @@
      * 这里走同一个 askResetRun：qual（= 本局研究完《神学》）决定发不发轮回点，不写第二份判据。 */
     var _btnCycle = document.getElementById('btnCycle');
     if (_btnCycle) _btnCycle.onclick = function () { askResetRun(); };
+    /* 帷幕之后 · 掀幕按钮（学完《掀起帘幕》才由 renderBreakBtn 显示）。 */
+    var _btnVeil = document.getElementById('btnVeil');
+    if (_btnVeil) _btnVeil.onclick = function () { askVeil(); };
     document.getElementById('btnWipe').onclick = function () {
       SB.ui.render.confirmPanel({
         title: gameText('save.clear.confirm.title', null, '清空存档？'),
@@ -3002,6 +3051,59 @@
     });
   }
 
+  /* 帷幕之后 · 掀幕确认面板（ERA11 spec §6 决策 #10 + 下位稿 §7「重置预览」）。
+   * 明写「将得多少飞升点 / 将失去什么 / 开第几条路径」，与结算同源 veilPreview()。 */
+  function askVeil() {
+    var S0 = SB.game.run();
+    if (!S0 || !S0.techs || !S0.techs.beyond_veil) return;
+    if (!SB.prestige || !SB.prestige.veilPreview) return;
+    var pv = SB.prestige.veilPreview(S0);
+    if (!pv) return;
+    if (pv.cycleStar < 1000) {
+      SB.ui.render.confirmPanel({
+        title: '尚不能掀起帘幕',
+        body: '<div class="warnbox">本帷幕周期累计星屑 ' + Math.round(pv.cycleStar)
+          + ' / 1000，尚未满足《掀起帘幕》的尤里卡。请继续积累星屑。</div>',
+        ok: '知道了'
+      });
+      return;
+    }
+    /* 本局未结算部分单列一行（2026-11-17）：掀幕发生在局内，这笔收益会被并入飞升点，
+     * 但它同时是「将失去的资产」的一部分，不分开写玩家会算不平账。 */
+    var pendingLine = pv.pendingActive
+      ? '<div class="note">其中本局尚未结算：<b>' + pv.pendingTide.toFixed(2) + ' 轮回点</b> + <b>'
+        + Math.round(pv.pendingStar) + ' 星屑</b>（掀幕时一并计入飞升点）。</div>'
+      : '';
+    var body = '<div class="warnbox">当幕布掀起，本重轮回的一切将归零重来：'
+      + '<b>' + pv.cycleTide.toFixed(2) + ' 轮回点</b>、<b>' + Math.round(pv.cycleStar)
+      + ' 星屑</b>，以及潮汐之树、星屑商店与四项旧日遗产。本局也从 ERA1 重开。</div>'
+      + pendingLine
+      + '<div class="note">你将获得 <b>' + pv.points.toFixed(2) + ' 飞升点</b>，进入第 <b>' + pv.count
+      + '</b> 重帷幕。</div>'
+      + '<div class="note">' + (pv.allOpen
+        ? '三条飞升路径已全部开启，可随时进入。'
+        : '本次将开启一条新路径：<b>' + (SB.ui.veilHub ? (function () {
+            var p = SB.ui.veilHub.PATHS.filter(function (x) { return x.id === pv.nextPath; })[0];
+            return p ? p.name : pv.nextPath;
+          })() : pv.nextPath) + '</b>。')
+      + '</div>'
+      + '<div class="note">保留：成就、挑战记录、轮回次数、商店解锁、自动研究设置。</div>';
+    SB.ui.render.confirmPanel({
+      title: '掀起帘幕 · 进入大轮回？',
+      body: body, ok: '掀起帘幕', danger: true,
+      onOk: function () {
+        try {
+          var r = SB.prestige.doVeil(S0, emit);
+          /* 掀幕后自动打开帷幕主界面，让玩家立刻看到新解锁的路径（下位稿 §7「掀幕后引导」）。 */
+          if (r && SB.ui.veilHub && SB.ui.veilHub.open) SB.ui.veilHub.open();
+        } catch (err) {
+          SB.ui.render.confirmPanel({ title: '掀幕失败', body: '<div class="warnbox">'
+            + String(err && err.message || err) + '</div>', ok: '知道了' });
+        }
+      }
+    });
+  }
+
   SB.game = {
     run: run, meta: state, getTab: getTab, setTab: setTab, setSpeed: setSpeed,
     stardustShopUnlocked: stardustShopUnlocked, unlockStardustShop: unlockStardustShop,
@@ -3029,6 +3131,9 @@
     /* ERA10（2026-10-20）：轮回确认流程导出——戴森球通关弹窗的「立即轮回」钮复用
      * （与顶栏「重置/轮回」按钮同一份 confirmPanel + doBreak 逻辑，不写第二套）。 */
     askReset: askResetRun,
+    /* 帷幕之后（二层 prestige）入口。askVeil 走完整确认面板；veilHub 打开路径界面。 */
+    askVeil: askVeil,
+    _veilPreview: function () { return SB.prestige && SB.prestige.veilPreview ? SB.prestige.veilPreview() : null; },
     /* 离线补算核心函数暴露为调试/测试入口（纯接口，逻辑仅在上面定义处）。
      * 供 sim/_probe_offline_ad.mjs 等探针直接驱动离线补算、复用生产路径，
      * 不在任何 UI 调用链上，不影响在线行为。 */

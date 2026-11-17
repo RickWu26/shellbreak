@@ -742,17 +742,25 @@ console.log('\n=== 历法读数与暖石开关 ===');
   check('每个按钮带的是该纪元自己的名字（按钮 = 这张图的目录）',
     btnOk, btnOk ? (SB.ERAS || []).length + ' 个按钮逐个对上了名字' : btnBad.join('、'));
 
-  /* ⚠️ 只能靠条数钉住：五张卡全展开是这次要消灭的东西，而它的 HTML 与正确版本
-   *    完全同构（都是 .eracard），没有别的可观测差别。
-   *    id=eraDetail 是给这条断言（以及日后的探针）留的抓手 —— 谁都能再写一个
-   *    「详情卡」出来，但只有带这个 id 的那张才是这一张。 */
+  /* ⚠️ 2026-11-16 规格变更（用户明确要求）：**纪元详情卡整块删掉**。
+   *    历史轨迹：五张卡全展开 → 收敛成「只出选中那一个」→ 现在 0 张。
+   *    这条断言的原始意图是「不许五张全展开」，既然卡不要了，判据收到最强：
+   *    连一张都不许出现（eracard / eraDetail / edesc 三个抓手全部归零）。
+   *    flavor 说明改由长卷横幅的 `.tnflavor` 承载（下一条断言盯它），
+   *    闸门进度 / 下一纪元预告随卡下线，不再有 UI 落点。
+   *    id=eraDetail 曾是给断言与探针留的抓手 —— 现在它作为「必须不存在」的反向抓手。 */
   const cardN = (pt3.match(/class="eracard/g) || []).length;
   const detailN = (pt3.match(/id="eraDetail"/g) || []).length;
-  check('纪元详情只出选中那一个（五张全展开正是这次要消灭的）',
-    cardN === 1 && detailN === 1, cardN + ' 张详情卡 / ' + detailN + ' 个 eraDetail 锚点');
+  const edescN = (pt3.match(/class="edesc/g) || []).length;
+  check('纪元详情卡已按规格移除（eracard / eraDetail / edesc 一个都不许再出现）',
+    cardN === 0 && detailN === 0 && edescN === 0,
+    cardN + ' 张 eracard / ' + detailN + ' 个 eraDetail 锚点 / ' + edescN + ' 个 edesc');
 
   /* 未选中的纪元只留按钮：拿**纪元五**的描述来试 —— 不能用「下一个纪元」的描述，
-   * 它本来就该出现在当前纪元的 teaser 里（那是对的信息，不是漏出来的）。 */
+   * 它本来就该出现在当前纪元横幅的 flavor 里（那是对的信息，不是漏出来的）。
+   * ⚠️ 2026-11-16：详情卡删掉后，这条能绿是因为它挑的是纪元五；era=2 时横幅上挂的
+   *    是**纪元三**的 desc（techTree 里 `selectedEra === era ? eraOf(selectedEra+1)`）。
+   *    「当前纪元横幅该显示自己还是下一纪元」尚未拍板，本条不做判据。 */
   const e5 = (SB.ERAS || [])[4];
   check('未选中的纪元的描述不出现在页面上（文本没有被复制成五份）',
     !e5 || pt3.indexOf(e5.desc) === -1,
@@ -782,13 +790,17 @@ console.log('\n=== 历法读数与暖石开关 ===');
     jump2 === ancX(2) && jump1 === 0,
     '纪元二 → ' + jump2 + '（锚点 ' + ancX(2) + '）　纪元一 → ' + jump1 + '（脏初值 777）');
 
+  /* 2026-11-16：详情卡删掉后，「选中项的说明」唯一落点是长卷横幅里的 `.tnflavor`
+   * （techTree 里 `blk.era === selectedEra` 那一段）。选中已过去的纪元时，它渲染的是
+   * 该纪元自己的 desc，所以这里的判据照旧成立、只是抓手换了。 */
+  const flavorOf = html => (html.match(/<span class="tnflavor">([\s\S]*?)<\/span>/) || ['', ''])[1];
   const pt4 = g('pane-tech');
   const e1 = (SB.ERAS || [])[0], e2 = (SB.ERAS || [])[1];
-  check('选中项真的换了：按钮高亮 + 详情卡改念纪元一的描述，纪元二的描述退场',
+  check('选中项真的换了：按钮高亮 + 长卷横幅改念纪元一的描述，纪元二的描述退场',
     /class="erabtn on[^"]*" data-era="1"/.test(pt4) &&
-    pt4.indexOf('<div class="edesc">' + e1.desc) !== -1 &&
+    flavorOf(pt4) === e1.desc &&
     pt4.indexOf(e2.desc) === -1,
-    '纪元一描述上屏？' + (pt4.indexOf(e1.desc) !== -1) +
+    '横幅 flavor=' + String(flavorOf(pt4)).slice(0, 18) +
     '　纪元二描述还在？' + (pt4.indexOf(e2.desc) !== -1));
 
   /* 浏览器点击按钮里的名字/徽标时，event.target 是 span 而不是 button；
@@ -800,10 +812,16 @@ console.log('\n=== 历法读数与暖石开关 ===');
   fire({ dataset: {}, closest: selector => /erabtn/.test(selector) && /data-era/.test(selector) ? eraButtonTarget : null });
   const nestedEraHtml = g('pane-tech');
   const era2Desc = e2.desc;
+  /* 这条测的是**事件委托**（点按钮里的 span 能不能切回纪元），主判据是按钮高亮。
+   * ⚠️ 2026-11-16：详情卡删掉后不能再断言「纪元二的 desc 上屏」—— 选中**当前**纪元时，
+   *    横幅按 `selectedEra === era ? eraOf(selectedEra+1).desc : er.desc` 渲染，挂的是
+   *    纪元三的说明（这条语义本身待拍板，见 techTree 那段注释）。因此这里只断言
+   *    「横幅内容确实换了」，在「显示自己」与「显示下一纪元」两种实现下都成立。 */
   check('点击纪元按钮内部文字也能切换（子元素事件向上找到 data-era）',
     /class="erabtn on[^"]*" data-era="2"/.test(nestedEraHtml) &&
-    nestedEraHtml.indexOf('<div class="edesc">' + era2Desc) !== -1,
-    '纪元二描述上屏？' + (nestedEraHtml.indexOf(era2Desc) !== -1));
+    flavorOf(nestedEraHtml) !== '' && flavorOf(nestedEraHtml) !== flavorOf(pt4),
+    '横幅 flavor 从「' + String(flavorOf(pt4)).slice(0, 14) + '」换成「' +
+    String(flavorOf(nestedEraHtml)).slice(0, 14) + '」；纪元二 desc=' + String(era2Desc).slice(0, 12));
 
   /* ── 长卷拖动 ────────────────────────────────────────────────────
    * 手机上手指滑是原生滚动（有惯性、能回弹，不该接管），**桌面鼠标按住左键拖是拖不动的**

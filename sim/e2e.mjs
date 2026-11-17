@@ -39,6 +39,8 @@ import { run as runUiPrefs } from './e2e-suites/ui-prefs.mjs';
 import { run as runStarShellPress } from './e2e-suites/star-shell-press.mjs';
 /* 2026-11-15：星屑炼金双向批量兑换（只写不跑，等用户当次明说「跑」）。 */
 import { run as runStarExchangeBatch } from './e2e-suites/star-exchange-batch.mjs';
+/* 2026-11-16：星图动画高刷屏死锁回归锁（rAF 调度必须在 animate 开头）。只写不跑。 */
+import { run as runStarMapAnim } from './e2e-suites/star-map-anim.mjs';
 import { run as runTideShellDrive } from './e2e-suites/tide-shell-drive.mjs';
 import { run as runTideDrillOverdrive } from './e2e-suites/tide-drill-overdrive.mjs';
 import { run as runChallengePrereq } from './e2e-suites/challenge-prereq.mjs';
@@ -50,6 +52,9 @@ import { run as runMetaRenderGuard } from './e2e-suites/meta-render-guard.mjs';
 import { run as runWarCampaign } from './e2e-suites/war-campaign.mjs';
 /* 2026-11-14：军事/文化轮回点节点（第 9 树「枕戈待旦」+ 政经往来「文教节流」）。 */
 import { run as runMilitaryPerks } from './e2e-suites/military-perks.mjs';
+/* 2026-11-17：帷幕之后·大轮回（ERA11）—— 放全量最尾部：它会真掀幕（清账本 + startRun），
+ * 自带 finally 快照还原，绝不能压在整局 bot 前面。 */
+import { run as runVeil } from './e2e-suites/veil.mjs';
 /* 2026-11-12：clearNodes 嵌套节点 bug 的防回归锁。自带 faithful DOM 桩加载真实
  * heritage-draft.js，不依赖 e2e 共享的 no-op 假 DOM（那个桩的 removeChild 是空实现，
  * 正是当初漏掉本 bug 的原因）。 */
@@ -169,6 +174,10 @@ function makeDoc() {
                            * 桩上必须真有 body 才能断言「弹窗开着禁点 tab / 关窗后恢复」。 */
     getElementById(id) { if (!els.has(id)) els.set(id, mkEl(id)); return els.get(id); },
     createElement(tag) { const e = mkEl('new-' + tag); e.tag = tag; return e; },
+    /* 假 DOM 缺口（2026-11-17 补）：walk-panel.js 用 document.createTextNode 拼文本节点，
+     * 原夹具没有这个键 ⇒ 启动即抛 `createTextNode is not a function`，全量 e2e 一行都跑不了。
+     * 这里只补最小实现（nodeType=3 + textContent），够 walk-panel 拼字符串。 */
+    createTextNode(t) { const e = mkEl('#text'); e.textContent = String(t); return e; },
     /* ⚠️ 按选择器记忆化：真实 DOM 里 `querySelectorAll('.tab')` 每次都返回**同一批对象**，
      *    于是「改这批对象的 class」是有后效的。假 DOM 若每次发一批新桩，这类后效就
      *    测不到 —— e2e 因此长期看不见「页签高亮和 pane 各记一份状态」的错位
@@ -321,6 +330,15 @@ if (process.argv.includes('--star-exchange-only')) {
   const failedEx = checks.filter(c => !c.ok);
   console.log(`\n星屑炼金批量兑换测试：${checks.length - failedEx.length}/${checks.length} 通过`);
   process.exit(failedEx.length || errors.length ? 1 : 0);
+}
+
+/* 星图动画高刷死锁（2026-11-16）：直接读生产 HTML 抽 animate 函数体，受控 rAF 跑 120Hz。
+ * ⚠️ 需用户当次明说「跑」才执行（09:14 叫停纪律）。 */
+if (process.argv.includes('--star-map-only')) {
+  runStarMapAnim({ SB, check });
+  const failedMap = checks.filter(c => !c.ok);
+  console.log(`\n星图动画高刷回归：${checks.length - failedMap.length}/${checks.length} 通过`);
+  process.exit(failedMap.length || errors.length ? 1 : 0);
 }
 
 /* 潮汐之树「万众热忱」三级基础削壳加速（2026-11-05）：单独验独立乘区、加算口径、
@@ -859,11 +877,17 @@ console.log('\n=== 开局解锁链 ===');
     s.techs.lighting = true;                   // 压舱仓的科技门（不装它整行不渲染）
     SB.game.markDirty(); SB.ui.render.renderPanes();
     const pv = g('pane-village-body');
+    /* 2026-11-16：成本项现在逐项包了 `<span data-live-cost>`（让「已有」数字原地回填，
+     * 不再每 2 秒把整个巢穴页拆了重建），所以比对前先剥标签看文本 —— 断言语义不变：
+     * 按钮上必须摊开「升级 藻食 100/21.1」这样的成本，一个不少；同时锁住标记本身没被优化掉。 */
+    const pvText = pv.replace(/<[^>]*>/g, '');
     const ck = SB.economy.costOwnedTxt(s, SB.economy.costOf(s, 'kelp'));
     const cb = SB.economy.costOwnedTxt(s, SB.economy.costOf(s, 'ballast'));
     check('建筑按钮摊开成本并带「已拥有/需要」（够钱时也写着，形如「升级 藻食 100…/21.1」）',
-      pv.indexOf('升级 ' + ck) !== -1 && pv.indexOf('建造 ' + cb) !== -1,
-      '升级文案「升级 ' + ck + '」 / 建造文案「建造 ' + cb + '」');
+      pvText.indexOf('升级 ' + ck) !== -1 && pvText.indexOf('建造 ' + cb) !== -1 &&
+      pv.indexOf('data-live-cost=') !== -1,
+      '升级文案「升级 ' + ck + '」 / 建造文案「建造 ' + cb + '」 / live 标记=' +
+      (pv.indexOf('data-live-cost=') !== -1));
     check('反向对照：没有「光秃秃的建造/升级」按钮（把成本去掉这条就该红）',
       !/>(建造|升级)</.test(pv), '');
 
@@ -958,12 +982,15 @@ console.log('\n=== 开局解锁链 ===');
       s.lvl.hall = 1;          // 兼作市政页开门（coreLvl ≥ 1）
       uRP.setCivicView('tree'); // 速率注脚在「市政树」子页，不在默认「政体」页
       const techHtml = uRP.paneTech(), civicHtml = uRP.paneCivic();
-      const techSeg = plain(techHtml.slice(techHtml.indexOf('现有科技'), techHtml.indexOf('现有科技') + 90));
+      /* ⚠️ 2026-11-16 规格变更：科技页那句「现有科技 X（+Y/秒）」的唯一宿主是纪元详情卡
+       *   的 teaser，详情卡已按用户要求整块删除 ⇒ 这句话在游戏里不再存在。
+       *   判据随之收窄到市政页；techHtml 保留只为「删卡后科技页仍能渲染」这一层冒烟。
+       *   科技点速率的单位行为没有失守：顶栏科技格与 ③ 的藻食格走 renderRes 同一个循环、
+       *   同一处 fmtAbbr，③ 已经覆盖，这里不再重复断言（不为凑绿另造判据）。 */
       const civicSeg = plain(civicHtml.slice(civicHtml.indexOf('市政点 '), civicHtml.indexOf('市政点 ') + 120));
-      check('★ 计数单位⑤：①科技页存量/速率 + 市政页速率都带单位（词库参数与中文回退串成对）',
-        /现有科技 [\d.]+[kMBTQ]/.test(techSeg) && /\+[\d.]+[kMBTQ]\/\s*秒/.test(techSeg) &&
-        /\+[\d.]+[kMBTQ]\/秒/.test(civicSeg) && !rateBad(techSeg),
-        'tech="' + techSeg.slice(0, 46) + '" civic="' + civicSeg.slice(0, 46) + '"');
+      check('★ 计数单位⑤：市政页速率带单位（科技页那条随纪元详情卡下线，2026-11-16）',
+        /\+[\d.]+[kMBTQ]\/秒/.test(civicSeg) && !rateBad(civicSeg) && techHtml.length > 0,
+        'tech len=' + techHtml.length + ' civic="' + civicSeg.slice(0, 46) + '"');
 
       s.lvl.fissionplant = 5.6e9;
       SB.ui.render.showBuildingInfo('fissionplant');
@@ -993,7 +1020,7 @@ console.log('\n=== 开局解锁链 ===');
         'compact="' + (/(?:市政点| Civic Points)[^<]{0,24}/.exec(metaCompact) || [''])[0] +
         '" sci="' + (/(?:市政点| Civic Points)[^<]{0,24}/.exec(metaSci) || [''])[0] + '"');
       check('★ 计数单位⑧：①③④ 全部渲染无 NaN / undefined',
-        !/NaN|undefined/.test([techSeg, civicSeg, kelpSeg, fissionSeg, furnaceSeg, metaCompact, metaSci].join(' ')),
+        !/NaN|undefined/.test([civicSeg, kelpSeg, fissionSeg, furnaceSeg, metaCompact, metaSci].join(' ')),
         '');
     } finally {
       s.jobs.scholar = uBak.scholar; s.jobs.scribe = uBak.scribe;
@@ -3037,6 +3064,9 @@ runStarShellPress({ SB, check });
 /* 2026-11-15：星屑炼金双向批量兑换。放最尾部——它临时改 meta 账本 / CFG 汇率 /
  * saveMeta 与步长视图态，自带 finally 逐项还原，别压在整局 bot 前面。 */
 runStarExchangeBatch({ SB, check });
+/* 2026-11-16：星图动画高刷死锁锁。读生产 HTML 抽真实 animate 函数体，受控 rAF 跑 120Hz，
+ * 不依赖整局 bot，也无状态污染。 */
+runStarMapAnim({ SB, check });
 /* 2026-11-05：潮汐之树「万众热忱」。放最尾部——它会临时改 meta.perks 与当前局的
  * perk.shellDrive，虽自带 finally 还原，也别压在整局 bot 前面。 */
 runTideShellDrive({ SB, check });
@@ -3059,6 +3089,8 @@ runWarCampaign({ SB, check, noop, doc });
 /* 2026-11-14：军事/文化轮回点节点。放全量最尾部——它临时改 meta.perks 并跑
  * 真实 executeAction，虽自带 finally 还原，也别压在整局 bot 前面。 */
 runMilitaryPerks({ SB, check, noop });
+/* 2026-11-17：帷幕之后（ERA11 大轮回）。全量最后一个 suite——见文件头说明。 */
+runVeil({ SB, check });
 console.log('\n================ 汇总 ================');
 // B 档基线：首局（原始时代 → 破冰重置）挂机 8-14 小时 —— 全局标定，默认挂起
 defer('单局时长落在 8-14 小时', runHours >= 8 && runHours <= 14, runHours.toFixed(2) + 'h');

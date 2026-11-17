@@ -361,7 +361,8 @@
         var P = SB.workshop.pcts(), i;
         for (i = 0; i < P.length; i++) {
           var p = P[i];
-          h += '<button class="btn tog' + (!batchMode && p === pct ? ' on' : '') + '" data-aslot="' + c.id + '"' +
+          var selectedPct = !batchMode && p === pct;
+          h += '<button class="btn tog' + (selectedPct ? ' on' : '') + '" aria-pressed="' + selectedPct + '" data-aslot="' + c.id + '"' +
             ' data-apct="' + p + '" title="' + (englishLocale() ? tr('ui.workshop.automation_slots.percent_tooltip', {
               conversionPercent: p * 100
             }, '') : '任一有上限原料满仓后，转制当时可造量的 ' + (p * 100) + '%') + '">' +

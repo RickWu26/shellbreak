@@ -13,6 +13,9 @@
      * 必须在 SB.game.boot() 之前不行（那时还没局），之后绑也一样（首帧 paint 在 renderTick）；
      * 放在这里是让它与 input 同批装上，转屏时那条 resize 重定位也跟着生效。 */
     if (SB.ui.track && SB.ui.track.init) SB.ui.track.init();
+    /* 随行资源面板（2026-11-16）：节点是 index.html 常驻骨架，只绑一次；
+     * 网格在首次 paint 时惰性建，e2e 假 DOM 里没有这些节点会自动 no-op。 */
+    if (SB.ui.walkPanel && SB.ui.walkPanel.init) SB.ui.walkPanel.init();
     SB.game.boot();
     if (SB.saveTransfer && SB.saveTransfer.boot) SB.saveTransfer.boot();
     if (SB.redeem && SB.redeem.boot) SB.redeem.boot();

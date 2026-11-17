@@ -103,6 +103,10 @@
     var net = 1 + inc - luxSaveAll(s);
     if (SB.faith && SB.faith.luxuryUseMul) net *= SB.faith.luxuryUseMul(s);
     if (SB.war && SB.war.tradeRouteLuxuryUseMul) net *= SB.war.tradeRouteLuxuryUseMul(s);
+    /* 硅基承续 · 胃（2026-11-17）：奢侈品需求 −30/50/70%（独立乘区）。
+     * ⚠️ 乘在**抵消之后**的净值上：若并入 inc 那一侧，器官减耗会与政策卡增耗部分互抵，
+     *    玩家装卡再装器官时看到的数会和两处文案都对不上。 */
+    if (SB.veilFx) net *= SB.veilFx.luxNeedMul();
     return net < 0 ? 0 : net;      // 护栏：极端减耗下净需求不为负
   }
   function happyBurn(s) {

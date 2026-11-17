@@ -173,9 +173,15 @@
       /* 潮汐之树（2026-10-23）：配方巧工节点（stoneBeam/hardcoral/scaffold/ironbracket/steelpart/
        *   tidalRecord/vibrodrill 等）按 recipeCraft 加法轴给指定配方工艺效率加成；与科技 / 政策卡同源累加。 */
       + (s.perk && s.perk.recipeCraft && s.perk.recipeCraft[c.id] ? s.perk.recipeCraft[c.id] : 0)
+      /* 硅基承续 · 鳞/眼/手（2026-11-17）：精铁 / θ 金属 / 钢 各自的制造效率 +50/100/200%。
+       * 走 recipeCraft **加法轴**（本来就是「某配方 +X%」的语义，与科技/工坊升级同源）。 */
+      + (SB.veilFx ? SB.veilFx.recipeCraft(c.id, c.out) : 0)
     ) : 0);
     /* workshopEff（ERA10）折进基数：1 + 加法轴(craftRatio) + 配方卡/科技(_recipeCraft) + 科技(workshopEff)。 */
     var _cr = Math.max(0, 1 + craftRatio(s) + _recipeCraft + (_Tm ? (_Tm.workshopEff || 0) : 0));
+    /* 硅基承续 · 心 LV1（2026-11-17）：工艺效率 ×1.5，**额外乘区**（SPEC §7-2 明写不许并进
+     * craftRatio 加法轴——加法轴里 +50% 在基值 0.5 时只等于 ×1.33，不是「×1.5」）。 */
+    if (SB.veilFx) _cr *= SB.veilFx.craftExtraMul();
     var m = _cr * (1 + (SB.economy ? SB.economy.upgSum(s, 'boomcraftMul') : 0))
       * (SB.wonder ? SB.wonder.throneCraftMul(s) : 1)
       * _robot

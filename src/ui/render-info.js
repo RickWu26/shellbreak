@@ -360,6 +360,119 @@
     var params = englishTemplateParams(key, item.desc, special);
     return localizedContentDescription(key, item.desc || '', params || {});
   }
+  function escapeInfoText(value) {
+    return String(value == null ? '' : value).replace(/[&<>\"']/g, function (ch) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;' })[ch];
+    });
+  }
+  function idList(value) {
+    if (!value) return [];
+    return Array.isArray(value) ? value.slice() : [value];
+  }
+  function challengeOnlyIds(value) {
+    return value === true ? ['drift_terra'] : idList(value);
+  }
+  function localizedChallengeName(id) {
+    var challenge = SB.challenges && SB.challenges.byId ? SB.challenges.byId(id) : null;
+    var displayText = SB.challenges && SB.challenges.displayText;
+    if (!displayText && SB.ui && SB.ui.renderParts) displayText = SB.ui.renderParts.challengeDefinitionText;
+    if (typeof displayText === 'function' && challenge) return displayText(challenge, 'name') || challenge.name;
+    var key = id === 'waterpollution' ? 'challenge.water_pollution.name'
+      : 'challenge.definition.' + id + '.name';
+    return tr(key, null, challenge ? challenge.name : id);
+  }
+  function buildingRequirementContent(s, b, canalCap) {
+    var items = [], techIds = idList(b.requiredTech), techs = SB.TECHS || [], unlockTech = null;
+    var i, j, tech, civicIds, challengeRules = [], currentChallenge = s.challenge && s.challenge.id;
+    /* Keep in sync with habitat.buildTechOf: its first tech-side unlockBuild entry is an
+     * additional gate, while requiredTech may also hold an explicit building-side gate. */
+    for (i = 0; i < techs.length; i++) {
+      tech = techs[i];
+      if (tech.eff && tech.eff.unlockBuild &&
+          (Array.isArray(tech.eff.unlockBuild) ? tech.eff.unlockBuild.indexOf(b.id) >= 0 : tech.eff.unlockBuild === b.id)) {
+        unlockTech = tech;
+        break;
+      }
+    }
+    if (unlockTech && techIds.indexOf(unlockTech.id) < 0) techIds.push(unlockTech.id);
+
+    function add(text, met) {
+      items.push('<span class="tree-req' + (met ? ' met' : '') + '">' +
+        (met ? '✓ ' : '· ') + escapeInfoText(text) + '</span>');
+    }
+    function addChallengeRule(value) {
+      var ids = challengeOnlyIds(value), signature;
+      if (!ids.length) return;
+      signature = ids.join('|');
+      for (var k = 0; k < challengeRules.length; k++) {
+        if (challengeRules[k].signature === signature) return;
+      }
+      challengeRules.push({ ids: ids, signature: signature });
+    }
+
+    addChallengeRule(b.challengeOnly);
+    for (i = 0; i < techIds.length; i++) {
+      for (j = 0; j < techs.length; j++) {
+        if (techs[j].id === techIds[i]) {
+          addChallengeRule(techs[j].challengeOnly);
+          break;
+        }
+      }
+    }
+    for (i = 0; i < challengeRules.length; i++) {
+      var allowedIds = challengeRules[i].ids, challengeNames = [], allowedNow = false;
+      for (j = 0; j < allowedIds.length; j++) {
+        challengeNames.push(localizedChallengeName(allowedIds[j]));
+        if (allowedIds[j] === currentChallenge) allowedNow = true;
+      }
+      add(tr('building.lock.challenge_only', {
+        challengeName: challengeNames.join(' / ')
+      }), allowedNow);
+    }
+
+    var excludedChallenges = idList(b.noChallenge);
+    for (i = 0; i < excludedChallenges.length; i++) {
+      /* Current building data uses this restriction only for Wandering Terra. */
+      if (excludedChallenges[i] === 'drift_terra') {
+        add(tr('building.lock.wandering_terra'), currentChallenge !== excludedChallenges[i]);
+      }
+    }
+
+    for (i = 0; i < techIds.length; i++) {
+      tech = treeNodeById('tech', techIds[i]);
+      var techName = localizedTreeNodeName('tech', techIds[i], tech ? tech.name : techIds[i]);
+      var techLabel = tr('wonder.requirement.technology_label', null, '（科技）');
+      var techStatus = tr(s.techs && s.techs[techIds[i]] ? 'ui.status.met' : 'ui.status.not_met', null,
+        s.techs && s.techs[techIds[i]] ? '已满足' : '未满足');
+      add(techName + techLabel + ' · ' + techStatus, !!(s.techs && s.techs[techIds[i]]));
+    }
+
+    civicIds = idList(b.requiredCivic);
+    for (i = 0; i < civicIds.length; i++) {
+      var civic = treeNodeById('civic', civicIds[i]);
+      var civicName = localizedTreeNodeName('civic', civicIds[i], civic ? civic.name : civicIds[i]);
+      var civicLabel = tr('wonder.requirement.civic_label', null, '（市政）');
+      var civicMet = !!(s.civics && s.civics[civicIds[i]]);
+      var civicStatus = tr(civicMet ? 'ui.status.met' : 'ui.status.not_met', null, civicMet ? '已满足' : '未满足');
+      add(civicName + civicLabel + ' · ' + civicStatus, civicMet);
+    }
+
+    var requiredBuilding = b.need ? SB.habitat.buildingById(b.need) : null;
+    if (requiredBuilding) {
+      var buildingMet = !!(s.lvl && s.lvl[b.need]);
+      add(tr('building.info.requirement', {
+        requiredBuilding: localizedBuildingName(requiredBuilding.id, requiredBuilding.name),
+        requirementStatus: tr(buildingMet ? 'ui.status.met' : 'ui.status.not_met', null,
+          buildingMet ? '已满足' : '未满足')
+      }, '需先建成「' + requiredBuilding.name + '」'), buildingMet);
+    }
+    if (canalCap) add(tr('building.info.requirement.canal_level_limit', null,
+      '潮道等级不能超过灯塔等级；先升级灯塔。'), false);
+
+    return items.length
+      ? '<div class="tree-reqs building-requirements">' + items.join('') + '</div>'
+      : '<p>' + tr('building.info.requirement.none', null, '无额外建筑前置') + '</p>';
+  }
   function localizedStaticText(key, fallback) {
     if (!englishLocale()) return fallback || '';
     var value = tr(key, null, '');
@@ -436,7 +549,7 @@
       out += text.slice(cursor, bestAt);
       out += '<span role="button" tabindex="0" class="inline-info-link" ' +
         (best.type === 'workshopTab' ? 'data-workshop-tab' : best.type === 'build' ? 'data-build-info' : best.type === 'wonder' ? 'data-wonder-info' : 'data-policy-info') +
-        '="' + best.id + '" aria-haspopup="dialog">' + best.name + '</span>';
+        '="' + best.id + '"' + (best.type === 'wonder' ? '' : ' aria-haspopup="dialog"') + '>' + best.name + '</span>';
       cursor = bestAt + best.name.length;
     }
     return out + text.slice(cursor);
@@ -688,7 +801,7 @@
     bodyModalClass(true);
   }
 
-  function openInfoCard(title, mark, state, body, actions, markClass) {
+  function openInfoCard(title, mark, state, body, actions, markClass, modalClass) {
     var box = el('modalBox'), modal = el('modal');
     primeModal();
     box.classList.add('tree-detail-box');
@@ -702,6 +815,7 @@
     box.setAttribute('aria-modal', 'true');
     box.setAttribute('aria-labelledby', 'treeDetailTitle');
     modal.classList.add('tree-modal');
+    if (modalClass) modal.classList.add(modalClass);
     modal.classList.remove('void-civic-modal');
     modal.classList.remove('void-ending-modal');
     modal.classList.remove('hidden');
@@ -1162,6 +1276,34 @@
   /* 2026-10-21：建筑行描述也提成共享出口（巢穴页 / 星图 / 卡面 default 三处同源），
    * 免得「条件句描述」在某一处被修好、另一处还写着「核聚变后×2」。 */
   SB.ui.buildingDescText = buildingDescText;
+  SB.ui.buildingInfoEffectText = buildingInfoEffectText;
+
+  function buildingInfoEffectText(s, b, lv) {
+    if (!b) return '';
+    var id = b.id;
+    var housePlan = (s && s.perk && s.perk.housePlan) || 0;
+    var moduleHousing = (s && s.perk && s.perk.starModuleHousing) || 0;
+    var housePerLevel = id === 'nest' ? SB.BLD.house
+      : id === 'coralhouse' ? SB.BLD.house2
+        : id === 'tenement' ? SB.BLD.tenementPop : 0;
+    if (!housePerLevel) return buildingEffectText(s, b, lv);
+
+    var effectText = tr('building.effect.population_cap', {
+      perLevelCap: housePerLevel, currentCap: housePerLevel * lv
+    }, '人口上限 +' + housePerLevel + '/级（当前 +' + (housePerLevel * lv) + '）');
+    if (housePlan) effectText += tr('building.effect.population_cap.house_plan', {
+      perLevelBonus: housePlan, currentBonus: housePlan * lv
+    }, ' · 生息建筑规划额外 +' + housePlan + '/级（当前 +' + (housePlan * lv) + '）');
+    if (id === 'tenement' && moduleHousing) effectText += tr('building.effect.population_cap.modular_housing', {
+      perLevelBonus: moduleHousing, currentBonus: moduleHousing * lv
+    }, ' · 模块住房额外 +' + moduleHousing + '/级（当前 +' + (moduleHousing * lv) + '）');
+    if (id === 'nest') effectText += tr('building.effect.population_cap.full', null, '。住满后不再生育。');
+    if (id === 'tenement') effectText += tr('building.effect.tenement.luxury_cost', {
+      perLevelPct: ((SB.BLD.tenementLuxAdd || 0) * 100).toFixed(0),
+      currentPct: ((SB.BLD.tenementLuxAdd || 0) * lv * 100).toFixed(0)
+    }, '；每级额外 +' + ((SB.BLD.tenementLuxAdd || 0) * 100).toFixed(0) + '% 居民奢侈品消耗（当前 +' + ((SB.BLD.tenementLuxAdd || 0) * lv * 100).toFixed(0) + '%）。');
+    return effectText;
+  }
 
   function buildingConsumeText(s, b, lv) {
     /* ⚠️ 2026-10-17 改口径：三个数一律走 economy.consumeRates（与结算同式的**额定每秒**），
@@ -1215,39 +1357,8 @@
       : { cls: lv ? 'done' : 'ready', text: lv
         ? tr('building.info.status.built', { level: lv }, '已建造 · 等级 ' + lv)
         : tr('ui.status.ready_to_build', null, '可建造') };
-    var housePlan = (s.perk && s.perk.housePlan) || 0;
-    var moduleHousing = (s.perk && s.perk.starModuleHousing) || 0;
-    var housePerLevel = id === 'nest' ? SB.BLD.house
-      : id === 'coralhouse' ? SB.BLD.house2
-        : id === 'tenement' ? SB.BLD.tenementPop : 0;
-    var effectText;
-    if (housePerLevel) {
-      effectText = tr('building.effect.population_cap', {
-        perLevelCap: housePerLevel, currentCap: housePerLevel * lv
-      }, '人口上限 +' + housePerLevel + '/级（当前 +' + (housePerLevel * lv) + '）');
-      if (housePlan) effectText += tr('building.effect.population_cap.house_plan', {
-        perLevelBonus: housePlan, currentBonus: housePlan * lv
-      }, ' · 生息建筑规划额外 +' + housePlan + '/级（当前 +' + (housePlan * lv) + '）');
-      if (id === 'tenement' && moduleHousing) effectText += tr('building.effect.population_cap.modular_housing', {
-        perLevelBonus: moduleHousing, currentBonus: moduleHousing * lv
-      }, ' · 模块住房额外 +' + moduleHousing + '/级（当前 +' + (moduleHousing * lv) + '）');
-      if (id === 'nest') effectText += tr('building.effect.population_cap.full', null, '。住满后不再生育。');
-      if (id === 'tenement') effectText += tr('building.effect.tenement.luxury_cost', {
-        perLevelPct: ((SB.BLD.tenementLuxAdd || 0) * 100).toFixed(0),
-        currentPct: ((SB.BLD.tenementLuxAdd || 0) * lv * 100).toFixed(0)
-      }, '；每级额外 +' + ((SB.BLD.tenementLuxAdd || 0) * 100).toFixed(0) + '% 居民奢侈品消耗（当前 +' + ((SB.BLD.tenementLuxAdd || 0) * lv * 100).toFixed(0) + '%）。');
-    } else {
-      effectText = buildingEffectText(s, b, lv);
-    }
-    var requirement = b.need ? SB.habitat.buildingById(b.need) : null;
-    var reqText = requirement
-      ? tr('building.info.requirement', {
-        requiredBuilding: localizedBuildingName(requirement.id, requirement.name),
-        requirementStatus: (s.lvl && s.lvl[b.need])
-          ? tr('ui.status.met', null, '已满足') : tr('ui.status.not_met', null, '未满足')
-      }, '需先建成「' + requirement.name + '」' + ((s.lvl && s.lvl[b.need]) ? ' · 已满足' : ' · 未满足'))
-      : tr('building.info.requirement.none', null, '无额外建筑前置');
-    if (canalCap) reqText = tr('building.info.requirement.canal_level_limit', null, '潮道等级不能超过灯塔等级；先升级灯塔。');
+    var effectText = buildingInfoEffectText(s, b, lv);
+    var requirementContent = buildingRequirementContent(s, b, canalCap);
     var consumeText = buildingConsumeText(s, b, lv);
     var consumeSection = consumeText
       ? '<section class="tree-detail-section"><h4>' + tr('building.info.heading.operating_costs', null, '运行消耗') + '</h4><p>' + linkInfoNames(consumeText) + '</p></section>'
@@ -1278,7 +1389,7 @@
       '<section class="tree-detail-section"><h4>' + tr('ui.section.effects', null, '效果') + '</h4><p>' + linkInfoNames(effectText) + '</p></section>' +
       consumeSection +
       nextLevelSection +
-      '<section class="tree-detail-section"><h4>' + tr('building.info.heading.building_requirements', null, '建造条件') + '</h4><p>' + reqText + '</p></section>' +
+      '<section class="tree-detail-section"><h4>' + tr('building.info.heading.building_requirements', null, '建造条件') + '</h4>' + requirementContent + '</section>' +
       (buildingFlavor ? '<p class="b-flavor' + (voidBuilding ? ' void-flavor' : '') + '">' + buildingFlavor + '</p>' : '');
     var buildingMark = b.icon
       ? '<img class="tree-detail-icon" src="' + b.icon + '" alt="" aria-hidden="true">'

@@ -260,6 +260,15 @@ html[data-ui-theme="day"] #pane-village .bzone .row .buy-actions>.auto-upgrade-t
 .spd.on{color:var(--cyan);border-color:var(--cyan);background:rgba(47,132,137,.16)}
 .log{max-height:110px;color:var(--dim);border-top:1px dashed rgba(104,164,196,.18);padding-top:8px}
 .modal,.intro-mask{background:rgba(3,8,16,.84);backdrop-filter:blur(5px)}
+/* 2026-11-17 补算闸门去 blur：它是全作唯一每 250ms 改一次 DOM 的面板（进度条 width），
+ * 手机上每次跳动都会让全屏 backdrop-filter 重新合成（几十 ms 起），而闸门背后就是
+ * 被盖死、无信息价值的游戏界面 ⇒ 补算期间直接不模糊。其余 modal 一律不受影响。
+ * ⚠️ 两条一起写不是冗余：JS 那条（showOfflineModal 里 add 的 is-catchup）更精确，
+ *   但 resetModalChrome 在「弹窗外壳归一化」路径上会清掉变体类（实测补算第 3 帧就被清）；
+ *   进度条是闸门的唯一标志，用 :has() 让样式自己判定，不依赖任何 JS 时序。
+ *   WebView 不支持 :has() 时整条失效、退回 blur —— 只是没省到，不会坏。 */
+.modal.is-catchup{backdrop-filter:none}
+.modal:has(#offPr){backdrop-filter:none}
 .modal .box,.intro-pop{background:linear-gradient(145deg,#102a42,#0b2035);border-color:rgba(105,226,223,.36);border-radius:15px;box-shadow:0 22px 70px rgba(0,0,0,.48)}
 .modal h3{color:var(--gold)}
 

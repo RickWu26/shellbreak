@@ -133,7 +133,7 @@
         '</div></div>' +
         /* 按钮文案 = **当前状态**（底色表态：绿=启用 / 灰=停用），不是「点了会怎样」——
          * 原先写「开/关」两可，玩家读不出此刻到底是开是关（用户 2026-09-30 报）。
-         * 正在烧时再加一圈琥珀描边，把「已启用」与「真在烧」两个状态分开。 */
+         * 正在烧时再加琥珀色侧标，把「已启用」与「真在烧」两个状态分开。 */
         '<button class="btn tog' + (s.warmOn ? ' on' : '') + (burning ? ' burning' : '') +
         '" data-warm="1"' + (challengeBlocksHeating ? ' disabled' : '') +
         ' title="' + (challengeBlocksHeating
@@ -142,8 +142,8 @@
         (challengeBlocksHeating
           ? tr('environment.warmstone.status.challenge_disabled', null, '寒流禁用')
           : s.warmOn
-            ? tr('environment.warmstone.status.enabled', null, '启用')
-            : tr('environment.warmstone.status.disabled', null, '停用')) + '</button>';
+            ? tr('environment.warmstone.status.enabled', null, '已启用')
+            : tr('environment.warmstone.status.disabled', null, '已停用')) + '</button>';
     }
     /* 库存数字单独刷：不进签名，所以烧起来时它是唯一在动的节点，按钮不动。
      * 费率同理（随破壳系数变化），也走独立 span，绝不并回签名。 */
@@ -190,31 +190,17 @@
    *   的 skydrillStarved 位；原因只有两种：共振钻头见底，或热液能剩流 < 20/s。
    *   每种都把「为什么」写全，否则玩家读不出该去补哪条线。
    * 【隐藏态】未建成奇观——整行不显示。
-   * 【阶段转换】破壳后机器不再作为操作项，改显示已生效的奇观属性。 */
+   * 【阶段转换】破壳后它转为常驻奇观效果，环境控制区不再保留钻机行。 */
   var drillSig = '';
   function renderDrill(s) {
     var box = el('envDrill'); if (!box) return;
     var owned = !!(SB.wonder && SB.wonder.owned(s).wonder_skydrill);
-    if (!owned) {
-      if (drillSig !== '') { drillSig = ''; box.style.display = 'none'; box.innerHTML = ''; }
+    var postBreak = !!(owned && SB.wonder.skydrillPostBreak(s));
+    if (!owned || postBreak) {
+      if (drillSig !== '' || box.style.display !== 'none') { drillSig = ''; box.style.display = 'none'; box.innerHTML = ''; }
       return;
     }
     box.style.display = '';
-    if (SB.wonder.skydrillPostBreak(s)) {
-      var postBreakSig = 'post-break|' + activeLocale();
-      if (drillSig !== postBreakSig) {
-        drillSig = postBreakSig;
-        var civicBonus = SB.wonder.skydrillCivic(s);
-        var happyBonus = SB.wonder.skydrillHappyOffset(s);
-        box.innerHTML = '<div><div class="nm">' + envWonderIcon('wonder_skydrill') + tr('wonder.skydrill.name', null, '天穹钻机') +
-          ' <span class="tag ok">' + tr('wonder.skydrill.post_break.label', null, '破壳后奇观效果') + '</span></div>' +
-          '<div class="ds">' + tr('wonder.skydrill.post_break_effect', {
-            civicPointsPerSecond: civicBonus,
-            happinessChange: (happyBonus >= 0 ? '+' : '') + happyBonus
-          }, '市政点 +{civicPointsPerSecond}/秒；幸福度 {happinessChange}。此处显示的是破壳后的常驻效果。') + '</div></div>';
-      }
-      return;
-    }
     var starved = !!s.skydrillStarved && !!s.skydrillOn;
     /* 天元突破（2026-11-05）：倍率只从引擎唯一读数口取，面板的耗率 / 速率必须同乘，
      * 否则玩家切到 2× 后文案还写「0.1/秒、100 点/秒」（面板撒谎家族）。
@@ -298,7 +284,7 @@
   /* ── 星球重构机 G.E.E.K 开关（ERA9 · 生态重塑解锁奇观，2026-10-19 实装）──
    * 【面板三态】未启动（灰按钮）/ 运转中（带进度条）/ 停摆（开着但缺料或断流）。
    *   停摆 = shell.tickShell ③段的 geekStarved 位；原因：藻食/金属/珊瑚见底，或热液能剩流不足。
-   * 【隐藏态】未建成奇观（wonder.need='ecological_restoration' 未满足）——整行不显示。
+   * 【隐藏态】未建成奇观（wonder.need='ecological_restoration' 未满足），或恩克拉多斯与泰拉都已完成——整行不显示。
    * 【阶段转换】瑞亚完成 → 泰拉阶段（需研究 terraform）；两段共用同一启动开关，进度条切换文案。
    * 【无幸福度副作用】运行态不加 −1（用户拍板）。 */
   /* 倒计时格式化（游戏内剩余秒 → H:MM:SS / MM:SS）。G.E.E.K 改造耗时 1800/3600 游戏秒，
@@ -314,14 +300,14 @@
   function renderGeek(s) {
     var box = el('envGeek'); if (!box) return;
     var owned = !!(SB.wonder && SB.wonder.owned(s).wonder_geek);
-    if (!owned) {
-      if (geekSig !== '') { geekSig = ''; box.style.display = 'none'; box.innerHTML = ''; }
+    var enceladusDone = !!(s.geek && s.geek.enceladusDone);
+    var terraDone = !!(s.geek && s.geek.terraDone);
+    if (!owned || (enceladusDone && terraDone)) {
+      if (geekSig !== '' || box.style.display !== 'none') { geekSig = ''; box.style.display = 'none'; box.innerHTML = ''; }
       return;
     }
     box.style.display = '';
     var starved = !!(s.geekStarved && s.geek && s.geek.geekOn);
-    var enceladusDone = !!(s.geek && s.geek.enceladusDone);
-    var terraDone = !!(s.geek && s.geek.terraDone);
     var terraUnlocked = !!((s.techs && s.techs.terraform) && !terraDone);
     var phaseKey, phaseTxt, prog, total;
     /* ★ 2026-10-21（用户拍）：G.E.E.K 开工要有**进度条 + 倒计时**。
@@ -440,13 +426,15 @@
    *   按 warm/drill 同纪律放在持久容器 #envStar，签名节流避免点击丢。
    * 【状态签名节流】签名固定为 'fixed'（顶栏已无开关，2026-10-17 重构）；只有隐藏↔显示翻转才重写 innerHTML。
    *   星空探索速率（每帧可能变，热液剩流不够会降）走独立 span 的 textContent 单独刷，不进签名。
-   * 【隐藏两态】破壳前（s.broken 未置）整行不显示；破壳后星空槽才开始被动累积。 */
+   * 【隐藏态】破壳前，或戴森球工程已接替顶层进度后，整行不显示。 */
   var starSig = '';
   function renderStar(s) {
     var box = el('envStar'); if (!box) return;
-    /* 闸门：破壳后（s.broken）星空槽才开始累积。顶栏已无全局暂停开关（2026-10-17 重构）。 */
-    if (!(s.shell <= 0 && (s.broken || s.shellOpened || s.breakSettled))) {
-      if (starSig !== '') { starSig = ''; box.style.display = 'none'; box.innerHTML = ''; }
+    /* 星空槽属于星图阶段；戴森球工程接替顶层进度后，不再重复显示该读数。 */
+    var shellOpened = s.shell <= 0 && (s.broken || s.shellOpened || s.breakSettled);
+    var dysonProjectVisible = shellOpened && !!(s.techs && s.techs.adiabatic);
+    if (!shellOpened || dysonProjectVisible) {
+      if (starSig !== '' || box.style.display !== 'none') { starSig = ''; box.style.display = 'none'; box.innerHTML = ''; }
       return;
     }
     box.style.display = '';

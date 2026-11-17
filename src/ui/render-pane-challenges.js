@@ -127,6 +127,10 @@
     };
     return tr('ui.challenge.status.' + key, {}, labels[key] || '');
   }
+  var CHALLENGE_TIER_OPEN = {};
+  parts.setChallengeTierOpen = function (id, open) {
+    CHALLENGE_TIER_OPEN[id] = !!open;
+  };
 
   function progressLine(s, api, def, tier) {
     var completed = tr('ui.challenge.progress.completed', {}, '挑战已达成 · 永久奖励已生效');
@@ -229,6 +233,18 @@
   function paneChallenges() {
     var s = SB.game.run(), m = SB.game.meta(), api = SB.challenges;
     var list = api.list(), total = api.completedCount(m), active = api.active(s);
+    var orderedList = list.slice();
+    orderedList.sort(function (a, b) {
+      function phase(def) {
+        if (active && active.id === def.id) return 0;
+        var done = api.tierDone(def.id, m);
+        if (done >= def.tiers.length) return 3;
+        if (active) return 2;
+        var prereq = api.prereqState(def.id, m);
+        return prereq && !prereq.ok ? 2 : 1;
+      }
+      return phase(a) - phase(b);
+    });
     var bonusPercent = total * 10;
     var h = '<section class="challenge-overview"><div class="challenge-overview-title">' +
       '<span class="challenge-kicker">' + tr('ui.challenge.panel.kicker', {}, 'PRESTIGE TRIALS') + '</span><h2>' +
@@ -240,36 +256,16 @@
       '</small><b>' + tr('ui.challenge.overview.prestige_bonus', { bonusPercent: bonusPercent }, '+' + bonusPercent + '%') +
       '</b></div></div></section>';
 
-    if (active) {
-      var activeDef = api.byId(active.id), activeTier = activeDef.tiers[active.tier] || activeDef.tiers[0];
-      var activeTimedOut = api.timedOut(s);
-      var progressText = progressLine(s, api, activeDef, activeTier);
-      var activeStatus = activeTimedOut ? 'timed_out' : s.challengeDone ? 'goal_met' :
-        active.replay === true ? 'replay_in_progress' : 'challenge_in_progress';
-      var activeTitle = tr(active.replay === true ? 'ui.challenge.active.replay_title' : 'ui.challenge.active.title', {
-        challengeName: definitionText(activeDef, 'name'),
-        tierName: definitionText(activeDef, 'tierLabel', active.tier)
-      }, definitionText(activeDef, 'name') + ' · ' + definitionText(activeDef, 'tierLabel', active.tier));
-      var activeHint = activeTimedOut ? tr('ui.challenge.timeout.retry_hint', {}, '重开本周目后可再次尝试，不消耗档位') :
-        s.challengeDone && !activeDef.goal ? tr('ui.challenge.result.final_restriction', {}, '成绩已定格；挑战限制仍生效，可在卡片上解除') :
-          tr('ui.challenge.goal.label', {}, '通关目标') + ': ' + definitionText(activeDef, 'goalText');
-      h += '<section class="challenge-active' + (activeTimedOut ? ' is-failed' : '') + '"><span class="challenge-active-mark">' +
-        challengeStatus(activeStatus) + '</span><div><b>' + activeTitle + '</b><small>' + progressText +
-        '</small></div><span class="challenge-active-hint">' + activeHint + '</span></section>';
-    } else {
-      /* 2026-11-04：这里原先还有一块「壳外推进」只读进度（C 方案）。
-       * 它是给「破壳后 goal 型 active() 返回 null」打的补丁；该判据已修
-       * （challenges.active：goal 型只要未 challengeDone 就返回 a），
-       * 未完成的 goal 挑战一定走上面 if (active) 分支 ⇒ 这段已无可达路径，删除。 */
+    if (!active) {
+      /* 当前进度只显示在对应挑战卡中；没有进行中的挑战时，保留一次性规则说明。 */
       h += '<div class="challenge-howto">' +
         tr('ui.challenge.overview.bonus_info', { bonusPercent: 10 }, '每档挑战首次通关都会让之后的轮回点获取永久提高 10%。分档挑战必须逐档完成。') +
-        ' ' + tr('ui.challenge.overview.replay_info', {}, '全部通关后仍可再次挑战：重打已通的最高档，不再重复发奖，只刷新排行榜成绩。') +
         '</div>';
     }
 
     h += '<section class="challenge-grid">';
-    for (var i = 0; i < list.length; i++) {
-      var d = list[i], done = api.tierDone(d.id, m), isActive = active && active.id === d.id;
+    for (var i = 0; i < orderedList.length; i++) {
+      var d = orderedList[i], done = api.tierDone(d.id, m), isActive = active && active.id === d.id;
       var scribeName = SB.folk.jobName(s, 'scribe');
       var summary = definitionText(d, 'summary');
       var rule = definitionText(d, 'rule');
@@ -287,18 +283,26 @@
       var status = challengeStatus(statusKey);
       var goalText = definitionText(d, 'goalText');
       h += '<article class="challenge-card' + (isActive ? ' is-active' : '') + (exhausted ? ' is-complete' : '') + '">';
-      h += '<header class="challenge-card-head"><span class="challenge-icon" aria-hidden="true"><img src="' + d.badge + '" alt=""></span>' +
+      h += '<header class="challenge-card-head"><span class="challenge-icon" aria-hidden="true"><img src="' + d.badge + '" alt="">' +
+        (exhausted ? '<img class="challenge-completion-medal" src="assets/challenges/challenge-completion-medal-v1.png" alt="">' : '') + '</span>' +
         '<div class="challenge-card-name"><h3>' + challengeName + '</h3><small>' + definitionText(d, 'kind') + ' · ' + summary + '</small></div>' +
         '<span class="challenge-status' + (exhausted ? ' done' : activeTimedOut ? ' failed' : isActive ? ' active' : gateBlocked ? ' locked' : '') + '">' + status + '</span></header>';
-      h += '<div class="challenge-card-rule"><small>' + tr('ui.challenge.run.restrictions', {}, '本轮限制') +
+      h += '<div class="challenge-card-rule"><div class="challenge-rule-item"><small>' + tr('ui.challenge.run.restrictions', {}, '本轮限制') +
         (s.challengeReleased && !d.goal ? ' <em class="challenge-released">' + tr('ui.challenge.run.released', {}, '已解除') + '</em>' : '') +
-        '</small><p>' + rule + '</p>' +
+        '</small><p>' + rule + '</p></div>' +
         (prereq ? '<p class="challenge-prereq' + (gateBlocked ? ' is-lack' : '') + '">' +
           prerequisiteText(api, d.id, m) + '</p>' : '') +
-        '<small>' + tr('ui.challenge.goal.label', {}, '通关目标') + '</small><p>' + goalText + '</p></div>';
+        '<div class="challenge-rule-item"><small>' + tr('ui.challenge.goal.label', {}, '通关目标') + '</small><p>' + goalText + '</p></div></div>';
+      if (isActive) {
+        var progressTier = d.tiers[active.tier] || d.tiers[0];
+        var liveProgress = progressLine(s, api, d, progressTier);
+        if (liveProgress && liveProgress !== goalText)
+          h += '<div class="challenge-progress' + (activeTimedOut ? ' is-failed' : '') + '">' + liveProgress + '</div>';
+      }
 
       if (d.tiers.length > 1) {
-        h += '<div class="challenge-tiers">';
+        var focusTierIndex = isActive ? Math.max(0, Math.min(Number(active.tier) || 0, d.tiers.length - 1)) : next;
+        var focusTierHTML = '', otherTierHTML = '';
         for (var ti = 0; ti < d.tiers.length; ti++) {
           var td = d.tiers[ti], tierActive = isActive && active.tier === ti;
           var tierState = tierActive ? challengeStatus(activeTimedOut ? 'tier_timed_out' : 'challenge_in_progress') :
@@ -324,14 +328,19 @@
             productionPenaltyPercent: Math.round(td.cap * 100)
           }, '');
           var tierLabel = definitionText(d, 'tierLabel', ti);
-          h += '<div class="challenge-tier' + (ti < done ? ' done' : tierActive ? (activeTimedOut ? ' active failed' : ' active') : ti === done && !blocked && !exhausted ? ' next' : '') + '">' +
+          var tierHTML = '<div class="challenge-tier' + (ti < done ? ' done' : tierActive ? (activeTimedOut ? ' active failed' : ' active') : ti === done && !blocked && !exhausted ? ' next' : '') + '">' +
             '<span class="challenge-tier-medal" aria-hidden="true"><img src="' + d.badge + '" alt=""><i>' + ['Ⅰ', 'Ⅱ', 'Ⅲ'][ti] + '</i></span>' +
             '<div><b>' + tierLabel + '</b><span>' + tierState + '</span></div><small>' + tierRule + '</small>' +
             '<em>' + tr('ui.challenge.reward.tier', {
               rewardDescription: definitionText(d, 'reward', ti)
             }, '本档奖励：' + definitionText(d, 'reward', ti)) + '</em></div>';
+          if (ti === focusTierIndex) focusTierHTML = tierHTML;
+          else otherTierHTML += tierHTML;
         }
-        h += '</div>';
+      h += '<details class="challenge-tier-details"' + (CHALLENGE_TIER_OPEN[d.id] ? ' open' : '') +
+        ' ontoggle="SB.ui.renderParts.setChallengeTierOpen(\'' + d.id + '\',this.open)"><summary>' + focusTierHTML +
+          '<span class="challenge-tier-expand">' + tr('ui.challenge.tiers.expand', {}, '') + '</span></summary>' +
+          '<div class="challenge-tiers">' + otherTierHTML + '</div></details>';
       } else {
         h += '<div class="challenge-reward"><small>' + tr('ui.challenge.reward.permanent', {}, '永久奖励') +
           '</small><b>' + definitionText(d, 'reward', 0) + '</b></div>';
@@ -378,8 +387,7 @@
         h += blocked
           ? '<footer class="challenge-card-foot"><span>' + tr('ui.challenge.replay.must_finish_run', {}, '永久奖励已生效。先结束当前挑战周目再重打。') +
             '</span><button class="btn" disabled>' + tr('ui.challenge.button.unavailable', {}, '暂不可开始') + '</button></footer>'
-          : '<footer class="challenge-card-foot"><span>' + tr('ui.challenge.replay.no_reward_card', {}, '永久奖励已生效。再次挑战不再发奖，只刷新排行榜成绩。') +
-            '</span><button class="btn challenge-start" type="button" data-challenge-start="' + d.id + '">' +
+          : '<footer class="challenge-card-foot"><span></span><button class="btn challenge-start" type="button" data-challenge-start="' + d.id + '">' +
             tr('ui.challenge.button.replay_tier', {
               tierLabel: definitionText(d, 'tierLabel', d.tiers.length - 1)
             }, '再次挑战 · ' + definitionText(d, 'tierLabel', d.tiers.length - 1)) + '</button></footer>';
@@ -387,9 +395,7 @@
         h += '<footer class="challenge-card-foot"><span>' + tr('ui.challenge.run.must_finish', {}, '先完成或重开当前挑战周目。') +
           '</span><button class="btn" disabled>' + tr('ui.challenge.button.unavailable', {}, '暂不可开始') + '</button></footer>';
       } else {
-        h += '<footer class="challenge-card-foot"><span>' + tr('ui.challenge.first_clear_bonus', {
-          bonusPercent: 10
-        }, '首次通关本档：轮回点获取永久 +10%。') + '</span>' +
+        h += '<footer class="challenge-card-foot"><span></span>' +
           '<button class="btn challenge-start" type="button" data-challenge-start="' + d.id + '">' +
           tr('ui.challenge.button.settle_and_start', {
             tierLabel: definitionText(d, 'tierLabel', next)
@@ -445,19 +451,21 @@
     return tr('achievement.' + slug + '.' + field, {}, fallback);
   }
 
-  function achvItemHTML(def, m, s, ready) {
+  function achvItemHTML(def, m, s, ready, progress) {
     var earned = !!(m.achv && m.achv[def.key]);
     var fired = SB.achv.platformSynced
       ? SB.achv.platformSynced(def.key, m)
       : !!(m.achievements && m.achievements[def.key]);
     var hasId = ready.indexOf(def.key) >= 0;
-    var prog = earned ? null : SB.achv.progressOf(def.key, m, s);
+    var prog = earned ? null : progress;
     var title = achievementText(def, 'title'), description = achievementText(def, 'description');
     var icon = def.icon
       ? '<img src="' + def.icon + '" alt="">'
       : '<i class="achv-item-badge" aria-hidden="true">' + (def.bld ? '◈' : '★') + '</i>';
     var h = '<div class="achv-item' + (earned ? ' is-earned' : '') + (def.key === 'voidEnd' ? ' is-void-ending' : '') + '">';
-    h += '<span class="achv-item-icon">' + icon + '</span>';
+    h += '<span class="achv-item-icon">' + icon + (earned
+      ? '<img class="achv-earned-medal" src="assets/achievements/achievement-earned-medal-v1.png" alt="" aria-hidden="true">'
+      : '') + '</span>';
     h += '<div class="achv-item-body"><b>' + title + '</b><small>' + description + '</small>';
     if (prog) {
       var pct = prog.max > 0 ? Math.max(2, Math.min(100, Math.round(prog.cur / prog.max * 100))) : 0;
@@ -479,6 +487,25 @@
    * 「成就在挑战与成就里单独做一个标签」后拆出：render.js 的 PANES.achievements
    * 直接指向 paneAchvWall 本体（单一实现，不写第二份逻辑，与 paneWonder 同手法）。
    * 门与挑战页一致（meta.shopUnlocked = 首次轮回），见 game.setTab 与 initTabs。 */
+  function achievementItemsByProgress(defs, m, s) {
+    var items = [];
+    for (var i = 0; i < defs.length; i++) {
+      var def = defs[i], earned = !!(m.achv && m.achv[def.key]);
+      var progress = earned ? null : SB.achv.progressOf(def.key, m, s);
+      var max = progress && Number(progress.max), cur = progress && Number(progress.cur);
+      var ratio = max > 0 ? Math.max(0, Math.min(1, cur / max)) : 0;
+      items.push({ def: def, progress: progress, earned: earned, ratio: ratio, order: i });
+    }
+    items.sort(function (a, b) {
+      var aGroup = a.ratio > 0 ? 0 : a.earned ? 1 : 2;
+      var bGroup = b.ratio > 0 ? 0 : b.earned ? 1 : 2;
+      if (aGroup !== bGroup) return aGroup - bGroup;
+      if (aGroup === 0 && a.ratio !== b.ratio) return b.ratio - a.ratio;
+      return a.order - b.order;
+    });
+    return items;
+  }
+
   function paneAchievements() {
     return paneAchvWall();
   }
@@ -489,6 +516,7 @@
     var defs = SB.achv.allDefs(), ready = SB.achv.readyKeys() || [];
     var earned = 0, i;
     for (i = 0; i < defs.length; i++) if (m.achv && m.achv[defs[i].key]) earned++;
+    var earnedPercent = defs.length ? Math.round(earned / defs.length * 100) : 0;
     var h = '<section class="achv-wall"><header class="achv-wall-head">' +
       '<div><span class="achv-kicker">' + tr('ui.achievement.wall.kicker', {}, '成就') + '</span><h2>' + tr('ui.achievement.wall.title', {}, '成就墙') + '</h2>' +
       '<p>' + tr('ui.achievement.wall.summary', { achievementCount: defs.length }, '共 ' + defs.length + ' 项，跨周目保留。“轻车熟路”按建筑分区折叠，进度为跨周目累计等级。') + '</p>' +
@@ -497,7 +525,8 @@
        *    这里是**唯一讲清因果的地方**，改福利口径（SB.habitat.freeFirstBuild）时同步改这句。 */
       '<p class="achv-rule">' + tr('ui.achievement.wall.first_build_rule', {}, '获得建筑“轻车熟路”成就后，该建筑在每个轮回首次建造时不消耗材料。') + '</p></div>' +
       '<div class="achv-wall-count"><small>' + tr('ui.achievement.status.earned', {}, '已获得') + '</small><b>' +
-      tr('ui.achievement.wall.earned_count', { earnedCount: earned, totalCount: defs.length }, earned + ' / ' + defs.length) + '</b></div></header>';
+      tr('ui.achievement.wall.earned_count', { earnedCount: earned, totalCount: defs.length }, earned + ' / ' + defs.length) + '</b>' +
+      '<div class="achv-wall-meter" aria-hidden="true"><span style="width:' + earnedPercent + '%"></span></div></div></header>';
 
     /* 将全部挑战专属成就放入挑战组，首次轮回仍与它们并列；其他静态成就归入里程碑。 */
     var baseEnd = 0;
@@ -535,7 +564,9 @@
         '<b>' + zoneTitle + '</b><small>' + zEarned + ' / ' + zdefs.length + '</small></button>';
       if (!folded) {
         h += '<div class="achv-zone-items">';
-        for (i = 0; i < zdefs.length; i++) h += achvItemHTML(zdefs[i], m, s, ready);
+        var zoneItems = achievementItemsByProgress(zdefs, m, s);
+        for (i = 0; i < zoneItems.length; i++)
+          h += achvItemHTML(zoneItems[i].def, m, s, ready, zoneItems[i].progress);
         h += '</div>';
       }
       h += '</section>';
@@ -545,7 +576,9 @@
 
   function achvGroupHTML(title, defs, from, to, m, s, ready) {
     var h = '<div class="achv-group"><h3 class="achv-group-title">' + title + '</h3><div class="achv-items">';
-    for (var i = from; i < to; i++) h += achvItemHTML(defs[i], m, s, ready);
+    var items = achievementItemsByProgress(defs.slice(from, to), m, s);
+    for (var i = 0; i < items.length; i++)
+      h += achvItemHTML(items[i].def, m, s, ready, items[i].progress);
     return h + '</div></div>';
   }
 

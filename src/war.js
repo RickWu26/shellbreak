@@ -201,6 +201,8 @@
      * 不碰 folk.effJobs（effJobs 已吃族民通用产出乘区，重复乘会与 starFolk 双算）。
      * powerParts() 必须同步这一行，否则「分项之和 ≠ 净值」（见 :206）。 */
     var soldierPactMul = 1 + 0.10 * nonNegative(s && s.perk && s.perk.soldierPact);
+    /* 硅基承续 · 鳞/手（2026-11-17）：军人产出军力 +50/100/200%。与军契**相乘**（军契是级数加法轴）。 */
+    if (SB.veilFx) soldierPactMul *= (1 + SB.veilFx.soldierPactPct());
     soldierOutput *= soldierPactMul;
     var academyOutput = nonNegative(s.pop) * academyLevel * nonNegative(B.militaryAcademyPowerPerPopulationPerLevel);
     var total = (soldierOutput + academyOutput) * conquestProductionMultiplier(s);
@@ -245,6 +247,8 @@
     soldierOutput *= soldierBonusFactor;
     /* 与 rate() 同一行、同一系数（2026-11-14 军契）：b×m 必须仍等于 v。 */
     var soldierPactMul = 1 + 0.10 * nonNegative(s && s.perk && s.perk.soldierPact);
+    /* 与 rate() 同一行、同一系数（硅基承续 · 鳞/手）：b×m 必须仍等于 v，漏这里就是面板撒谎。 */
+    if (SB.veilFx) soldierPactMul *= (1 + SB.veilFx.soldierPactPct());
     soldierOutput *= soldierPactMul;
     var academyOutput = nonNegative(s.pop) * academyLevel * nonNegative(B.militaryAcademyPowerPerPopulationPerLevel);
     var conquestMul = conquestProductionMultiplier(s);
@@ -287,6 +291,8 @@
     /* 征服者三档永久奖励：敌国规模上限 ×0.95/×0.90/×0.85（−5%/−10%/−15%）。
      * 与 faith/culture/soft_power 按敌国累积的削减是不同轴，此处叠加为全局永久乘区。 */
     if (SB.challenges && SB.challenges.enemyScaleCapMul) cap *= SB.challenges.enemyScaleCapMul();
+    /* 硅基承续 · 喉 LV3（2026-11-17）：敌国文明规模上限 −20%，与征服者 cap 乘子**相乘**（SPEC §7-7）。 */
+    if (SB.veilFx) cap *= SB.veilFx.enemyCapMul();
     return cap;
   }
   function currentScale(enemy) {
@@ -829,6 +835,9 @@
      * 仅读账本 tierDone，不在挑战进行中生效——与其它终局挑战的永久奖励口径一致。 */
     if (SB.challenges && SB.challenges.tierDone &&
       SB.challenges.tierDone('pacifist', SB.game && SB.game.meta ? SB.game.meta() : null) >= 1) cost *= 0.8;
+    /* 硅基承续 · 脑（2026-11-17）：软实力行动消耗 −20/40/60%。乘在既有折扣之后（SPEC §7-6：
+     * 与文化折扣是乘算而非加算——加算会在折扣堆满时把成本压成 0 甚至负数）。 */
+    if (SB.veilFx) cost *= SB.veilFx.softCostMul();
     return cost;
   }
   function executeSoftPowerAction(s, enemyId, actionId, options) {
@@ -964,6 +973,9 @@
      * 不另造乘区。独立乘区会让满配 2.10×1.30=2.73 而不是 2.40。
      * ⚠️ 只削 currentScale，不动 effectiveMaxScale / enemyScaleCapMul（征服者挑战轴）。 */
     scaleLoss *= 1 + enemyScaleDamageBonus + nonNegative(s && s.perk && s.perk.warScaleDamage);
+    /* 硅基承续 · 喉（2026-11-17）：战争行动对敌人规模损失 +50/100/150%。乘在 warScaleDamage
+     * 加法轴之后，与它独立（否则「军械劣评」那类加成就被器官悄悄放大）。 */
+    if (SB.veilFx) scaleLoss *= SB.veilFx.warScaleDamageMul();
     var scaleBefore = currentScale(enemy);
     enemy.currentScale = Math.max(0, scaleBefore - scaleLoss);
     /* 2026-11-12：损失从「军人比率」改为「国家人口比率」，不可被调岗规避。

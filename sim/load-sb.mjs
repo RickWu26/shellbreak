@@ -29,6 +29,9 @@ const NO_DOM = [
   'src/save-storage.js',
   'src/state-migrate.js',
   'src/state.js',
+  /* 硅基承续 · 十部位效果通道（2026-11-17）：必须与 index.html 同位置——state.js 之后
+   * （要 SB.game.meta 读跨周目器官等级）、economy/workshop/shell/war 之前（首帧就调）。 */
+  'src/veil-effects.js',
   /* workshop 排在 state 之后、economy 之前 —— **必须与 index.html 的 <script> 顺序逐字一致**。
    * 两份清单的顺序一旦分叉，e2e 绿而页面上白（或反之），是最难查的一类假回归。 */
   'src/workshop.js',

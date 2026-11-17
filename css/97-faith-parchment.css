@@ -1,0 +1,327 @@
+/* Faith tenets: warm parchment cards over the game's deep-sea panel. */
+@font-face {
+  font-family: "Ma Shan Zheng Faith Tenets";
+  src: url("../assets/fonts/Ma_Shan_Zheng_FaithTenets.ttf?v=1") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+}
+
+#pane-faith .faith-tenets {
+  --faith-paper-ink: #4a2d18;
+  --faith-paper-muted: #705132;
+  --faith-paper-gold: #8e5c20;
+}
+
+#pane-faith .faith-tenet-choice {
+  box-sizing: border-box;
+  position: relative;
+  overflow: visible;
+  display: flex;
+  width: 100%;
+  max-width: 460px;
+  justify-self: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  min-height: 640px;
+  padding: 16px 18px 24px;
+  border: 44px solid transparent;
+  border-image: url("../assets/faith-tenets/ui/parchment-frame-v1.png") 210 fill / 44px / 0 stretch;
+  border-radius: 0;
+  background: transparent;
+  color: var(--faith-paper-ink);
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+  transition: transform .16s ease, filter .16s ease;
+}
+
+#pane-faith .faith-tenet-options {
+  row-gap: 70px;
+  padding-bottom: 70px;
+}
+
+#pane-faith .faith-tenet-choice::after {
+  position: absolute;
+  z-index: 1;
+  bottom: -88px;
+  left: 50%;
+  width: 124px;
+  height: 248px;
+  background: url("../assets/faith-tenets/ui/tenet-seal-tag-gold-v1.png") center / contain no-repeat;
+  content: "";
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+#pane-faith .faith-tenet-choice:hover::after,
+#pane-faith .faith-tenet-choice:focus-visible::after {
+  background-image: url("../assets/faith-tenets/ui/tenet-seal-tag-v1.png");
+}
+
+#pane-faith .faith-tenet-choice:hover {
+  border-color: transparent;
+  background: transparent;
+  color: var(--faith-paper-ink);
+  filter: drop-shadow(0 0 7px rgba(239, 130, 108, .62)) drop-shadow(0 5px 7px rgba(5, 14, 20, .44));
+  transform: translateY(-2px);
+}
+
+#pane-faith .faith-tenet-choice:active {
+  transform: translateY(1px);
+}
+
+#pane-faith .faith-tenet-choice:focus-visible {
+  outline: 2px solid #ffd38b;
+  outline-offset: 1px;
+  box-shadow: none;
+}
+
+#pane-faith .faith-tenet-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 2em;
+  color: var(--faith-paper-ink);
+  font-family: "Ma Shan Zheng Faith Tenets", "Ma Shan Zheng", "KaiTi", "KaiTi_GB2312", "STKaiti", "SimSun", serif;
+  font-size: clamp(38px, 3.4vw, 50px);
+  font-weight: 400;
+  line-height: 1.15;
+  letter-spacing: .4px;
+  overflow-wrap: anywhere;
+}
+
+#pane-faith .faith-tenet-choice .faith-tenet-icon {
+  width: clamp(144px, 11vw, 180px);
+  height: clamp(144px, 11vw, 180px);
+  flex: 0 0 clamp(144px, 11vw, 180px);
+  filter: sepia(.2) drop-shadow(0 2px 3px rgba(68, 40, 14, .2));
+}
+
+#pane-faith .faith-tenet-copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  gap: 0;
+}
+
+#pane-faith .faith-tenet-choice .faith-tenet-copy > span {
+  width: 100%;
+  padding-top: 10px;
+  color: var(--faith-paper-muted);
+  font-size: 19px;
+  line-height: 1.5;
+}
+
+#pane-faith .faith-tenet-choice .faith-tenet-copy > span::before {
+  display: block;
+  width: min(82%, 260px);
+  height: 3px;
+  margin: 0 auto 14px;
+  background: linear-gradient(90deg, transparent, rgba(142, 92, 32, .82) 18%, rgba(142, 92, 32, .82) 82%, transparent);
+  content: "";
+}
+
+#pane-faith .faith-tenet-choice .faith-tenet-copy > i {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  margin: 14px 0 0;
+  padding: 8px 22px;
+  border: 1px solid rgba(142, 92, 32, .48);
+  border-radius: 999px;
+  background: rgba(150, 91, 32, .12);
+  color: #744516;
+  font-size: 17px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+#pane-faith .faith-tenet-established-list {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 320px));
+  justify-content: center;
+  gap: 20px;
+  row-gap: 78px;
+  padding-bottom: 60px;
+}
+
+#pane-faith .faith-tenet-established-card {
+  box-sizing: border-box;
+  position: relative;
+  overflow: visible;
+  isolation: isolate;
+  display: flex;
+  width: 100%;
+  max-width: 320px;
+  min-height: 430px;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 18px 22px;
+  border: 28px solid transparent;
+  border-image: url("../assets/faith-tenets/ui/parchment-frame-v1.png") 210 fill / 28px / 0 stretch;
+  border-radius: 0;
+  background: transparent;
+  color: var(--faith-paper-ink);
+  text-align: center;
+  filter: drop-shadow(0 4px 7px rgba(5, 14, 20, .28));
+}
+
+#pane-faith .faith-tenet-established-card::after {
+  position: absolute;
+  z-index: 1;
+  bottom: -56px;
+  left: 50%;
+  width: 84px;
+  height: 168px;
+  background: url("../assets/faith-tenets/ui/tenet-seal-tag-gold-v1.png") center / contain no-repeat;
+  content: "";
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+#pane-faith .faith-tenet-established-card > div {
+  display: flex;
+  flex: 0 0 auto;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+#pane-faith .faith-tenet-established-card .faith-tenet-icon {
+  width: 92px;
+  height: 92px;
+  flex: 0 0 92px;
+  filter: sepia(.2) drop-shadow(0 1px 2px rgba(68, 40, 14, .18));
+}
+
+#pane-faith .faith-tenet-established-card b {
+  color: var(--faith-paper-ink);
+  font-family: "Ma Shan Zheng Faith Tenets", "Ma Shan Zheng", "KaiTi", "KaiTi_GB2312", "STKaiti", "SimSun", serif;
+  font-size: 26px;
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+#pane-faith .faith-tenet-established-card span {
+  width: 100%;
+  color: var(--faith-paper-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+#pane-faith .faith-tenet-established-card span::before {
+  display: block;
+  width: 76%;
+  height: 2px;
+  margin: 0 auto 8px;
+  background: linear-gradient(90deg, transparent, rgba(142, 92, 32, .76) 18%, rgba(142, 92, 32, .76) 82%, transparent);
+  content: "";
+}
+
+#pane-faith .faith-tenet-established-card i {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 12px;
+  padding: 6px 15px;
+  border: 1px solid rgba(142, 92, 32, .38);
+  border-radius: 999px;
+  background: rgba(150, 91, 32, .1);
+  color: var(--faith-paper-gold);
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+
+@media (max-width: 600px) {
+  #pane-faith .faith-tenet-options {
+    row-gap: 80px;
+    padding-bottom: 80px;
+  }
+
+  #pane-faith .faith-tenet-choice {
+    min-height: 500px;
+    padding: 12px 14px 22px;
+    border: 32px solid transparent;
+    border-image: url("../assets/faith-tenets/ui/parchment-frame-v1.png") 210 fill / 32px / 0 stretch;
+  }
+
+  #pane-faith .faith-tenet-established-list {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 280px));
+    gap: 14px;
+    row-gap: 66px;
+    padding-bottom: 48px;
+  }
+
+  #pane-faith .faith-tenet-established-card {
+    max-width: 280px;
+    min-height: 390px;
+    padding: 18px 16px 20px;
+    border-width: 24px;
+    border-image-width: 24px;
+  }
+
+  #pane-faith .faith-tenet-established-card::after {
+    bottom: -48px;
+    width: 68px;
+    height: 136px;
+  }
+
+  #pane-faith .faith-tenet-established-card .faith-tenet-icon {
+    width: 82px;
+    height: 82px;
+    flex-basis: 82px;
+  }
+
+  #pane-faith .faith-tenet-established-card b {
+    font-size: 23px;
+  }
+
+  #pane-faith .faith-tenet-title {
+    min-height: 2em;
+    font-size: 36px;
+  }
+
+  #pane-faith .faith-tenet-choice .faith-tenet-icon {
+    width: 132px;
+    height: 132px;
+    flex-basis: 132px;
+  }
+
+  #pane-faith .faith-tenet-choice .faith-tenet-copy > span {
+    font-size: 16px;
+  }
+
+  #pane-faith .faith-tenet-choice .faith-tenet-copy > i {
+    min-height: 40px;
+    padding: 7px 18px;
+    font-size: 14px;
+  }
+
+  #pane-faith .faith-tenet-choice::after {
+    bottom: -80px;
+    width: 76px;
+    height: 152px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #pane-faith .faith-tenet-choice {
+    transition: none;
+  }
+
+  #pane-faith .faith-tenet-choice:hover,
+  #pane-faith .faith-tenet-choice:active {
+    transform: none;
+  }
+}

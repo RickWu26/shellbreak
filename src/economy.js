@@ -167,6 +167,12 @@
        * 现在停用即断电、上限当场缩水，人口走 tick 的超额缓慢离场（CFG.POP_OVER_LEAVE）。 */
       + activeTerraVat(s) * 20
       + (p.startPop || 0)
+      /* 硅基承续 · 鳃（2026-11-17）：初始人口 +5/+10/+15 累加（LV3 = +30，SPEC §0 #5 有意强飞升），
+       * 以及 LV3 的礁口巢上限 +1（SPEC §7-1 新造通道，与住房同轴相加）。
+       * ⚠️ 绝不能写进 s.perk.startPop —— 那是当局字段，freshRun 会按账本整表覆盖；
+       *    器官是跨周目永久改造，只能从 meta.veil.paths.organ 读。 */
+      + (SB.veilFx ? SB.veilFx.startPop() : 0)
+      + (s.lvl.nest && SB.veilFx ? SB.veilFx.nestCapBonus() : 0)
       /* 2026-11-07 用户报「水体 +2、小国寡民 +3，开局该 6 人却跳回 4」：挑战奖励此前
        *   只由 challenges.startingPopulation() 写进 freshRun 的 pop/peak，popCap 完全不读它
        *   ⇒ 开局必然 pop > popCap，被 economy-tick.js 的超额离场（POP_OVER_LEAVE=0.05，
@@ -202,7 +208,9 @@
      * 与政策卡 popGrowthTimeMul 同口径（都是乘在 base 上的时间系数，<1 即更快）。s.perk.workSpeed 累计百分比。 */
     var workSpeedMul = 1 - ((s && s.perk && s.perk.workSpeed) || 0);
     if (!(workSpeedMul > 0)) workSpeedMul = 0;
-    return base * cardMul * workSpeedMul;
+    /* 硅基承续 · 胃（2026-11-17）：「族民生产时间 −X%」按**人口诞生间隔**算（SPEC §0 #4 已拍），
+     * 与政策卡 popGrowthTimeMul / 勤耕节点同口径（都是乘在 base 上的时间系数，<1 即更快）。 */
+    return base * cardMul * workSpeedMul * (SB.veilFx ? SB.veilFx.birthTimeMul() : 1);
   }
   function lvlSum(s) {
     var n = 0; for (var k in s.lvl) n += s.lvl[k]; return n;
@@ -683,6 +691,9 @@
      *   ⚠️ 加了 clamp 下限 0.05：perk 只有 20 级 ⇒ 最小 0.8，数学上够不到底，
      *      但留一道闸防止将来把系数标定到 >0.95 时把造价乘成负数（那会让 pay 倒给玩家资源）。 */
     var bsb = Math.max(0.05, 1 - 0.01 * (s.perk.buildSave || 0));
+    /* 硅基承续 · 鳍（2026-11-17）：建筑消耗 −20/30/50%，**额外乘区**（不并进 perk.buildSave 加法轴）。
+     * 下限沿用同一道 0.05 闸：造价被乘成负数会让 pay 倒给玩家资源。 */
+    if (SB.veilFx) bsb = Math.max(0.05, bsb * (1 - SB.veilFx.buildSave()));
     /* ⚠️ 2026-10-05 用户拍板：**去掉 `Math.ceil`，造价显示真实小数**。
      *   【为什么】原来是 `Math.ceil(2 × 1.15^n)`，而 1.15 的增长慢于取整粒度
      *   ⇒ 前几级连着两级显示同一个数（第 1→2 级都显示 3、第 3→4 级都显示 4…），
@@ -779,28 +790,44 @@
    *   · owned 取 Math.floor：科技点 / 市政点 这类浮点池按整数展示，与顶栏同口径；
    *     资源缺失（新资源漏进 RESS 却没进 freshRun 的 res）兜底 0，绝不 NaN。
    *   · need 走 fmtAmt（一位小数），与 costTxt 同口径 —— 浮点造价（如 2.3）原样显示，不回退到 `fmt` 截断。 */
-  function costOwnedTxt(s, c) {
+  /* 单项「已有 / 需要」文案（= costOwnedTxt 的循环体）。**必须抽成独立函数**：
+   *   2026-11-16 起成本串里的「已有」数字会被包进 `<span data-live-cost>`，由渲染侧
+   *   原地回填（renderCommon.paintLiveCost）。回填若另写一份格式化逻辑，两处必然漂移
+   *   —— 本仓记过多次「同一判据存两份 ⇒ 两套账」。首绘与回填共用这一份。
+   * 返回空串 = 该项不显示（need 为 0 / 键不存在）。 */
+  function costItemTxt(s, k, need) {
+    if (!need) return '';
+    /* ERA10 市政（2026-10-20 · 虚境祭坛）：人口造价也要在按钮上显示「有/需要」，
+     * 否则玩家只看到「建造 是」却不知道这一步要吃 30 人（按钮标签 = 唯一的成本提示）。 */
+    if (k === 'pop') {
+      var populationName = SB.i18n && SB.i18n.resourceName ? SB.i18n.resourceName('population', '人口') : '人口';
+      var popHave = Math.floor((typeof s.pop === 'number' && isFinite(s.pop)) ? s.pop : 0);
+      return populationName + ' ' + fmtAbbr(popHave, popHave) + '/' + fmtAmt(need);
+    }
+    var rawHave = s.res && s.res[k];
+    /* 存档迁移会清洗旧 NaN，但面板也必须防住当前运行态的坏值：
+     *    这里显示的是「已有 / 需要」，坏的已有值应回落为 0，绝不能把 NaN 印给玩家。 */
+    var have = (typeof rawHave === 'number' && isFinite(rawHave)) ? Math.floor(rawHave) : 0;
+    var haveText = fmtAbbr(have, have);   // 大数带计数单位；小数保持原整数外观
+    var fallbackName = (SB.RESS && SB.RESS[k] && SB.RESS[k].name) || k;
+    var resourceName = SB.i18n && SB.i18n.resourceName ? SB.i18n.resourceName(k, fallbackName) : fallbackName;
+    var itemText = SB.i18n && SB.i18n.t ? SB.i18n.t('ui.build.cost.item_amount', {
+      resourceName: resourceName, owned: haveText, required: fmtAmt(need)
+    }) : '';
+    return itemText || (resourceName + ' ' + haveText + '/' + fmtAmt(need));
+  }
+  function costOwnedTxt(s, c, live) {
     var out = [], k;
     for (k in c) {
-      if (!c[k]) continue;
-      /* ERA10 市政（2026-10-20 · 虚境祭坛）：人口造价也要在按钮上显示「有/需要」，
-       * 否则玩家只看到「建造 是」却不知道这一步要吃 30 人（按钮标签 = 唯一的成本提示）。 */
-      if (k === 'pop') {
-        var populationName = SB.i18n && SB.i18n.resourceName ? SB.i18n.resourceName('population', '人口') : '人口';
-        var popHave = Math.floor((typeof s.pop === 'number' && isFinite(s.pop)) ? s.pop : 0);
-        out.push(populationName + ' ' + fmtAbbr(popHave, popHave) + '/' + fmtAmt(c.pop));
-        continue;
+      var itemText = costItemTxt(s, k, c[k]);
+      if (!itemText) continue;
+      /* live=true 时把每一项包成带标记的 span：`data-live-cost` 是「哪个资源」、
+       * `data-live-need` 是需求量（这两个都是**结构量**，需求变了本来就该整块重绘）。
+       * 会变的是「已有」那半段 —— render 侧比对指纹前用 liveSig 抹平、paintLiveCost 回填。 */
+      if (live) {
+        itemText = '<span class="cost-live" data-live-cost="' + k + '" data-live-need="' + c[k] + '">' + itemText + '</span>';
       }
-      var rawHave = s.res && s.res[k];
-      /* 存档迁移会清洗旧 NaN，但面板也必须防住当前运行态的坏值：
-       *    这里显示的是「已有 / 需要」，坏的已有值应回落为 0，绝不能把 NaN 印给玩家。 */
-      var have = (typeof rawHave === 'number' && isFinite(rawHave)) ? Math.floor(rawHave) : 0;
-      var haveText = fmtAbbr(have, have);   // 大数带计数单位；小数保持原整数外观
-      var resourceName = SB.i18n && SB.i18n.resourceName ? SB.i18n.resourceName(k, SB.RESS[k].name) : SB.RESS[k].name;
-      var itemText = SB.i18n && SB.i18n.t ? SB.i18n.t('ui.build.cost.item_amount', {
-        resourceName: resourceName, owned: haveText, required: fmtAmt(c[k])
-      }) : '';
-      out.push(itemText || (resourceName + ' ' + haveText + '/' + fmtAmt(c[k])));
+      out.push(itemText);
     }
     return out.join(' ');
   }
@@ -810,10 +837,12 @@
    *   · 人口造价**不免**（见 costOf 那段：祭坛吃活人），所以免费态仍把人口要求标出来 ——
    *     否则按钮写着免费、点了却因人口不够静默失败。
    *   · 其余情况逐字转发 costOwnedTxt（不复制公式，只做包装）。
+   *   · 第 4 个参数 live=true ⇒ 每项包 `<span data-live-cost>`，由渲染侧原地回填「已有」。
+   *     只有**渲染到会停留很久的面板**（巢穴页成本按钮）才传 true；一次性文案/属性传默认值。
    * ⚠️ 判据统一取 SB.habitat.freeFirstBuild：与 costOf 的乘 0、build() 的 `free` 快照同源。
    *   三个调用点（巢穴页、星图页、建筑详情卡）都调它，别各写一份 —— 上一轮三个面板
    *   各自判 cost 之所以出过「两套账」，根因就是同一条判据存了三份。 */
-  function buildCostTxt(s, id, c) {
+  function buildCostTxt(s, id, c, live) {
     if (!s || !id) return '';
     var cc = c || costOf(s, id);
     if (SB.habitat && SB.habitat.freeFirstBuild && SB.habitat.freeFirstBuild(s, id)) {
@@ -822,7 +851,7 @@
       }
       return (SB.i18n && SB.i18n.t && SB.i18n.t('ui.build.cost.free')) || '免费';
     }
-    return costOwnedTxt(s, cc);
+    return costOwnedTxt(s, cc, live);
   }
   /* 资源够不够的**唯一**判据。所有「能不能建 / 学 / 解锁」的比较都必须走它，
    * 不许再裸写 `s.res[k] >= cost`。
@@ -1021,10 +1050,14 @@
    *   · minerPact（矿工系：金属 silt + 暖石 warmstone，+10%/级）
    *   · quarryPact（采石系：石头 stone，+10%/级）
    *   ERA6 平等主义（每名鲛人 +0.1% 矿井产出）两条轴都叠加。tick / rates 共享本批函数 ⇒ 面板===结算。 */
+  /* 硅基承续 · 心 LV2/LV3（2026-11-17）：矿工 / 采石工产出 +200% / +300%。
+   * SPEC §7-3 原缺「按岗位」的独占通道，这里新造——只乘这两个岗位，不碰 scholar/scribe。 */
   function minerPactMul(s) { return (1 + 0.10 * (s.perk.minerPact || 0))
-    * (SB.civic ? SB.civic.govMinePerPop(s) : 1); }
+    * (SB.civic ? SB.civic.govMinePerPop(s) : 1)
+    * (SB.veilFx ? SB.veilFx.jobOutMul('miner') : 1); }
   function quarryPactMul(s) { return (1 + 0.10 * (s.perk.quarryPact || 0))
-    * (SB.civic ? SB.civic.govMinePerPop(s) : 1); }
+    * (SB.civic ? SB.civic.govMinePerPop(s) : 1)
+    * (SB.veilFx ? SB.veilFx.jobOutMul('quarrier') : 1); }
   /* 热泉炉（精铁）效率 / 热液工坊（钢）效率：+20%/级（系数 0.20）。
    * 落点 = ironFlow 的产出段（tick/rates 同式）× furnaceEffMul；钢产线（steelFlow/steelRate）× hydroshopEffMul。 */
   /* 轮回炉火（2026-11-01 · perk.furnaceLoop / perk.hydroLoop，潮汐之树 15 点，dyn:'loop5'）：+5%×轮回次数。
@@ -1355,7 +1388,10 @@
   /* 恩克拉多斯与泰拉阶段按树中累计百分比缩短时长；新节点上限 20%，旧档额外等级保留。 */
   function starTerraformDuration(s, base) {
     var reduction = Math.max(0, Math.min(0.95, (s.perk && s.perk.starTerraform) || 0));
-    return Math.max(0, base || 0) * (1 - reduction) * (driftRewardDone() ? 0.5 : 1);
+    /* 硅基承续 · 心 LV3（2026-11-17）：「星球改造速度 +100%」按**时间 −50%** 落地
+     * （SPEC §0 #3 用户拍板）。乘在 perk.starTerraform 那一项之外，两者独立。 */
+    return Math.max(0, base || 0) * (1 - reduction) * (driftRewardDone() ? 0.5 : 1)
+      * (SB.veilFx ? SB.veilFx.terraformTimeMul() : 1);
   }
   /* 每级每秒热液能耗（flow）：帆模式与节点模式均为 4；再乘政策卡《节能减耗》（−50% ⇒ ×0.5）。
    * tick / rates / hydroAlloc 都调它，绝不各写一份。 */
@@ -1392,7 +1428,11 @@
     /* 2026-10-25 用户拍板：首名族民免口粮——开局 pop=1 且藻场未建时不饿死，
      * 计费人口 = pop − 1（s.pop 由生育 s.pop++ 整数递增，Math.max 防 0/1）。 */
     return Math.max(0, s.pop - 1) * SB.CFG.FOOD_PER * (1 - save)
-      * (1 - (SB.civic ? SB.civic.govMermanFoodMul(s) : 0));   // ERA6 联邦制：鲛人食物消耗 −10%
+      * (1 - (SB.civic ? SB.civic.govMermanFoodMul(s) : 0))   // ERA6 联邦制：鲛人食物消耗 −10%
+      /* 硅基承续 · 胃（2026-11-17）：食物需求 −30/50/70%（独立乘区，SPEC §7-4 新造通道）。
+       * ⚠️ 乘在最后、与上面每一项都相乘，不折进 save 那个加法括号 —— 折进去会把
+       *    「暖窝藻场减耗」和「器官减耗」并成一条轴，改一个会带动另一个的实际收益。 */
+      * (SB.veilFx ? SB.veilFx.foodNeedMul() : 1);
   }
   /* 藻食产出。逐句照抄猫国 game.js:3666 calcResourcePerTick("catnip") 的语句顺序——
    * 顺序本身就是设计，不能重排：
@@ -2944,7 +2984,9 @@
      *   ⚠️ 2026-10-29 起**没有 `topLvl` 了**：等比曲线是渐近的，不存在「到顶等级」。 */
     hallInfo: hallInfo,
     costOf: costOf, scaffoldAdjustedCost: scaffoldAdjustedCost,
-    costTxt: costTxt, costOwnedTxt: costOwnedTxt, buildCostTxt: buildCostTxt,
+    /* costItemTxt（2026-11-16）：单项「已有 / 需要」文案。首绘与 paintLiveCost 的回填
+     *   共用这一份，避免两处各写一套格式化（同一判据存两份 ⇒ 两套账）。 */
+    costTxt: costTxt, costOwnedTxt: costOwnedTxt, costItemTxt: costItemTxt, buildCostTxt: buildCostTxt,
     canAfford: canAfford, pay: pay,
     /* farmMul / gatherMul 成对导出（2026-09-27 工坊工具）：工具就是插在这两条乘区上的，
      * 回归必须能直接读乘区本身 —— 读 foodRate 会被 byBuild 那一份稀释，测不出精确的 ×1.8。 */

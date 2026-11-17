@@ -45,10 +45,11 @@
         var tenet = F.byId(options[j]);
         if (!tenet) continue;
         h += '<button type="button" class="faith-tenet-choice" data-faith-tenet="' + escapeHtml(tenet.id) +
-          '" data-faith-threshold="' + Number(draft.threshold) + '"><img class="faith-tenet-icon" src="' +
-          escapeHtml(tenet.icon) + '" alt="" loading="lazy"><span class="faith-tenet-copy"><b>' +
-          escapeHtml(F.tenetName(tenet.id)) + '</b><span>' + escapeHtml(F.tenetEffect(tenet.id)) +
-          '</span><i>' + escapeHtml(F.text('faith.tenets.choose_button')) + '</i></span></button>';
+          '" data-faith-threshold="' + Number(draft.threshold) + '"><b class="faith-tenet-title">' +
+          escapeHtml(F.tenetName(tenet.id)) + '</b><img class="faith-tenet-icon" src="' +
+          escapeHtml(tenet.icon) + '" alt="" loading="lazy"><span class="faith-tenet-copy"><span>' +
+          escapeHtml(F.tenetEffect(tenet.id)) + '</span><i>' + escapeHtml(F.text('faith.tenets.choose_button')) +
+          '</i></span></button>';
       }
       h += '</div></section>';
     }
@@ -57,16 +58,20 @@
     if (!chosen.length) h += '<p class="faith-tenets-empty">' + escapeHtml(F.text('faith.tenets.empty_chosen')) + '</p>';
     else {
       h += '<div class="faith-tenet-established-list">';
+      var establishedOrderKeys = [
+        'faith.tenets.established.first',
+        'faith.tenets.established.second',
+        'faith.tenets.established.third',
+        'faith.tenets.established.fourth'
+      ];
       for (var k = 0; k < chosen.length; k++) {
         var selected = F.byId(chosen[k]);
         if (!selected) continue;
-        var threshold = F.thresholdForTenet(s, selected.id);
-        var thresholdLabel = threshold === null ? '' : '<i>' +
-          escapeHtml(F.text('faith.tenets.threshold_tag', { threshold: fmt(threshold) })) + '</i>';
-        h += '<article class="faith-tenet-established-card"><img class="faith-tenet-icon" src="' +
-          escapeHtml(selected.icon) + '" alt="" loading="lazy"><div><b>' + escapeHtml(F.tenetName(selected.id)) +
-          '</b><span>' + escapeHtml(F.tenetEffect(selected.id)) + '</span>' + thresholdLabel +
-          '</div></article>';
+        var orderLabel = establishedOrderKeys[k] ? F.text(establishedOrderKeys[k]) : '';
+        h += '<article class="faith-tenet-established-card"><b>' + escapeHtml(F.tenetName(selected.id)) +
+          '</b><img class="faith-tenet-icon" src="' + escapeHtml(selected.icon) +
+          '" alt="" loading="lazy"><div><span>' + escapeHtml(F.tenetEffect(selected.id)) + '</span>' +
+          '<i class="faith-tenet-order">' + escapeHtml(orderLabel) + '</i></div></article>';
       }
       h += '</div>';
     }

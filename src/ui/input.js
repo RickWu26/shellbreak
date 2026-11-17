@@ -442,11 +442,14 @@
     /* 每个动作后都补一次科技泵：尤里卡里有 built / total / job 三类，
      * 它们只被玩家动作改变。只靠循环里的 2 秒节流，点完要等一下才揭示，
      * 玩家会以为「点了没反应」。 */
-    if (d.build) {
-      if (SB.habitat.build(s, d.build, emit)) {
+    var buildButton = t.closest && t.closest('button[data-build]');
+    if (!buildButton && d.build !== undefined) buildButton = t;
+    var buildId = buildButton && buildButton.dataset ? buildButton.dataset.build : undefined;
+    if (buildId) {
+      if (SB.habitat.build(s, buildId, emit)) {
         /* 追踪目标一旦建成/升级就立刻解绑（不必等 track-dock 那一帧的 @lv 自动判定，
          * 否则小框会有最多 200ms 还在显示上一级的数字）。 */
-        if (SB.ui.track && s.track && s.track.indexOf('bld:' + d.build + '@') === 0) SB.ui.track.clear();
+        if (SB.ui.track && s.track && s.track.indexOf('bld:' + buildId + '@') === 0) SB.ui.track.clear();
         SB.game.markDirty(); SB.game.renderAll();
       }
       SB.game.pumpTech(s, emit);
@@ -730,11 +733,14 @@
       }
       return;
     }
-    if (d.wonder) {
-      var wonderModal = t.closest && t.closest('.tree-modal');
-      if (SB.workshop.build(s, d.wonder, emit)) {
+    var wonderBuildButton = t.closest && t.closest('button[data-wonder]');
+    if (!wonderBuildButton && d.wonder !== undefined) wonderBuildButton = t;
+    var wonderBuildId = wonderBuildButton && wonderBuildButton.dataset ? wonderBuildButton.dataset.wonder : undefined;
+    if (wonderBuildId) {
+      var wonderModal = wonderBuildButton.closest && wonderBuildButton.closest('.tree-modal');
+      if (SB.workshop.build(s, wonderBuildId, emit)) {
         /* 奇观建成即解绑（与建筑同口径；奇观没有等级概念，所以判据是前缀相等） */
-        if (SB.ui.track && s.track === 'wonder:' + d.wonder) SB.ui.track.clear();
+        if (SB.ui.track && s.track === 'wonder:' + wonderBuildId) SB.ui.track.clear();
         if (wonderModal) SB.ui.render.hideModal();
         SB.game.markDirty(); SB.game.renderAll();
       }

@@ -574,6 +574,15 @@ era2 两座奇观现在都不吃裸精铁，精铁只剩熔炉/铁制支架加�
 `!modal.classList.contains('hidden')` 进 —— modal 可能是**前面用例的残留**，
 于是「测破冰结算」实际测的是「有个弹窗没收」。断言必须钉住**结果**（`run.broken`），不是钉住**环境**。
 
+⇒ **例外：规格变更 ≠ 迁就现状**（2026-11-16）。断言指向的 UI 被用户明确要求删掉时，改断言是
+**合法且必需**的，但必须同时做到三件，缺一即等于迁就：
+① 规格文档写死变更（`docs/TREE_UI_SPEC.md` + `docs/CURRENT_FACTS.md`）；
+② 断言注释写明「变更日期 / 谁拍的 / 原判据是什么 / 新落点在哪」，不留静默改写；
+③ 判据要么**收窄到仍存在的同类落点**，要么改成**反向守卫**（「这东西不许再出现」）。
+实例（纪元详情卡）：`eracard / eraDetail / edesc` 计数必须为 0 = 反向守卫；「现有科技」那句
+在游戏里已无同类落点 ⇒ ★计数单位⑤ 收窄到市政页，并注明顶栏科技格与 ★③ 走 `renderRes` 同一循环。
+❌ 反例：直接把 `check()` 删掉什么都不留 = 这个性质从此无人看守。
+
 ⇒ **顺手修掉的真 bug：`workshop.wonderBlocked` 少了一层 `w.need &&` 判据。**
 另外三处同级 need 门（`c.need` / `u.need` / `t.need`）都带了判据，只有奇观这处漏了
 ⇒ `s.techs[undefined]` 恒 falsy ⇒ **没有 need 的奇观被判成「需要先研究『undefined』」凭空锁死**，
@@ -1558,3 +1567,68 @@ meta.tide + meta.spent === meta.tideEarnedTotal
    否则 git autocrlf 会报满屏「内容变 ?v 没 bump」；② 日间主题核验页必须加载
    `40-atmosphere-theme.css`（日间 `--green/#347a59`、`--red/#b74753`、`--amber/#a66b27`
    由它覆盖 `:root`），只加载 `00-core.css` 会把「亮绿字压浅底」误判成生产 bug。
+
+## 五点三十六、常驻浮层面板：常驻骨架 + 一次 build + 只改 textContent（2026-11-16 · 随行资源面板）
+
+1. **按钮 / 面板必须是 index.html 常驻节点，与 `#modal` 同级、在 `.wrap` 外**。
+   ⚠️ 绝不能塞进 `#pane-*`：那 9 个容器每 2 秒整块 `innerHTML=` 重写，会把玩家正在点的节点换掉（吞 click）。
+   这与五点十九「输入框不进每帧容器」、本次「科技/市政点不动」是同一根因的第三次复现。
+   ⚠️ **遮罩已删**（2026-11-16 三次拍板「主页不要变黑」）：不得再给 body 加 `*-open` 锁 tabs 点击，
+   也不得用 `aria-modal="true"`——这是随行小窗不是 modal，主页必须照常能点。
+2. **网格只 build 一次**（`BUILT` 门 + `fill()` 清空重建）；周期刷新只改缓存节点的 `textContent` / class / hidden。
+   判据：连调两次 `paint()` 后同一 key 的 value 节点 `===` 必为 true，否则就是又重建了 DOM。
+   `paint` 收 `rate`（调用方 `renderRes` 那次已算好的对象），**自己不调 `economy.rates()`**。
+   面板关着时 `paint` 直接 return，打开瞬间 `open()` 用缓存参数补一次。
+3. **内容口径以最后一次拍板为准**：首版「只显示当前数量」、二次「含热液能三数」都已被推翻——
+   2026-11-16 四次拍板「就显示这里有的资源，地热啊星屑啊什么的显示来干嘛」：
+   **只镜像顶栏 `#res` 的筛选，不另立名单**（`render.js:228-234` 是单一事实源）：
+   排除 `hydro`（热液能→自然环境卡）、`starExplore`（星图）、`stardust`（轮回商店）、
+   `kind==='craft'`（工艺资源→顶栏独立分区）、**`fuel`（地热）**；每格按
+   `economy.resUnlocked(s,k)` 显隐，军力按 `folk.jobUnlocked(s,'soldier')` 单独加。
+   ⚠️ `fuel` 是废弃残留：热泉井 `geyser` 2026-09-28 已整体删除，`RESS.fuel.unlock={build:'geyser'}`
+   ⇒ `resUnlocked` 恒 false、无产无耗（config-content.js:100 / economy-tick.js:267-285 定案注释）。
+   顶栏靠此门天然不显示；面板直接不建格，净效果一致且杜绝强制解锁的夹具让它冒出来。
+   判据：真实游戏下面板可见 key 集合与 `#res [data-res-detail]` **逐字相等**（新局 2 项 / 全解锁 14 项）；
+   ⚠️ 全解锁夹具若人为解锁 fuel，面板会比顶栏少这一项 —— 这是刻意的，不是 bug。
+   ⚠️ 资源格视觉仍照搬顶栏 `.res`（图标 + `fmtAmt` + `/上限` + 绿红净速率 + 名字，
+   奢侈品「产/耗」、信仰「全产+X%」照抄 `hideRate` 口径），但**热液能 / 工艺 / 星屑 / 地热各有归属或已废弃，不在这里重复**。
+   ⚠️ 改口径时**必须同步改断言与文案底表**，「规格变更≠迁就现状」，绝不恢复已删 UI 来迁就旧断言。
+4. **i18n 加 key 的四处**：底表登记 → 三个运行时 bundle（`zh-CN` / `en-US` / `zh-TW`）→ 各自 `?v` bump
+   → 用真浏览器读 `SB.i18n.t()` 验上屏。导出脚本 `export_i18n_runtime.py --check` 目前有历史遗留门禁
+   （45 个已有译文未校对、4 个孤儿 key），直接重跑会抹掉现有译文 ⇒ 新增 key 用最小插入，不动现有行。
+5. **可拖小窗：拖动只挂标题栏 `.wp-hd`，不挂整窗**。面板内部 `.wp-scroll` 要滚动，整窗
+   `touch-action:none` 会把列表滚死（`touch-action` 只给 `.wp-hd`）。pointerdown **绝不 preventDefault**
+   ——与五点「跟踪坞」同族坑：置上 PREVENT MOUSE EVENT 后浏览器连 click 一起吞。
+   pointer capture 挂 `e.currentTarget`（标题栏），否则后续 move 派到面板外部收不到。
+   位置存**视口比例**（`localStorage` 的 `fx/fy`）而非像素，转屏 / resize 后按比例重落并 clamp 进视口。
+   判据：拖标题栏位移 `-120/-80` ⇒ 面板 rect 同步 `−120/−80`，且 `savedPos` 非零。
+6. **尺寸「缩到 1/3」≠「所有字号缩到 1/3」**（用户三次拍板选「缩尺寸但字可读」）：
+   面板 900→300px、图标 48→24px，但数值保持 14px、名字 11px；严格等比会把字压成 6px 不可读。
+   **资源格两列**（用户 2026-11-16 末次拍板）：`.wp-grid{repeat(2,minmax(0,1fr))}`，
+   每列 ~137px；判据是 `scrollWidth<=clientWidth`（名字不裁成单字）、同格 `b.bottom<=details.top`。
+   390px 窄屏：300px 窗完整落视口内（左 74/右 374）、`max-height:88vh`、内部可滚到底。
+   ⚠️ 面板已无热液能 / 工艺分区（第四次拍板删），别再写 `grid-column:1/-1` 跨行规则或
+   拿 `rocketEngine` 当末项断言——那些是旧版残留。
+   ⚠️ 首次引导层 z-index 高于小窗，截图里高亮按钮会浮在窗上——引导层既有行为，非面板 bug。
+7. **复用 `.res` 类名会被顶栏窄屏 media query 连带命中**（2026-11-16 实装「与顶栏一致」时踩到）：
+   `50-module-polish.css` 的 `@media(max-width:620/390)` 把 `.res-content{display:contents}`、
+   `.res{grid-template-columns:22px…}`、`.res span{font-size:11px;color:dim}` 全压到面板格子上 ⇒
+   数值被 `.res span` 命中压成 11px 灰、图标列只剩 22px、名字裁成单字。
+   判据：面板格子要「视觉像顶栏」就用 `#walkPanel .res.wp-cell` 高特异性**显式声明回**
+   `display:grid` + `.res-content{display:block}` + `.wp-val{font:inherit;color:var(--txt)}`，
+   具体列宽 / 字号按当次拍板的尺寸档填（现为 24px 列、14px 数值）。
+   ⚠️ 别指望「共用 class 就自然一致」——顶栏的窄屏适配是给 `#card-res` 的，浮层不在那个容器里却共享了选择器。
+
+## 五点三十七、纪元文案改哪里：横幅读 `desc`，按钮读 `motto`（2026-11-16 · 写错字段纠偏）
+1. **玩家看到的那行文字属于哪个字段，必须先定位再改**。科技页长卷横幅 `<span class="tnflavor">`
+   读 `ERAS[].desc`（i18n `tech.era.<slug>.description`，ERA5 特例 `research.era.shellbreak.description`）；
+   纪元按钮的 `title` 读 `ERAS[].motto`。2026-11-16 把用户给的 10 句写进 motto ⇒ 横幅没变，
+   被用户截图打回。判据：拿到「改这句话」的需求，先在 DOM 里搜这句话的旧文本，反查渲染读取点。
+2. **有 fallback 的文案必须两处都改**：`techs.js` 的 `ERAS[].desc` 与三个 i18n bundle 的 `.description`；
+   只改一处会出现「定义对、上屏旧」。同步基线 CSV、文案底表、`era10-content.mjs` 等硬编码断言，
+   ⚠️ 改断言是因为文案规格变了（同步），不是「改代码迁就断言」。
+3. **横幅念选中纪元自己**：`selectedEra === era ? eraOf(era+1).desc : er.desc` 已删（2026-11-16 拍板），
+   现在恒读 `er.desc`。旧行为会让「选纪元八看到纪元九的句子」，改文案时像写错地方。
+4. **探针造高纪元夹具**：科技页横幅渲染有 `blk.era === selectedEra && selectedEra <= era` 门，
+   只设 `s.lvl.kelp=5` 进页而 `s.era` 仍是 1 ⇒ 点 2~10 读不到横幅（`on=N` 但 `.tnflavor` 数=0）；
+   夹具须 `s.era=10`。连点后同步读 DOM 也是空，须逐点 `setTimeout` 等重绘。

@@ -61,7 +61,11 @@
   function autoRate(s) {
     var lv = (s.perk && s.perk.shellDrive) || 0;   // 老档缺键按 0 处理，不依赖存档迁移
     var drive = 1 + (SB.CFG.SHELL_DRIVE_STEP || 0) * lv;
-    return SB.CFG.BREAK_BASE * breakCoef(s) * drive;
+    /* 硅基承续 · 脑 LV3（2026-11-17）：被动破壳速度 +100% ⇒ ×2。
+     * ⚠️ 只乘这一段（自动削壳），**绝不并进 breakCoef** —— 那里被暖石费率/星空槽/
+     *    尤里卡阈值共用，并进去会顺带加重寒流季暖石消耗（静默惩罚）。 */
+    var veilDrive = SB.veilFx ? SB.veilFx.passiveShellMul() : 1;
+    return SB.CFG.BREAK_BASE * breakCoef(s) * drive * veilDrive;
   }
 
   /* 天元突破：天穹钻机钻头倍率的**唯一读数口**（2026-11-05）。
@@ -211,7 +215,11 @@
          *   直接读 s.perk.shellSurvey（每级 +5% 削壳速率，与旧 shellSurveyLevel 同口径）。 */
         var _ss = 1 + 0.05 * ((s.perk && s.perk.shellSurvey) || 0);
         var sWant = SB.CFG.SKYDRILL_RATE * _ss * _dm * dt
-          * (SB.faith && SB.faith.shellDrillSpeedMul ? SB.faith.shellDrillSpeedMul(s) : 1);
+          * (SB.faith && SB.faith.shellDrillSpeedMul ? SB.faith.shellDrillSpeedMul(s) : 1)
+          /* 硅基承继 · 尾 LV3（2026-11-17）：钻机破壳速度 +200% ⇒ ×3。
+           * ⚠️ 与 passiveShellMul（脑）**两轴隔离**（SPEC §7-5 明写）：钻机不吃被动倍率，
+           *    被动削壳也不吃钻机倍率，合并会让「只有钻机」和「只有被动」的玩家收益对不上。 */
+          * (SB.veilFx ? SB.veilFx.drillSpeedMul() : 1);
         s.shell -= sWant;
         cut += sWant;
         s._cutSky = (s._cutSky || 0) + sWant;

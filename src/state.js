@@ -41,7 +41,17 @@
      * 旧口径只有 cycle 且 startRun 无条件 +1 ⇒「重开本周目」零成本涨周目，可无限刷上面的
      * 加成与榜单。⛔ 存量档不回溯：老 cycle 已被软重置推高，保留原值（不再继续涨）。
      * ⚠️ cycle 初值 0 是给「全新档」用的：startRun 首局会把它抬到 1（此时还没轮回过一次）。 */
+    /* 帷幕之后（二层 prestige，2026-11-16 实装 · spec docs/ERA11_VEIL_SPEC_v0.1.md）。
+     * ⚠️ 未掀幕必须是 null，不是空对象——#4「账本是否存在」判据靠它区分老档（见下位稿 §6.3）。
+     * 掀幕后结构：{ count, points, perks, cycleTide, cycleStar, lifetimePoints, paths }。
+     *   paths = 三条飞升路径的逐次解锁状态（VEIL_HUB_SPEC §2）：
+     *     opened[]（已开启的 si/vo/gn）、organ{}（硅基十部位三级）、
+     *     void{}（虚境占位）、gene{}（基因占位）。
+     *   三路径共享飞升点池 points，逐次解锁：第 N 次掀幕累计开 N 条（封顶 3）。 */
+    var veilDefault = null;
+
     return { tide: 0, spent: 0, tideEarnedTotal: 0, perks: {}, cycle: 0, runs: 0, layers: 0, techLog: {}, lastRun: null,
+      veil: veilDefault,
       religionSeen: false, shopUnlocked: false, stardustShopUnlocked: false,
       /* 新手引导「已完整播过」标记（docs/ONBOARDING_DESIGN_v0.1.md）：跨周目永久。
        * 与 religionSeen 同侧——一旦置真，本安装二周目不再弹欢迎层 / 走查脚本。
@@ -136,6 +146,9 @@
        *    ⚠️ slotMil 是「之位」类计数键，与 slotCraft/slotEcon/slotSci 同量纲，别当倍率乘。 */
       soldierPact: 0, warScaleDamage: 0, warSuccessOdds: 0, cultureCostCut: 0,
       warPopLoss: 0, warSalvage: 0, warThreat: 0, slotMil: 0,
+      /* 帷幕飞升树（VEIL_ASCENSION_SPEC §5.2 潮律组）两条新读点：一层轮回点/星屑结算 +X%。
+       * 读点各一处（prestige.js doBreak 结算段），不新造乘区，直接进这条 perk 表。 */
+      veilTideYield: 0, veilStarYield: 0,
       recipeCraft: {} };
   }
 
@@ -212,6 +225,25 @@
       if (s.perk[k] !== want) { s.perk[k] = want; changed = true; }
     }
     return changed;
+  }
+
+  /* ── 星屑「累计结算发放量」的种子口径（ERA11 #4 口径 A · 2026-11-17 实装）───────
+   * s.got.stardust 被三处消费：工坊效率（workshop.js:130，无封顶）、
+   * 《继承繁星之人》与《掀起帘幕》的 gathered 尤里卡、AI 策略判断。
+   *   · 未掀幕档 → meta.stardustEarned（历史累计，**老口径不变**）：
+   *     上线瞬间所有存量档都没有 veil 账本，若一律切新口径，玩家只是更新版本、
+   *     下次开新局就发现尤里卡灭了、工坊效率掉下来，而他什么都没点。
+   *   · 已掀幕档 → meta.veil.cycleStar（本帷幕周期累计）：
+   *     掀幕就是「删档重来」，历史 300 星屑若继续 seed，新局第一帧就白送尤里卡、
+   *     工坊 +300%，且随历史总量越滚越大永不回落。
+   * ⚠️ 这是**唯一**读这个口径的入口：freshRun 的 got 初始化与 doBreak 的结算当场
+   *    都必须调它，两处各写一份必然分叉（UI 用 A、门禁用 B 是踩过的坑）。
+   * ⚠️ 判断「账本是否存在」只能看 meta.veil 是不是对象——normalizeMeta 里 null 即未掀幕。 */
+  function starEarnedSeed(meta) {
+    if (!meta) return 0;
+    if (meta.veil && typeof meta.veil === 'object')
+      return Math.max(0, Math.floor(Number(meta.veil.cycleStar) || 0));
+    return Math.max(0, Math.floor(Number(meta.stardustEarned) || 0));
   }
 
   /* 生成一周目。inherit: true 时继承上一周目的增益（轮回点/破层级/已购增益）。
@@ -557,8 +589,9 @@
         faith: 0, luxury: 0,
         /* ERA6（2026-10 实装）：与 res 那批同口径 seed，防 addRes 漏键染 NaN。 */
         tiplate: 0, starExplore: 0, sealbin: 0,
-        /* 星屑尤里卡读累计结算发放量；兑换只改余额，不影响这份台账。 */
-        uranium: 0, rocketFuel: 0, rocketEngine: 0, stardust: (_meta ? (_meta.stardustEarned || 0) : 0), thetaMetal: 0, thinafilm: 0 },
+        /* 星屑尤里卡读累计结算发放量；兑换只改余额，不影响这份台账。
+         * ⚠️ 2026-11-17：口径收口到 starEarnedSeed()——掀幕后切本帷幕周期累计（ERA11 #4 口径 A）。 */
+        uranium: 0, rocketFuel: 0, rocketEngine: 0, stardust: starEarnedSeed(_meta), thetaMetal: 0, thinafilm: 0 },
       /* ---- 市政四件套（2026-09-27，数据见 src/civics.js，玩法见同文件头部注释）----
        *   civics —— 已完成（研究过）的市政。
        *   civBoost —— 鼓舞条件**达成过**的台账（与技术树的 eurekaMet 同构：
@@ -747,6 +780,27 @@
     m.stardust = Math.max(0, Math.floor(m.stardust));
     if (!(typeof m.stardustEarned === 'number' && isFinite(m.stardustEarned))) m.stardustEarned = m.stardust;
     m.stardustEarned = Math.max(0, Math.floor(m.stardustEarned));
+    /* 帷幕之后账本（2026-11-16）：null = 未掀幕老档，对象 = 已掀幕。逐字段收口，
+     * 不把 null 换成空对象——#4「账本是否存在」判据靠它区分（下位稿 §6.3）。
+     * paths.opened 只认 si/vo/gn 三种合法 id，脏值丢弃；organ/void/gene 为进度字典。 */
+    if (m.veil !== null && m.veil !== undefined) {
+      if (typeof m.veil !== 'object' || Array.isArray(m.veil)) m.veil = null;
+      else {
+        var v = m.veil;
+        v.count = (typeof v.count === 'number' && isFinite(v.count)) ? Math.max(1, Math.floor(v.count)) : 1;
+        v.points = (typeof v.points === 'number' && isFinite(v.points)) ? Math.max(0, v.points) : 0;
+        v.cycleTide = (typeof v.cycleTide === 'number' && isFinite(v.cycleTide)) ? Math.max(0, v.cycleTide) : 0;
+        v.cycleStar = (typeof v.cycleStar === 'number' && isFinite(v.cycleStar)) ? Math.max(0, v.cycleStar) : 0;
+        v.lifetimePoints = (typeof v.lifetimePoints === 'number' && isFinite(v.lifetimePoints)) ? Math.max(0, v.lifetimePoints) : 0;
+        if (!v.perks || typeof v.perks !== 'object' || Array.isArray(v.perks)) v.perks = {};
+        if (!v.paths || typeof v.paths !== 'object' || Array.isArray(v.paths)) v.paths = {};
+        if (!Array.isArray(v.paths.opened)) v.paths.opened = [];
+        else v.paths.opened = v.paths.opened.filter(function (p) { return p === 'si' || p === 'vo' || p === 'gn'; });
+        ['organ', 'void', 'gene'].forEach(function (k) {
+          if (!v.paths[k] || typeof v.paths[k] !== 'object' || Array.isArray(v.paths[k])) v.paths[k] = {};
+        });
+      }
+    } else m.veil = null;
     /* 天元突破的倍率档只认 1 / SKYDRILL_OVERDRIVE_MUL，脏档（改档 / 旧版本）一律回落 1×：
      * 否则 meta 里一个任意数会直接乘进钻头消耗与削壳速率，属于无上限数值注入。
      * 倍率数值只在 config.js 定义，这里不写死 2。 */
@@ -1302,6 +1356,9 @@
     emptyMeta: emptyMeta,
     emptyPerks: emptyPerks,
     freshRun: freshRun,
+    /* ERA11 #4 口径 A 的唯一入口：星屑「累计结算发放量」种子（未掀幕=历史累计，
+     * 掀幕后=本帷幕周期）。prestige.doBreak 的结算当场也调它，别各写一份。 */
+    starEarnedSeed: starEarnedSeed,
     /* 2026-11-02 起：读档时把可由 meta 派生的 perk 数值键按当前账本重算（幂等）。
      * 2026-11-04 扩到全部纯加法键（含 autoCraft），修「买的自动槽读档后不起效」。 */
     syncDerivedPerks: syncDerivedPerks,

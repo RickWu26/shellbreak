@@ -113,8 +113,25 @@
     return POLICIES;
   }
   function policyList(s) { return ensureGovPassiveCards(s); }
+  /* 政策按 id 查表：原来是线性扫描，被调用方放大成 O(卡槽数 × 政策数 × 字段数)。
+   * ⚠️ 为什么必须加索引（2026-11-17，玩家「后期离线 8h 加载 10 分钟」的根因）：
+   *   cardFieldMul / cardFieldSum 对 s.cards 逐槽（后期 11 槽）**每张卡扫两遍**——
+   *   cardEffective 内部 policyById 一次，取 cd 又一次——而 cardFieldMul 本身按乘区字段
+   *   被调十几次，rates() 又每步调 2.3 次。79 条政策 × 11 卡 × 2 遍 × N 字段。
+   *   实测占补算 CPU 的 49~65%，改成索引后每步 8.46ms → 2.31ms（3.7×），
+   *   8h 补算 126s → 43s。前期卡槽只有 1~2 个，所以早期完全看不出来 —— 这是乘法不是加法。
+   * ⚠️ POLICIES 只在**尾部 push**（addGovPassiveCard），数组身份不变 ⇒ 用长度判失效即可；
+   *   若将来允许改写已有条目的 id，这里必须改成显式失效，否则会返回旧对象。
+   * ⚠️ 语义必须与线性扫描**逐字一致**：未命中（含 id 为 null / 空槽）仍走下面
+   *   GOV_PASSIVE_CARD_PREFIX 那段动态补卡分支，最后返回 null。 */
+  var _polIdx = null, _polIdxLen = -1;
   function policyById(id) {
-    for (var i = 0; i < POLICIES.length; i++) if (POLICIES[i].id === id) return POLICIES[i];
+    if (_polIdxLen !== POLICIES.length || !_polIdx) {
+      _polIdx = Object.create(null); _polIdxLen = POLICIES.length;
+      for (var pi = 0; pi < POLICIES.length; pi++) _polIdx[POLICIES[pi].id] = POLICIES[pi];
+    }
+    var _hit = _polIdx[id];
+    if (_hit) return _hit;
     if (typeof id === 'string' && id.indexOf(GOV_PASSIVE_CARD_PREFIX) === 0) {
       var govId = id.slice(GOV_PASSIVE_CARD_PREFIX.length), meta = currentMeta();
       if (govPassiveUnlocked(meta, govId)) return addGovPassiveCard(govId);
@@ -806,25 +823,22 @@
   }
 
   // ── 几何（横卷）──────────────────────────────────────────────────
-  /* 与 tech.js 的 layout() **同构**：列 = `layer`、行 = 排版产物、连线 = `reqs`。
-   * 用户 2026-09-27 的口径是「市政树要做成科技树这样」，所以两张树必须长得一样，
-   * 几何也照抄同一套算法（连行的分配规则都一致：「同列不许撞行，其余尽量紧凑」）。
-   *
-   * ⚠️ 刻意**不共用函数**：科技树和市政树各自维护布局与纪元锚点，
-   *    免得一边的节点几何变化牵动另一边；纪元导航的表现保持一致。
-   * ⚠️ 但**卡片尺寸借用** `SB.tech.geo` 而不是另立一份：两张树的卡片是同一类东西，
-   *    尺寸必须逐像素一致，两份数字迟早对不上，而症状只是「两张树长得不一样高」这种
-   *    没人会报的 bug。代价是 layout() 依赖 tech.js 已加载 —— 它确实晚于 tech.js 加载，
-   *    且只在渲染时调用（不在模块顶层），所以安全；下面留了兜底值防手滑。 */
-  var GEO = { COL: 94, ROW: 20 };        // 列/行间距是本树自己的，改它不影响科技树
-  function geo() {
-    var t = SB.tech && SB.tech.geo;
-    return t ? t : { W: 156, H: 106, PADX: 46, PADY: 52 };
+  /* 两棵树共用卡片几何、行序整理和主题样式；节点规则与滚动容器仍独立。
+   * layoutOrder 作为初始阅读顺序交给共享排序器，再按 reqs / reqsAny 尽量理顺连线。
+   * layout() 只在渲染时执行，页面脚本顺序保证 tech.js 先提供 geo 与 treeLayout。 */
+  function geo(desktop) {
+    var t = SB.tech && (desktop ? SB.tech.desktopGeo : SB.tech.geo);
+    return t ? t : { W: 156, H: 106, COL: 94, ROW: 20, PADX: 46, PADY: 52, ERAPAD: 30 };
   }
 
-  function layout() {
-    var C = SB.CIVICS || [], G = geo();
-    var COL_PITCH = G.W + GEO.COL, ROW_PITCH = G.H + GEO.ROW;
+  var layoutCache = {}, layoutCacheCivics = null;
+  function layout(desktop) {
+    if (desktop == null) desktop = !!(SB.tech && SB.tech.isDesktopTreeViewport && SB.tech.isDesktopTreeViewport());
+    var C = SB.CIVICS || [], G = geo(desktop);
+    var cacheKey = desktop ? 'desktop' : 'mobile';
+    if (layoutCacheCivics !== C) { layoutCache = {}; layoutCacheCivics = C; }
+    if (layoutCache[cacheKey]) return layoutCache[cacheKey];
+    var COL_PITCH = G.W + G.COL, ROW_PITCH = G.H + G.ROW;
     var i, t, e, maxL = {}, minL = {}, eraBase = {}, eraOffset = {}, base = 0, xOffset = 0, blocks = [];
 
     for (i = 0; i < C.length; i++) {
@@ -843,23 +857,41 @@
       xOffset += span * COL_PITCH + (maxL[e + 1] ? (G.ERAPAD || 30) : 0);
     }
 
-    /* 行分配：按 (全局列, layoutOrder, id) 稳定排序，每列从 0 找第一个空行。
-     * layoutOrder 只用于同列分支的视觉次序（例如让两条终局市政分别对齐各自前置），
-     * 未指定时仍按 id 排，保持其它节点的位置稳定。
-     * ⇒ 法典独占第 0 列第 0 行，技艺与神秘主义同在第 1 列、一上一下，互不撞行。 */
-    var used = {}, order = [], cells = {};
-    for (i = 0; i < C.length; i++) order.push(C[i]);
-    order.sort(function (a, b) {
-      var ca = colOf(a, eraBase, minL), cb = colOf(b, eraBase, minL);
-      var ao = a.layoutOrder == null ? 0 : a.layoutOrder;
-      var bo = b.layoutOrder == null ? 0 : b.layoutOrder;
-      return ca - cb || ao - bo || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
-    });
-    for (i = 0; i < order.length; i++) {
-      t = order[i];
-      var col = colOf(t, eraBase, minL), row = 0;
-      while (used[col] && used[col][row]) row++;
-      (used[col] = used[col] || {})[row] = true;
+    /* 复用科技树行序算法。layoutOrder 保持原本的首选顺序，依赖图再优化连线交叉；
+     * 市政特有的 reqsAny 也纳入排布，因为渲染器会把这些前置关系同样画出来。 */
+    var byId = Object.create(null), graphNodes = [], graphEdges = [], columns = [], columnSeen = Object.create(null), cells = {};
+    for (i = 0; i < C.length; i++) {
+      t = C[i]; byId[t.id] = t;
+      var nodeCol = colOf(t, eraBase, minL);
+      graphNodes.push({ id: t.id, col: nodeCol,
+        preferred: typeof t.layoutOrder === 'number' ? t.layoutOrder : 0, pinnedRow: null });
+      if (!columnSeen['$' + nodeCol]) { columnSeen['$' + nodeCol] = true; columns.push(nodeCol); }
+    }
+    columns.sort(function (a, b) { return a - b; });
+    for (i = 0; i < C.length; i++) {
+      t = C[i];
+      var reqList = (t.reqs || []).concat(t.reqsAny || []), toCol = colOf(t, eraBase, minL);
+      for (var r = 0; r < reqList.length; r++) {
+        var parent = byId[reqList[r]];
+        if (!parent) continue;
+        graphEdges.push({ from: parent.id, to: t.id,
+          fromCol: colOf(parent, eraBase, minL), toCol: toCol });
+      }
+    }
+    var rowLayout = SB.treeLayout && SB.treeLayout.orderRows
+      ? SB.treeLayout.orderRows(graphNodes, columns, graphEdges) : null;
+    var fallbackRows = Object.create(null), fallbackOrder = graphNodes.slice();
+    if (!rowLayout) {
+      fallbackOrder.sort(function (a, b) { return a.col - b.col || a.preferred - b.preferred || (a.id < b.id ? -1 : 1); });
+      for (i = 0; i < fallbackOrder.length; i++) {
+        var fallbackKey = '$' + fallbackOrder[i].col, fallbackRow = fallbackRows[fallbackKey] || 0;
+        fallbackRows[fallbackKey] = fallbackRow + 1;
+        fallbackRows[fallbackOrder[i].id] = fallbackRow;
+      }
+    }
+    for (i = 0; i < C.length; i++) {
+      t = C[i];
+      var col = colOf(t, eraBase, minL), row = rowLayout ? rowLayout.rows[t.id] : fallbackRows[t.id];
       cells[t.id] = {
         id: t.id, era: t.era, layer: t.layer || 1, col: col, row: row,
         x: G.PADX + eraOffset[t.era] + ((t.layer || 1) - minL[t.era]) * COL_PITCH,
@@ -899,11 +931,14 @@
         });
       }
     }
-    return {
-      geo: G, w: w, h: h, cells: cells, edges: edges, blocks: blocks, pitch: COL_PITCH,
+    var result = {
+      geo: G, w: w, h: h, cells: cells, edges: edges, blocks: blocks,
+      pitch: COL_PITCH, rowPitch: ROW_PITCH, crossings: rowLayout ? rowLayout.crossings : null,
       colOf: function (id) { return cells[id] ? cells[id].col : -1; },
       rowOf: function (id) { return cells[id] ? cells[id].row : -1; }
     };
+    layoutCache[cacheKey] = result;
+    return result;
   }
   /* 与科技树一致：layer 在时代内部决定列序，并减去该时代最早实际 layer，
    * 避免因数据从较高层起步而在时代开头留白。 */
@@ -911,8 +946,8 @@
     return (eraBase[t.era] || 0) + (t.layer || 1) - (minL[t.era] || 1);
   }
 
-  function eraAnchorX(era) {
-    var L = layout();
+  function eraAnchorX(era, desktop) {
+    var L = layout(desktop);
     for (var i = 0; i < L.blocks.length; i++) {
       if (L.blocks[i].era === era) return L.blocks[i].offset;
     }
@@ -922,7 +957,9 @@
   /* 树形揭示按市政研究推进：完成某纪元任意一项市政，即展开下一纪元的节点骨架。
    * 这是显示范围，不替代 civic.blocked() 的科技纪元门槛，也不代替 boost 对名称/效果的揭示。 */
   function visibleEra(s) {
-    var maxEra = (SB.ERAS || []).length || 1, era = 1, hasCompleted;
+    /* ERA11（α）只有终极科技、无市政树——若按 SB.ERAS.length=11 循环会渲染出空的
+     * 「第 11 纪元」分页（ERA11 spec §6）。上限夹到「有市政的最大纪元」= 10。 */
+    var maxEra = Math.min(10, (SB.ERAS || []).length || 1), era = 1, hasCompleted;
     while (era < maxEra) {
       hasCompleted = false;
       for (var i = 0; i < CIVICS.length; i++) {
@@ -1690,7 +1727,11 @@
     pump: pump,
     layout: layout, geo: geo, eraAnchorX: eraAnchorX, visibleEra: visibleEra,
     /* pitch 按当前 geo 现算（卡片尺寸是借来的，写死在导出对象里会与 geo 脱钩）。 */
-    pitch: function () { var G = geo(); return { col: G.W + GEO.COL, row: G.H + GEO.ROW }; },
+    pitch: function (desktop) {
+      if (desktop == null) desktop = !!(SB.tech && SB.tech.isDesktopTreeViewport && SB.tech.isDesktopTreeViewport());
+      var G = geo(desktop);
+      return { col: G.W + (G.COL == null ? GEO.COL : G.COL), row: G.H + (G.ROW == null ? GEO.ROW : G.ROW) };
+    },
     reqsMet: reqsMet, blocked: blocked, hasResearchable: hasResearchable, canResearch: canResearch, research: research,
     topCost: topCost, cardCost: cardCost, govCost: govCost, govRoutineMul: govRoutineMul, researchCost: researchCost,
     recordGovAdoption: recordGovAdoption,

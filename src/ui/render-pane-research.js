@@ -16,6 +16,11 @@
     var value = tr(key, params, '');
     return value && !/\{[A-Za-z0-9_]+\}/.test(value) ? value : (fallback || '');
   }
+  function escapeHTML(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+    });
+  }
   var exactLocaleKeyCache = Object.create(null);
   function exactLocaleKey(prefix, suffix, sourceValue) {
     var cacheKey = prefix + '|' + suffix;
@@ -401,11 +406,13 @@
    *   时才画。否则会画出一条指向空气、而空气过一会儿又变成别的节点的线。
    * ⚠️ 节点宽度/高度走内联 style 而不是写死在 CSS 里：尺寸是几何的一部分，
    *   它和 PITCH 必须一起改，分开写在两个文件里迟早对不上。 */
-  function techTree(s) {
+  function techTree(s, selectedEra) {
     if (!SB.tech || !SB.tech.layout) return '<div class="note">' +
       tr('research.tree.geometry_not_loaded', null, '科技树几何尚未加载。') + '</div>';
-    var L = SB.tech.layout(), G = L.geo, CP = SB.tech.pitch.col;
-    var era = s.era || 1, T = SB.TECHS || [], i, b;
+    var desktop = !!(SB.tech.isDesktopTreeViewport && SB.tech.isDesktopTreeViewport());
+    var L = SB.tech.layout(desktop), G = L.geo, CP = L.pitch.col;
+    var era = s.era || 1, E = SB.ERAS || [], T = SB.TECHS || [], i, b;
+    selectedEra = selectedEra >= 1 && selectedEra <= E.length ? selectedEra : era;
 
     var h = '<div class="techscroll tree-tech" id="techScroll"><div class="techcanvas"' +
       ' style="width:' + L.w + 'px;height:' + L.h + 'px">';
@@ -414,10 +421,28 @@
     for (b = 0; b < L.blocks.length; b++) {
       var blk = L.blocks[b], er = eraOf(blk.era);
       var bx = G.PADX + blk.offset, bw = blk.cols * CP - G.COL;
+      /* Era artwork must cover the entire canvas continuously. The header keeps
+       * its card-aligned width, while each image runs from the previous boundary
+       * through the next Era start (including COL + ERAPAD), with a 1px overlap
+       * to prevent hairline seams at fractional display scales. */
+      var artX = b === 0 ? 0 : bx;
+      var nextBlock = L.blocks[b + 1];
+      var artRight = nextBlock ? G.PADX + nextBlock.offset : L.w;
+      var artW = Math.max(0, artRight - artX + (nextBlock ? 1 : 0));
+      var flavorText = '';
+      h += '<div class="tech-era-art era-art-' + blk.era + '" aria-hidden="true" style="left:' + artX + 'px;top:0;width:' + artW +
+        'px;height:' + L.h + 'px"></div>';
+      if (blk.era === selectedEra && selectedEra <= era) {
+        /* 2026-11-16 用户拍板：横幅念**选中纪元自己**的描述，不再提前念下一纪元。
+         * 以前 `selectedEra === era ? eraOf(selectedEra+1) : er` 会让选当前纪元时
+         * 看到下一个纪元的句子——改文案时会以为写错地方。 */
+        flavorText = '<span class="tnflavor">' + er.desc + '</span>';
+      }
       h += '<div class="tnband' + (blk.era === era ? ' on' : '') +
         '" style="left:' + bx + 'px;width:' + bw + 'px;color:' +
         (blk.era < era ? '#5b6b80' : er.color) + '">' +
-        '<span class="tng">' + (er.glyph || '') + '</span>' + er.name +
+        '<span class="tn-title"><span class="tng">' + (er.glyph || '') + '</span><span class="tn-name">' + er.name + '</span></span>' +
+        flavorText +
         '<span class="tnc">' + tr('research.tree.era.column_count', { columnCount: blk.cols }, blk.cols + ' 列') + '</span></div>';
     }
 
@@ -440,7 +465,7 @@
       var t = T[i], cell = L.cells[t.id];
       if (!cell) continue;
       if (!visOf(s, t, era)) continue;              // 未揭示的不上图
-      h += techNode(s, t, cell, G.W, G.H, G);
+      h += techNode(s, t, cell, G.W, G.H, G, desktop);
     }
 
     h += '</div></div>';
@@ -450,6 +475,64 @@
   function byIdOf(T, id) {
     for (var i = 0; i < T.length; i++) if (T[i].id === id) return T[i];
     return null;
+  }
+
+  /* 桌面科技卡只用实体图标预览建筑 / 奇观解锁，不在卡面重复效果说明。
+   * 建筑来源是科技效应中的 unlockBuild；奇观来源是奇观表的 need 科技门。
+   * 未揭露节点不调用此函数，因此不会从解锁图标泄漏未知科技内容。 */
+  function techUnlockIcons(s, t) {
+    var items = [], seen = Object.create(null), defs = SB.BUILDINGS || [], wonders = SB.WONDERS || [];
+    var eff = t && t.eff || {}, unlockBuild = eff.unlockBuild || [], i, id, item, art;
+    if (!Array.isArray(unlockBuild)) unlockBuild = [unlockBuild];
+    function available(def, isBuilding) {
+      if (!def || !def.id) return false;
+      if (def.challengeOnly && SB.civic && SB.civic.challengeAllows && !SB.civic.challengeAllows(s, def)) return false;
+      if (isBuilding && def.noChallenge && s && s.challenge && def.noChallenge.indexOf(s.challenge.id) >= 0) return false;
+      return true;
+    }
+    function buildingName(building) {
+      return SB.i18n && SB.i18n.buildingName
+        ? SB.i18n.buildingName(building.id, building.name) : (building.name || building.id);
+    }
+    function wonderName(wonder) {
+      var fallback = SB.wonder && SB.wonder.displayName ? SB.wonder.displayName(s, wonder.id) : wonder.name;
+      var info = SB.ui && SB.ui.renderParts && SB.ui.renderParts.info;
+      return info && info.localizedWonderName
+        ? info.localizedWonderName(s, wonder.id, fallback) : (fallback || wonder.id);
+    }
+    for (i = 0; i < unlockBuild.length; i++) {
+      id = unlockBuild[i];
+      if (!id || seen['b:' + id]) continue;
+      item = null;
+      for (var bi = 0; bi < defs.length; bi++) if (defs[bi].id === id) { item = defs[bi]; break; }
+      if (!available(item, true)) continue;
+      seen['b:' + id] = true;
+      items.push({ kind: 'building', name: buildingName(item), icon: item.icon || '' });
+    }
+    for (i = 0; i < wonders.length; i++) {
+      item = wonders[i];
+      if (!item || item.need !== t.id || !available(item, false) || seen['w:' + item.id]) continue;
+      seen['w:' + item.id] = true;
+      art = SB.ui && SB.ui.renderContent && SB.ui.renderContent.WONDER_ART
+        ? (SB.ui.renderContent.WONDER_ART[item.id] || '') : '';
+      items.push({ kind: 'wonder', name: wonderName(item), icon: art });
+    }
+    if (!items.length) return { html: '', describedBy: '' };
+    var icons = '<span class="tree-unlock-icons" aria-hidden="true">', descriptions = [];
+    for (i = 0; i < items.length; i++) {
+      item = items[i];
+      var describeId = 'tech-unlock-' + escapeHTML(t.id) + '-' + i;
+      descriptions.push(describeId);
+      icons += '<span class="tree-unlock-icon ' + item.kind + '" title="' + escapeHTML(item.name) + '">' +
+        (item.icon
+          ? '<img src="' + escapeHTML(item.icon) + '" alt="" loading="lazy" decoding="async">'
+          : '<span class="tree-unlock-fallback">' + (item.kind === 'wonder' ? '✦' : '⌂') + '</span>') + '</span>';
+    }
+    icons += '</span>';
+    for (i = 0; i < items.length; i++) {
+      icons += '<span class="tree-unlock-sr" id="' + descriptions[i] + '">' + escapeHTML(items[i].name) + '</span>';
+    }
+    return { html: icons, describedBy: descriptions.join(' ') };
   }
 
   /* 可见性 = 「这个节点在图上有位置」。判据只有一条：**当前纪元与更早的纪元全部上图**，
@@ -468,19 +551,28 @@
 
   /* 科技卡片两态（用户 2026-09-26 截图指出：未达成尤里卡却已亮出科技内容/按钮，不对）。
    *   lit（metOf 为真 = 已掌握 / 达成过尤里卡至少一次）
-   *     ⇒ 亮出科技名称与效果，**不再显示尤里卡进度**（用户原话：达到过就直接显示内容）。
+   *     ⇒ 亮出科技名称与详情入口；桌面卡片展示研究后的效果，尤里卡条件留在详情中。
    *   !lit（尤里卡没达成过）
    *     ⇒ 标题写「未揭露的科技」，效果行藏掉，只保留条件 + 进度条（用户选「保留条件+进度条」），
    *        研究按钮因 studyBlocked 返回「尤里卡未达成」而灰掉。
    * 两态的判据统一走 SB.tech.metOf —— 那本是 canStudy 的第四条门禁，渲染复用它，
    * 避免「亮没亮」与「能不能研究」各算各的而错位。 */
-  function techNode(s, t, cell, w, hh, G) {
+  /* 会随产出「持续增长」的条件类型（2026-11-16）。
+   * 这些条件的文案把当前值直接拼在句子里（condShortZh：「存量 硅 12345 / 5000」），
+   * 于是每 tick 整块 HTML 都变、指纹恒不命中 —— 这是「科技页每 2 秒闪一次」的最后一条漏路。
+   * 现在它们的卡片节点挂 data-live-*，由 render.js 的 liveSig() 在比对前抹平，
+   * 数值交给 paintLive() 原地写回。
+   * ⚠️ rate 类**刻意不在表内**：它只在产能变化时变，那时本来就该重建一次；
+   *    塞进来会让 paintLive 每个 tick 为每个节点重算一次 economy.rates()，得不偿失。 */
+  var LIVE_COND_TYPES = {
+    res: 1, gathered: 1, sunSails: 1, dysonPct: 1, pollution: 1, pollutionDeaths: 1
+  };
+  function techNode(s, t, cell, w, hh, G, desktop) {
     var lv = SB.tech.level(s, t.id), maxLv = SB.tech.maxLevel(t);
     var done = lv >= maxLv;
     var partial = lv > 0 && !done;
     var lit = SB.tech.metOf(s, t);          // 已掌握 / 达成过尤里卡 = 亮出内容
     var localizedName = techName(t);
-    var eureka = !lit ? SB.tech.condShort(s, t.cond) : null;
     /* 追踪尤里卡（2026-10-30 用户拍板「两处都放」）：只在**未揭示**时给 ——
      * 揭示=尤里卡已达成，没什么可追。
      * ⚠️ 用 `<span role="button">` 而不是 `<button>`：卡片本身就是 <button>，HTML 不许嵌套；
@@ -494,14 +586,21 @@
         ' title="' + tr(_tk ? 'tree.track.stop' : 'tree.track.eureka', null, _tk ? '取消追踪尤里卡' : '追踪尤里卡') + '">★</span>';
     }
     var why = done ? null : SB.tech.studyBlocked(s, t.id);
+    /* The study gate returns a specific science shortage reason after all reveal,
+     * era, prerequisite, and material gates pass. Keep it as a separate card state. */
+    var scienceShort = !done && lit && typeof why === 'string' && why.indexOf('科技点不足：') === 0;
+    var scienceNow = scienceShort ? Math.max(0, Number(s && s.res && s.res.science) || 0) : 0;
+    var scienceCost = scienceShort ? SB.tech.researchCost(s, t) : 0;
+    var sciencePct = scienceCost > 0 ? Math.max(0, Math.min(100, scienceNow / scienceCost * 100)) : 0;
+    var scienceLabel = tr('content.science.name', null, '科技');
+    var scienceStatus = scienceShort ? tr('tree.detail.status.not_enough_research_points', null, '科技点不足') : '';
     var fut = t.era > (s.era || 1);
-    var status = done ? tr('tree.detail.status.completed', null, '已掌握')
+    var status = done ? tr('tree.detail.status.mastered', null, '已掌握')
       : partial ? tr('research.tech.partial_level.status', { level: lv, maxLevel: maxLv }, '等级 ' + lv + '/' + maxLv)
       : !lit ? tr('tree.detail.status.unrevealed', null, '未揭示')
+      : scienceShort ? scienceStatus
       : why ? tr('tree.detail.status.unavailable', null, '暂不可研究')
       : tr('tree.detail.status.ready_to_research', null, '可研究');
-    var eurekaPct = eureka && eureka.need > 0
-      ? Math.max(0, Math.min(100, eureka.now / eureka.need * 100)) : 0;
     /* 挑战专属科技配色拆分（2026-11-08）：通用专属走 .co-node 琥珀细边，
      * 冰蓝的 .terra-tech-node 只留给流浪泰拉 4 项 —— 改前《装罐填埋》（水体污染）
      * 也被涂成泰拉配色，唯一的视觉区分反而在误导。归一化读共用 helper，不另写判定。 */
@@ -511,28 +610,71 @@
      *   水体污染的《装罐填埋》会顶着琥珀边却没有角标（UI 用 A、门禁用 B 的错位），
      *   基游戏里不该出现的节点也会莫名变色。 */
     var _coActive = _coIds.length > 0 && s && s.challenge && _coIds.indexOf(s.challenge.id) >= 0;
+    var eureka = t.cond && t.cond.t !== 'default' && (!lit || !_coActive) ? SB.tech.condShort(s, t.cond) : null;
+    var eurekaPct = eureka && eureka.need > 0
+      ? Math.max(0, Math.min(100, eureka.now / eureka.need * 100)) : 0;
     /* ⚠️ 角标不能塞进 .tnhd：那是「图标 + 名字 + 关键标签」的紧凑 flex 行，
      *   多两个 item 会把 .tnm 挤成竖排（2026-11-08 CDP 截图实证「装罐填埋」四字换行）。
      *   移到 .tnhd 之后作为节点内独立一行，名字宽度不受影响。 */
     var _coHTML = SB.ui.renderCommon.challengeTag ? SB.ui.renderCommon.challengeTag(s, t) : '';
-    var cls = 'technode st' + (done ? ' done' : why ? ' lock' : ' open') + (partial ? ' partial' : '') + (fut ? ' fut' : '') +
+    var eraNo = t.era || 1;
+    /* Six supplied frame artworks distinguish era groups; layout, state, and hidden-node rules stay unchanged. */
+    var frameFamily = eraNo <= 2 ? 1 : eraNo === 3 ? 2 : eraNo === 4 ? 3 : eraNo <= 6 ? 4 : eraNo <= 8 ? 5 : 6;
+    var cls = 'technode st' + (done ? ' done' : why ? ' lock' : ' open') +
+      (scienceShort ? ' science-short' : '') + (!lit ? ' unrevealed' : '') + (partial ? ' partial' : '') + (fut ? ' fut' : '') +
+      ' era-frame-' + frameFamily +
       (_coActive ? ' co-node' : '') +
       (_coActive && _coIds.indexOf('drift_terra') >= 0 ? ' terra-tech-node' : '') + ' tree-node';
+    var ariaStatus = partial && scienceShort ? status + '，' + scienceStatus : status;
+    /* ⚠️ 实时科技点**不再写进 aria-label**（2026-11-16）：它会让整块 HTML 每 tick 变一次，
+     *    指纹恒不命中。屏幕阅读器听到「科技点不足」就够，精确数字在卡面的进度条里。 */
+    var unlockPreview = lit ? techUnlockIcons(s, t) : { html: '', describedBy: '' };
+    var nodeAriaLabel = tr('research.tree.node.aria_label', {
+      nodeName: lit ? localizedName : tr('tree.detail.unrevealed.title', { nodeType: tr('tree.node_type.technology', null, '科技') }, '未揭露的科技'),
+      nodeStatus: ariaStatus
+    }, (lit ? localizedName : '未揭露的科技') + '，' + ariaStatus + '，打开详情');
+    var unlockDescriptionAttr = unlockPreview.describedBy
+      ? ' aria-describedby="' + unlockPreview.describedBy + '"' : '';
     var h = '<button type="button" class="' + cls + '" id="techrow-' + t.id + '"' +
       ' data-node="' + t.id + '" data-x="' + cell.x + '" data-y="' + cell.y + '"' +
       ' data-layer="' + cell.layer + '"' +
+      ' data-state="' + (done ? 'mastered' : !lit ? 'unrevealed' : scienceShort ? 'science-short' : why ? 'blocked' : 'researchable') + '"' +
       ' data-lit="' + (lit ? 1 : 0) + '"' +
       ' data-tree-node="1" data-tree-type="tech" data-tree-id="' + t.id + '"' +
-      ' aria-label="' + tr('research.tree.node.aria_label', { nodeName: lit ? localizedName : tr('tree.detail.unrevealed.title', { nodeType: tr('tree.node_type.technology', null, '科技') }, '未揭露的科技'), nodeStatus: status }, (lit ? localizedName : '未揭露的科技') + '，' + status + '，打开详情') + '"' +
+      ' aria-label="' + nodeAriaLabel + '"' + unlockDescriptionAttr +
       ' style="left:' + cell.x + 'px;top:' + cell.y + 'px;width:' + w + 'px;height:' + hh + 'px">';
-    h += '<span class="tnhd">' + SB.ui.renderCommon.treeIconHTML(t, lit, 'tree-node-icon branch-' + (t.branch || 'know')) +
-      '<span class="tnm">' + (lit ? localizedName : tr('tree.detail.unrevealed.title', { nodeType: tr('tree.node_type.technology', null, '科技') }, '未揭露的科技')) + '</span>' +
-      (t.key ? '<span class="tntag">' + tr('tree.node.tag.key', null, '关键') + '</span>' : '') + '</span>' +
-      (_coHTML ? '<span class="co-tag-wrap">' + _coHTML + '</span>' : '') +
-      (!lit ? '<span class="tree-eureka">' + tr('tree.condition.eureka.heading', null, '尤里卡') + ' · ' + (eureka ? eureka.txt : tr('tree.condition.eureka.default', null, '达成条件后揭示')) + '</span>' +
-        (eureka && eureka.need > 0 ? '<span class="tree-eureka-meter"><span class="tree-eureka-track"><i style="width:' + eurekaPct.toFixed(1) + '%"></i></span><b>' + eurekaPct.toFixed(0) + '%</b></span>' : '') : '') +
+    var iconHTML = SB.ui.renderCommon.treeIconHTML(t, lit, 'tree-node-icon branch-' + (t.branch || 'know'));
+    var nodeTitle = lit ? localizedName : tr('tree.detail.unrevealed.title', { nodeType: tr('tree.node_type.technology', null, '科技') }, '未揭露的科技');
+    /* 活数值标记：只有「会持续增长的计数器」才打，rate 等事件型条件保持原样进指纹。 */
+    var _lk = 'tech:' + t.id;
+    var _liveCond = !!(t.cond && LIVE_COND_TYPES[t.cond.t]);
+    var _attrCond = _liveCond ? ' data-live-cond="' + _lk + '"' : '';
+    var _attrPct = _liveCond ? ' data-live-pct="' + _lk + '"' : '';
+    var scienceMeterHTML = scienceShort
+      ? '<span class="tree-science-meter" aria-hidden="true"><span class="tree-science-values"><span>' + scienceLabel + '</span><b data-live-num="' + _lk + '">' +
+        SB.economy.fmtAmt(scienceNow) + '</b><i>/</i><b>' + SB.economy.fmtAmt(scienceCost) + '</b></span>' +
+        '<span class="tree-science-track"><i data-live-bar data-live-sci="' + _lk + '" style="width:' + sciencePct.toFixed(1) + '%"></i></span></span>' : '';
+    var eurekaHTML = scienceShort ? scienceMeterHTML : !lit
+      ? '<span class="tree-eureka"' + _attrCond + '>' + tr('tree.condition.eureka.heading', null, '尤里卡') + ' · ' + (eureka ? eureka.txt : tr('tree.condition.eureka.default', null, '达成条件后揭示')) + '</span>' +
+        (eureka && eureka.need > 0 ? '<span class="tree-eureka-meter"><span class="tree-eureka-track"><i data-live-bar style="width:' + eurekaPct.toFixed(1) + '%"></i></span><b' + _attrPct + '>' + eurekaPct.toFixed(0) + '%</b></span>' : '')
+      : (!_coActive && eureka ? '<span class="tree-eureka">' + tr('tree.condition.eureka.heading', null, '尤里卡') + ' · ' + eureka.txt + '</span>' : '');
+    if (lit) {
+      eurekaHTML = unlockPreview.html + (scienceShort ? scienceMeterHTML : '');
+    }
+    if (_coActive) {
+      h += '<span class="tnhd">' + iconHTML + '<span class="tnm">' + nodeTitle + '</span>' +
+        (t.key ? '<span class="tntag">' + tr('tree.node.tag.key', null, '关键') + '</span>' : '') + '</span>' +
+        (_coHTML ? '<span class="co-tag-wrap">' + _coHTML + '</span>' : '') + eurekaHTML;
+    } else {
+      h += '<span class="tree-node-main"><span class="tree-node-art">' +
+        (iconHTML || '<span class="tree-node-art-placeholder" aria-hidden="true"></span>') +
+        '</span><span class="tree-node-copy"><span class="tnhd"><span class="tnm">' + nodeTitle + '</span>' +
+        (t.key ? '<span class="tntag">' + tr('tree.node.tag.key', null, '关键') + '</span>' : '') + '</span>' + eurekaHTML + '</span></span>';
+    }
+    h +=
       '<span class="tree-node-foot"><i class="tree-state-dot"></i>' +
-      '<span class="tree-node-status">' + status + '</span>' + trackStar +
+      '<span class="tree-node-status">' + status + '</span>' +
+      (partial && scienceShort ? '<span class="tree-node-status-detail">' + scienceStatus + '</span>' : '') + trackStar +
       '<span class="tree-open-hint">' + tr('tree.detail.open_hint', null, '查看详情　›') + '</span></span></button>';
     return h;
   }
@@ -603,72 +745,6 @@
     return h;
   }
 
-  function eraDetail(s, era, sel, prog, sci) {
-    var er = eraOf(sel), st = eraStats(s, sel), col = eraColor(era, sel);
-    var label = eraState(era, sel);
-    var h = '<div class="eracard' + (sel === era ? ' active' : '') + '" id="eraDetail"' +
-      ' style="border-left-color:' + col + '">' +
-      '<div class="erahd"><span class="glyph" style="color:' + col + '">' + (er.glyph || '') + '</span>' +
-      '<span class="enm" style="color:' + col + '">' + er.name + '</span>' +
-      '<span class="emotto">' + er.motto + '</span>' +
-      '<span class="estate" style="background:' + (sel === era ? '#123a52' : '#153048') +
-      ';color:' + col + '">' + label + ' · ' + st.learned + '/' + st.total + '</span></div>' +
-      '<div class="edesc">' + er.desc + '</div>';
-
-    if (sel === era) {
-      /* 当前纪元：把「还差什么」摊开。这一段是原「当前纪元横幅」的内容，
-       * 逐句搬过来 —— 删掉它这页就只剩一张地图，玩家不知道该往哪使力。
-       * ⚠️ ERA10（2026-10-20）：**终局纪元必须单独分支**。keysOf(10) = 0（没有关键节点闸门，
-       *    advanceEra 靠 `p.era >= E.length` 兜底，既不会瞬跳也不可能再推进），沿用通用文案会打出
-       *    「本纪元关键节点 0 / 0。全部掌握即进入下一纪元」——一句在终局完全不成立的谎，
-       *    0/0 的迷你进度条还像页面坏了。终局真正该说清的是「通关条件去哪看」。 */
-      var isLast = era >= (SB.ERAS || []).length;
-      if (isLast) {
-        h += '<div class="edesc">' + tr('research.era.final.complete_note', {
-          finalEraTechnologyCount: st.total, sphereCompletionPercent: 100,
-          solarSailCount: 10000, dysonNodeCount: 1000
-        }, '终局纪元：本纪元不设关键节点闸门，也没有下一纪元，七项科技点完为止。通关看<b>戴森球</b>——星图页的戴森球面板到 100%（太阳帆 10000 ＋ 戴森球节点 1000）即竣工。') + '</div>';
-      } else {
-        var keys = SB.tech.keysOf(era), kl = '', i;
-        for (i = 0; i < keys.length; i++) {
-          var k = keys[i];
-          kl += '<span class="' + (s.techs[k.id] ? 'done' : '') + '">' +
-            (s.techs[k.id] ? '✓ ' : '○ ') + techName(k) + '</span>';
-        }
-        h += '<div class="keysline">' + kl + '</div>';
-        h += '<div class="minibar" style="margin-top:7px"><i style="width:' +
-          (prog.keysTotal ? (prog.keysDone / prog.keysTotal * 100).toFixed(0) : 0) + '%"></i></div>';
-        h += '<div class="edesc">' + tr('research.era.key_progress_gate', {
-          completedKeyCount: prog.keysDone, totalKeyCount: prog.keysTotal
-        }, '本纪元关键节点 ' + prog.keysDone + ' / ' + prog.keysTotal + '。全部掌握即进入下一纪元——越纪元研究是不可能的，这是硬闸门。') + '</div>';
-      }
-      var next = era < (SB.ERAS || []).length ? eraOf(era + 1) : null;
-      /* 计数单位（2026-11-09）：sci 可达 1e11/s，存量与速率一起走 economy.fmtAbbr，
-       * 否则同一行会出现「现有科技 200000000000（+200.00B/ 秒）」这种半边缩写。
-       * ⚠️ 词库参数 + 中文回退串必须成对改：本文件 tr 不对 fallback 插值。 */
-      var _sciHave = Math.floor(s.res.science);
-      var _sciHaveTxt = SB.economy.fmtAbbr(_sciHave, _sciHave);
-      var _sciRateTxt = SB.economy.fmtAbbr(sci, sci.toFixed(2));
-      h += '<div class="teaser">' + tr('research.era.current.science_summary', {
-        researchPoints: _sciHaveTxt, researchPerSecond: _sciRateTxt
-      }, '现有科技 ' + _sciHaveTxt + '（+' + _sciRateTxt + '/ 秒）');
-      h += next ? '<br>' + tr('research.era.current.next_preview', {
-        nextEraName: next.name, nextEraMotto: next.motto, nextEraDescription: next.desc
-      }, '下一纪元：' + next.name + '「' + next.motto + '」' + next.desc)
-        : '<br>' + tr('research.era.current.final_preview', null, '这是终局纪元。');
-      h += '</div>';
-    } else if (sel < era) {
-      h += '<div class="edesc">' + tr('research.era.past.explanation', null,
-        '这个纪元已经过去：它的节点全部摊在长卷左边那一段里，随时可以回头补完（补不再卡纪元闸门）。') + '</div>';
-    } else {
-      /* ⚠️ 说清「长卷上目前只有它那条位置横幅」，否则玩家点完按钮看见一片空白
-       *    会以为是坏了（纪元横幅是画给所有纪元的，节点才要等抵达）。 */
-      h += '<div class="edesc">' + tr('research.era.future.locked_explanation', { eraName: eraOf(era).name },
-        '尚未抵达——把 ' + eraOf(era).name + ' 的关键节点全部掌握，闸门才会打开，这一纪元的尤里卡条件到那时才现身。长卷上目前只有它一条位置横幅，所以点它不会滚过去。') + '</div>';
-    }
-    h += '</div>';
-    return h;
-  }
 
   function civicEraStats(s, era) {
     var C = SB.CIVICS || [], total = 0, completed = 0, revealed = 0;
@@ -750,16 +826,13 @@
     /* 门与 tab 的灰读同一份派生值（SB.tech.panelOpen），不在这里另算一次。 */
     if (SB.tech && SB.tech.panelOpen && !SB.tech.panelOpen(s)) return paneTechLocked();
     var era = s.era || 1, E = SB.ERAS || [];
-    var prog = SB.tech.eraProgress(s);
-    var sci = SB.economy.rates(s).science || 0;
     /* 归一化后写回模块状态：按钮、详情卡、techGoEra 三处读的必须是同一个值。
      * （techViewEra 存 0 = 跟随当前纪元，这里把它翻译成具体的 era。） */
     var sel = (techViewEra >= 1 && techViewEra <= E.length) ? techViewEra : era;
     techViewEra = sel;
 
     var h = autoResearchSwitch('tech') + eraNav(s, era, sel);
-    h += eraDetail(s, era, sel, prog, sci);
-    h += techTree(s);
+    h += techTree(s, sel);
     h += '<div class="note">' + tr('research.technology.explanation.note', null,
       '尤里卡只「揭示」节点本身，不折算研究进度（设计已定）。研究是即时扣费：科技够了点一下就掌握，没有队列。') + '</div>';
     return h;
@@ -1199,8 +1272,8 @@
   }
 
   /* 市政树 —— **与科技树同一张横卷**（用户 2026-09-27：「市政树要做成科技树这样」）。
-   * 几何来自 SB.civic.layout()，CSS 直接复用 .techscroll / .technode / .tel，
-   * 于是两张树在玩家眼里是同一种东西，排布规则也一致（列 = layer，行 = 排版产物）。
+   * 几何来自 SB.civic.layout()，它与科技树共享尺寸与依赖重排器；CSS 复用 .techscroll /
+   * .technode / .tel。市政自己的揭示与研究规则、滚动位置仍独立。
    *
    * ⚠️ 两处刻意与科技树不同：
    *   ① 容器 id 是 **civicScroll**，不是 techScroll —— render.js 的 scrollLeft 留存
@@ -1210,7 +1283,8 @@
    *      所以未揭露态要连鼓舞条件与进度一起摆出来，玩家的下一步动作才是明确的。 */
   function civicTree(s) {
     if (!SB.civic || !SB.civic.layout) return '<div class="note">' + tr('civic.tree.geometry_not_loaded', null, '市政树几何尚未加载。') + '</div>';
-    var L = SB.civic.layout(), G = L.geo;
+    var desktop = !!(SB.tech && SB.tech.isDesktopTreeViewport && SB.tech.isDesktopTreeViewport());
+    var L = SB.civic.layout(desktop), G = L.geo;
     var gameEra = s.era || 1, E = SB.ERAS || [];
     var visibleEra = SB.civic.visibleEra ? SB.civic.visibleEra(s) : gameEra;
     var sel = civicEraChosen && civicViewEra >= 1 && civicViewEra <= E.length ? civicViewEra : visibleEra;
@@ -1233,11 +1307,23 @@
       treeW = Math.max(treeW, visibleCell.x + G.W + G.PADX);
       treeMaxRow = Math.max(treeMaxRow, visibleCell.row);
     }
-    var treeH = G.PADY * 2 + treeMaxRow * (G.H + 20) + G.H;
+    var treeH = G.PADY * 2 + treeMaxRow * L.rowPitch + G.H;
 
     var h = civicEraNav(s, gameEra, visibleEra, sel) + civicEraDetail(s, gameEra, visibleEra, sel) +
       '<div class="techscroll tree-civic" id="civicScroll"><div class="techcanvas"' +
       ' style="width:' + treeW + 'px;height:' + treeH + 'px">';
+
+    /* Both viewports use the same continuous era strips as the technology map. */
+    var artBlocks = L.blocks.filter(function (block) { return block.era <= visibleEra; });
+    for (var ai = 0; ai < artBlocks.length; ai++) {
+      var artBlock = artBlocks[ai], nextArtBlock = artBlocks[ai + 1];
+      var artStart = G.PADX + artBlock.offset;
+      var artX = ai === 0 ? 0 : artStart;
+      var artRight = nextArtBlock ? G.PADX + nextArtBlock.offset : treeW;
+      var artW = Math.max(0, artRight - artX + (nextArtBlock ? 1 : 0));
+      h += '<div class="tech-era-art era-art-' + artBlock.era + '" aria-hidden="true" style="left:' + artX + 'px;top:0;width:' + artW +
+        'px;height:' + treeH + 'px"></div>';
+    }
 
     /* 纪元轨道（只有一条时不画：单纪元的横幅是纯噪音）。 */
     if (L.blocks.length > 1) {
@@ -1245,7 +1331,7 @@
         var blk = L.blocks[b], er = eraOf(blk.era);
         if (blk.era > visibleEra) continue;
         h += '<div class="tnband' + (blk.era === visibleEra ? ' on' : '') + '" style="left:' + (G.PADX + blk.offset) + 'px;width:' +
-          (blk.cols * L.pitch - G.W) + 'px">' +
+          (blk.cols * L.pitch - G.COL) + 'px">' +
           '<span class="tng">' + (er.glyph || '') + '</span>' + er.name +
           '<span class="tnc">' + tr('research.tree.era.column_count', { columnCount: blk.cols }, blk.cols + ' 列') + '</span></div>';
       }
@@ -1266,37 +1352,13 @@
 
     for (i = 0; i < C.length; i++) {
       var cell = L.cells[C[i].id];
-      if (cell && visible[C[i].id]) h += civicNode(s, C[i], cell, G.W, G.H);
+      if (cell && visible[C[i].id]) h += civicNode(s, C[i], cell, G.W, G.H, desktop);
     }
     h += '</div></div>';
 
-    var rate = SB.economy.cultureRate(s);
-    /* ⚠️ 2026-10-06 城堡「真升级」：注脚里这座建筑在买下 `upg_castle` 之后**改叫城堡**，
-     *   等级是同一个 `coreLvl`（= lvl.hall）。切名判据与建筑行那处同源（同一个 upgrades 键），
-     *   否则这里会显示「＋ 议事厅 8 级」而上面那行写着「城堡 8」——同一局两种名字。 */
-    var _coreName = (s.upgrades && s.upgrades.upg_castle) ? '城堡' : '议事厅';
-    /* ERA6（2026-10-12）：采用三个新政体之一 ⇒ 城堡随政体更名（圣座居所/人民大厅/国会）。
-     * castleDisplayName 返回 null 时沿用默认的城堡/议事厅，不覆盖。判据与这里同源。 */
-    if (SB.civic && SB.civic.castleDisplayName) {
-      var _castleOverride = SB.civic.castleDisplayName(s);
-      if (_castleOverride) _coreName = _castleOverride;
-    }
-    var localizedHallName = _coreName === '议事厅' ? tr('building.hall.name', null, _coreName)
-      : _coreName === '城堡' ? tr('building.upgrade.name.castle', null, _coreName)
-      : _coreName === '圣座居所' ? tr('civic.government.castle.seat_of_holy_see', null, _coreName)
-      : _coreName === '人民大厅' ? tr('civic.government.castle.peoples_hall', null, _coreName)
-      : _coreName === '国会' ? tr('civic.government.castle.parliament', null, _coreName) : _coreName;
-    /* 计数单位（2026-11-09）：rate 与上面 sci 同源。存量已经走 fmtAmt，只补速率；
-     * scribeCount / hallLevel / 两个每单位系数都是小整数或常数，保持原样不套单位。 */
-    var _culRateTxt = SB.economy.fmtAbbr(rate, rate.toFixed(2));
-    h += '<div class="note">' + tr('civic.points.rate_breakdown', {
-      civicPoints: SB.economy.fmtAmt(s.res.culture), civicPointsPerSecond: _culRateTxt,
-      scribeCount: s.jobs.scribe || 0, scribeJob: tr('job.name.scribe', null, SB.folk.jobName(s, 'scribe')),
-      civicPointsPerScribe: SB.UNIT.culture, hallName: localizedHallName,
-      hallLevel: SB.economy.coreLvl(s), civicPointsPerHallLevel: SB.CFG.CIVIC.HALL_RATE
-    }, '市政点 ' + SB.economy.fmtAmt(s.res.culture) + '（+' + _culRateTxt + '/秒 ＝ ' +
-      SB.folk.jobName(s, 'scribe') + ' ' + (s.jobs.scribe || 0) + ' × ' + SB.UNIT.culture + ' ＋ ' + _coreName + ' ' +
-      SB.economy.coreLvl(s) + ' 级 × ' + SB.CFG.CIVIC.HALL_RATE + '）。鼓舞只揭示这条路，不替你付市政点。') + '</div>';
+    /* 市政点余额与增速是活数值：整段文案抽成 civicPointsNote()，渲染与 paintLive 共用同一份，
+     * 免得「模板改了、回填没改」两处各说各话（2026-11-16）。 */
+    h += '<div class="note"><span data-live-num="civic:points">' + civicPointsNote(s) + '</span></div>';
     return h;
   }
 
@@ -1306,7 +1368,7 @@
    *   !revealed（未揭露）    ⇒ 标题写「未揭露的市政」，藏 desc，只留鼓舞条件 + 进度条
    * 三态的判据分别走 SB.civic 的三个函数（已完成 / isRevealed / blocked），
    * 不在这里另算一遍 —— 与「亮没亮」和「能不能研究」各算各的而错位是同一类错。 */
-  function civicNode(s, c, cell, w, hh) {
+  function civicNode(s, c, cell, w, hh, desktop) {
     var C = SB.civic, done = !!s.civics[c.id], rev = C.isRevealed(s, c.id);
     var localizedName = civicName(c);
     var why = done ? null : C.blocked(s, c);
@@ -1321,11 +1383,14 @@
     }
     var boostPct = boost && boost.need > 0
       ? Math.max(0, Math.min(100, boost.now / boost.need * 100)) : 0;
-    var status = done ? tr('tree.detail.status.completed', null, '已完成')
+    var status = done ? tr('tree.detail.status.mastered', null, '已掌握')
       : !rev ? tr('tree.detail.status.unrevealed', null, '未揭示')
       : why ? tr('tree.detail.status.unavailable', null, '暂不可研究')
       : tr('tree.detail.status.ready_to_research', null, '可研究');
-    var cls = 'technode st' + (done ? ' done' : why ? ' lock' : ' open') + ' tree-node' +
+    var eraNo = c.era || 1;
+    var frameFamily = eraNo <= 2 ? 1 : eraNo === 3 ? 2 : eraNo === 4 ? 3 : eraNo <= 6 ? 4 : eraNo <= 8 ? 5 : 6;
+    var cls = 'technode st' + (done ? ' done' : why ? ' lock' : ' open') + (!rev ? ' unrevealed' : '') +
+      ' era-frame-' + frameFamily + ' tree-node' +
       (/^(void_faith|void_explore|ascend_void)$/.test(c.id) ? ' void-path-node' : '');
     /* 与 techNode 同口径：角标另起一行，不占 .tnhd 里名字的宽度。 */
     var _coHTML = SB.ui.renderCommon.challengeTag ? SB.ui.renderCommon.challengeTag(s, c) : '';
@@ -1339,13 +1404,20 @@
       }, (rev ? localizedName : '未揭露的市政') + '，' + status + '，打开详情') + '"' +
       ' style="left:' + cell.x + 'px;top:' + cell.y + 'px;width:' + w +
       'px;height:' + hh + 'px">';
-    h += '<span class="tnhd">' + SB.ui.renderCommon.treeIconHTML(c, rev, 'tree-node-icon civic-icon') +
-      '<span class="tnm">' + (rev ? localizedName : tr('tree.detail.unrevealed.title', { nodeType: tr('tree.node_type.civic', null, '市政') }, '未揭露的市政')) + '</span>' +
-      '</span>' + (_coHTML ? '<span class="co-tag-wrap">' + _coHTML + '</span>' : '') +
-      (!rev ? '<span class="tree-eureka">' + tr('tree.condition.inspiration.heading', null, '鼓舞') + ' · ' +
-        (boost ? boost.txt : c.boost ? tr('civic.reveal.inspiration.condition_hint', null, '达成鼓舞条件后揭示') : tr('civic.boost.not_required', null, '无需鼓舞')) + '</span>' +
-        (boost && boost.need > 0 ? '<span class="tree-eureka-meter"><span class="tree-eureka-track"><i style="width:' + boostPct.toFixed(1) + '%"></i></span><b>' + boostPct.toFixed(0) + '%</b></span>' : '') : '') +
-      '<span class="tree-node-foot"><i class="tree-state-dot"></i>' +
+    var title = rev ? localizedName : tr('tree.detail.unrevealed.title', { nodeType: tr('tree.node_type.civic', null, '市政') }, '未揭露的市政');
+    /* 与 techNode 同一套活数值标记（鼓舞条件同样是「存量/累计」这类会涨的计数器）。 */
+    var _ck = 'civic:' + c.id;
+    var _cLive = !!(c.boost && LIVE_COND_TYPES[c.boost.t]);
+    var _cAttrCond = _cLive ? ' data-live-cond="' + _ck + '"' : '';
+    var _cAttrPct = _cLive ? ' data-live-pct="' + _ck + '"' : '';
+    var civicClue = !rev ? '<span class="tree-eureka"' + _cAttrCond + '>' + tr('tree.condition.inspiration.heading', null, '鼓舞') + ' · ' +
+      (boost ? boost.txt : c.boost ? tr('civic.reveal.inspiration.condition_hint', null, '达成鼓舞条件后揭示') : tr('civic.boost.not_required', null, '无需鼓舞')) + '</span>' +
+      (boost && boost.need > 0 ? '<span class="tree-eureka-meter"><span class="tree-eureka-track"><i data-live-bar style="width:' + boostPct.toFixed(1) + '%"></i></span><b' + _cAttrPct + '>' + boostPct.toFixed(0) + '%</b></span>' : '') : '';
+    var civicIcon = SB.ui.renderCommon.treeIconHTML(c, rev, 'tree-node-icon civic-icon');
+    h += '<span class="tree-node-main"><span class="tree-node-art">' + (civicIcon || '<span class="tree-node-art-placeholder" aria-hidden="true"></span>') +
+      '</span><span class="tree-node-copy"><span class="tnhd"><span class="tnm">' + title + '</span></span>' +
+      (_coHTML ? '<span class="co-tag-wrap">' + _coHTML + '</span>' : '') + civicClue + '</span></span>';
+    h += '<span class="tree-node-foot"><i class="tree-state-dot"></i>' +
       '<span class="tree-node-status">' + status + '</span>' + trackStar +
       '<span class="tree-open-hint">' + tr('tree.detail.open_hint', null, '查看详情　›') + '</span></span></button>';
     return h;
@@ -1363,17 +1435,135 @@
   function civicGoEra(n) {
     var s = res(), visibleEra = s && SB.civic.visibleEra ? SB.civic.visibleEra(s) : (s && s.era) || 1;
     if (!(n >= 1 && n <= (SB.ERAS || []).length)) return false;
-    if (n <= visibleEra) SB.ui.render.scheduleCivicJumpTo(SB.civic.eraAnchorX(n));
+    var desktop = !!(SB.tech && SB.tech.isDesktopTreeViewport && SB.tech.isDesktopTreeViewport());
+    if (n <= visibleEra) SB.ui.render.scheduleCivicJumpTo(SB.civic.eraAnchorX(n, desktop));
     var changed = n !== civicViewEra;
     civicViewEra = n;
     civicEraChosen = true;
     return changed || n <= visibleEra;
   }
 
+
+  /* 市政页注脚「市政点 X（+Y/秒 ＝ …）」。同上：渲染与回填共用一份。 */
+  function civicPointsNote(s) {
+    var rate = SB.economy.cultureRate(s);
+    /* ⚠️ 2026-10-06 城堡「真升级」：注脚里这座建筑在买下 `upg_castle` 之后**改叫城堡**，
+     *   等级是同一个 `coreLvl`（= lvl.hall）。切名判据与建筑行那处同源（同一个 upgrades 键）。 */
+    var coreName = (s.upgrades && s.upgrades.upg_castle) ? '城堡' : '议事厅';
+    /* ERA6（2026-10-12）：采用三个新政体之一 ⇒ 城堡随政体更名（圣座居所/人民大厅/国会）。 */
+    if (SB.civic && SB.civic.castleDisplayName) {
+      var castleOverride = SB.civic.castleDisplayName(s);
+      if (castleOverride) coreName = castleOverride;
+    }
+    var hallName = coreName === '议事厅' ? tr('building.hall.name', null, coreName)
+      : coreName === '城堡' ? tr('building.upgrade.name.castle', null, coreName)
+      : coreName === '圣座居所' ? tr('civic.government.castle.seat_of_holy_see', null, coreName)
+      : coreName === '人民大厅' ? tr('civic.government.castle.peoples_hall', null, coreName)
+      : coreName === '国会' ? tr('civic.government.castle.parliament', null, coreName) : coreName;
+    /* 计数单位（2026-11-09）：rate 与科技页 sci 同源。存量已经走 fmtAmt，只补速率。 */
+    var culRateTxt = SB.economy.fmtAbbr(rate, rate.toFixed(2));
+    return tr('civic.points.rate_breakdown', {
+      civicPoints: SB.economy.fmtAmt(s.res.culture), civicPointsPerSecond: culRateTxt,
+      scribeCount: s.jobs.scribe || 0, scribeJob: tr('job.name.scribe', null, SB.folk.jobName(s, 'scribe')),
+      civicPointsPerScribe: SB.UNIT.culture, hallName: hallName,
+      hallLevel: SB.economy.coreLvl(s), civicPointsPerHallLevel: SB.CFG.CIVIC.HALL_RATE
+    }, '市政点 ' + SB.economy.fmtAmt(s.res.culture) + '（+' + culRateTxt + '/秒 ＝ ' +
+      SB.folk.jobName(s, 'scribe') + ' ' + (s.jobs.scribe || 0) + ' × ' + SB.UNIT.culture + ' ＋ ' + coreName + ' ' +
+      SB.economy.coreLvl(s) + ' 级 × ' + SB.CFG.CIVIC.HALL_RATE + '）。鼓舞只揭示这条路，不替你付市政点。');
+  }
+
+  /* ── 活数值原地回填（2026-11-16，方案 B 的落地）────────────────────────
+   * render.js 的 liveSig() 在比对指纹前把 data-live-* 的内容抹平，所以「只有数字变了」
+   * 时不再整块重建 DOM；这一趟把真正的数值写回原节点：
+   *   data-live-cond → 尤里卡 / 鼓舞的条件文案（数字在句子中间，整句重写）
+   *   data-live-pct  → 百分比标签，同时更新同一 meter 里的进度条宽度
+   *   data-live-num  → 科技点余额（卡面）/ 市政点注脚（笔记行）
+   * ⚠️ 假 DOM（e2e）没有 querySelectorAll：判 typeof 直接返回，绝不抛错 ——
+   *    否则 boot 期 renderPanes 会把整份回归带崩（与 talentScroll 那条同因）。 */
+  function paintLive(s) {
+    if (!s) return;
+    var doc = (typeof document !== 'undefined') ? document : null;
+    if (!doc || typeof doc.querySelectorAll !== 'function') return;
+    var els;
+    try { els = doc.querySelectorAll('[data-live-cond],[data-live-pct],[data-live-num],[data-live-sci]'); }
+    catch (e) { return; }
+    if (!els || !els.length) return;
+    var headingCache = {};
+    function heading(kind) {
+      if (!headingCache[kind]) {
+        headingCache[kind] = tr(kind === 'eureka' ? 'tree.condition.eureka.heading' : 'tree.condition.inspiration.heading',
+          null, kind === 'eureka' ? '尤里卡' : '鼓舞');
+      }
+      return headingCache[kind];
+    }
+    function condOf(key) {
+      var p = key.indexOf(':');
+      if (p < 0) return null;
+      var kind = key.slice(0, p), id = key.slice(p + 1), i;
+      if (kind === 'tech') {
+        var t = SB.tech && SB.tech.byId ? SB.tech.byId(id) : null;
+        if (!t || !t.cond) return null;
+        return { kind: 'eureka', c: SB.tech.condShort(s, t.cond) };
+      }
+      var C = SB.CIVICS || [], cc = null;
+      for (i = 0; i < C.length; i++) if (C[i].id === id) { cc = C[i]; break; }
+      if (!cc || !cc.boost) return null;
+      return { kind: 'civic', c: SB.tech.condShort(s, cc.boost) };
+    }
+    function fallbackTxt(kind) {
+      return kind === 'eureka'
+        ? tr('tree.condition.eureka.default', null, '达成条件后揭示')
+        : tr('civic.reveal.inspiration.condition_hint', null, '达成鼓舞条件后揭示');
+    }
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i], key, v;
+      key = el.getAttribute('data-live-cond');
+      if (key) {
+        v = condOf(key);
+        if (!v) continue;
+        el.textContent = heading(v.kind) + ' · ' + (v.c ? v.c.txt : fallbackTxt(v.kind));
+        continue;
+      }
+      key = el.getAttribute('data-live-pct');
+      if (key) {
+        v = condOf(key);
+        if (!v || !v.c || !(v.c.need > 0)) continue;
+        var pct = Math.max(0, Math.min(100, v.c.now / v.c.need * 100));
+        el.textContent = pct.toFixed(0) + '%';
+        var meter = el.parentNode;
+        var bar = meter && meter.querySelector ? meter.querySelector('i') : null;
+        if (bar && bar.style) bar.style.width = pct.toFixed(1) + '%';
+        continue;
+      }
+      key = el.getAttribute('data-live-sci');
+      if (key) {
+        /* 科技点进度条的宽度（科学Short 卡）：与科技点余额同一个 key，但算的是
+         * 「现有 / 该科技研究成本」。单独一支是因为它不是 condShort（尤里卡条件），
+         * 走 data-live-pct 会算错分母。 */
+        var sciT = (SB.tech && SB.tech.byId) ? SB.tech.byId(key.indexOf('tech:') === 0 ? key.slice(5) : key) : null;
+        var sciCost = (sciT && SB.tech.researchCost) ? SB.tech.researchCost(s, sciT) : 0;
+        var sciNow = Math.max(0, Number(s.res && s.res.science) || 0);
+        var sciPct = sciCost > 0 ? Math.max(0, Math.min(100, sciNow / sciCost * 100)) : 0;
+        if (el.style) el.style.width = sciPct.toFixed(1) + '%';
+        continue;
+      }
+      key = el.getAttribute('data-live-num');
+      if (key) {
+        /* ⚠️ 2026-11-16：原先还有一支 `era:sci`（科技页纪元头那句「现有科技 X（+Y/秒）」），
+         *   随纪元详情卡一起移除 —— 那句的唯一宿主是 eraDetail()，用户已明确要求不要这张卡。
+         *   剩下两支：`civic:points`（市政点注脚）与科技点余额（卡片上的 `<b>`）。 */
+        if (key === 'civic:points') el.textContent = civicPointsNote(s);
+        else el.textContent = SB.economy.fmtAmt(Math.max(0, Number(s.res && s.res.science) || 0));
+      }
+    }
+  }
+
   SB.ui = SB.ui || {};
   SB.ui.renderParts = SB.ui.renderParts || {};
   SB.ui.renderParts.research = {
     paneTech: paneTech, paneCivic: paneCivic,
+    /* 活数值原地回填（render.js 每次 renderPanes 结束调一次）。 */
+    paintLive: paintLive,
     policyName: policyName, policyDesc: policyDesc, policyFlavor: policyFlavor,
     /* 2026-11-01：科技 / 市政页顶部的自动研究拨动开关。回归直接调它断言
      * 「已买=可拨、未买=锁态」，不必先把科技面板的门打开（paneTech 在未开门时

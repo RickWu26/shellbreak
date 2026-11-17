@@ -298,7 +298,21 @@
     r.stardust = _sd;
     meta.stardust = (meta.stardust || 0) + _sd;
     meta.stardustEarned = (meta.stardustEarned || 0) + _sd;
-    if (s.got) s.got.stardust = meta.stardustEarned;
+    /* 帷幕周期账（ERA11 spec §3.3）：已掀幕的档每次合格轮回都把本局结算值累加进
+     * veil.cycleTide / cycleStar，供掀幕预估与结算读取。未掀幕档（veil===null）不建账，
+     * 避免给存量档凭空造出一份周期账（#4 口径 A）；首次掀幕的周期起点由
+     * prestige.veilPeriod() 在读取时引导，这里不掺一脚。
+     * ⚠️ 顺序敏感：必须排在下面写 s.got.stardust **之前**——那句读的是 cycleStar。 */
+    if (meta.veil && typeof meta.veil === 'object') {
+      meta.veil.cycleTide = (meta.veil.cycleTide || 0) + r.tidePoints;
+      meta.veil.cycleStar = (meta.veil.cycleStar || 0) + _sd;
+    }
+    /* ⚠️ 2026-11-17（ERA11 #4 口径 A 的 W2）：这里原来直接写 meta.stardustEarned，
+     * 掀幕后会把历史累计整笔喂回工坊效率与尤里卡（历史越滚越大、永不回落）。
+     * 口径收口到 SB.state.starEarnedSeed：未掀幕=历史累计（行为零变化），
+     * 掀幕后=本帷幕周期累计。与 state.js 的 freshRun 同一个函数，杜绝两套口径。 */
+    if (s.got) s.got.stardust = (SB.state && SB.state.starEarnedSeed)
+      ? SB.state.starEarnedSeed(meta) : meta.stardustEarned;
     // 首次合格轮回即解锁商店
     if (!meta.shopUnlocked) meta.shopUnlocked = true;
     /* 平台成就：合格破壳时解锁「首次轮回」与挑战通关（幂等，由 achv.js 的平台账本去重）。 */
@@ -316,6 +330,188 @@
       stardust: _sd
     }, '轮回结算完成。获得轮回点 ' + r.tidePoints.toFixed(2) + '、星屑 ' + _sd + '。'));
     return r;
+  }
+
+  /* ════════════════════════ 帷幕之后 · 大轮回（二层 prestige）═══════════════════════
+   * 2026-11-16 实装 · spec docs/ERA11_VEIL_SPEC_v0.1.md + VEIL_ASCENSION_SPEC_v0.1.md
+   * + VEIL_HUB_SPEC_v0.1.md。学完《掀起帘幕》(s.techs.beyond_veil) 后，底栏出现掀幕按钮。 */
+
+  var PATH_IDS = ['si', 'vo', 'gn'];   // 三条飞升路径：硅基承续 / 虚境升华 / 基因飞升
+
+  /* ── 帷幕周期账（唯一真源）────────────────────────────────────────────────
+   * 2026-11-17 修「首次掀幕死锁」：`emptyMeta()` 的 `veil` 必须是 null（#4 口径 A 的
+   * 「账本是否存在」判据），而 `doBreak` 又只在 veil 已是对象时才累加 cycleTide/cycleStar
+   * ⇒ 首次掀幕时账本恒为 0 ⇒ 门禁 cycleStar ≥ 1000 永不成立 ⇒ 玩家学完《掀起帘幕》
+   * 却永远掀不了幕。修法不是「给所有老档凭空建账」（那会让未掀幕档白拿一笔周期账），
+   * 而是把「周期账」变成**读时引导**（本函数），写入时机不变（仍只由 doBreak 增量累加）。
+   *
+   * 引导口径（已与用户 2026-11-17 报的阻塞一致，具体金额待其复核）：
+   *   · 账本已存在 → cycleTide / cycleStar。
+   *   · 账本不存在（首次掀幕）→ 以「存档至今累计」为第一段周期起点：
+   *     meta.tideEarnedTotal / meta.stardustEarned。理由是这第一段周期就是从存档
+   *     创建到此刻，而不是从某个并不存在的「上次掀幕」算起；且星屑侧的起点与
+   *     《掀起帘幕》尤里卡读的 s.got.stardust（= meta.stardustEarned）**同源**，
+   *     所以「尤里卡点亮」与「够得着 1000 门槛」必然同时成立，不会再出第二个死锁。
+   *   · 两种情形都要再加**本周目尚未结算的收益**（qualified 且未 breakSettled）：
+   *     掀幕发生在局内，不并入就等于「打穿一整局却换不来一点飞升点」
+   *     （ERA11 spec §3.1 第①步「先结算本局，否则本局收益凭空消失」）。
+   *     这里只把 breakReport 的数值读进来参与算点，不落盘、不改 s ——
+   *     掀幕后整个 meta 账与本周目都要清零，没有第二次读取的机会。
+   * ⚠️ 预估 / 确认面板 / 底栏提示 / 最终结算四处必须调本函数，杜绝「显示 1.23 实发 1.20」。 */
+  function veilPeriod(meta, s) {
+    meta = meta || (SB.game && SB.game.meta && SB.game.meta()) || {};
+    var v = (meta.veil && typeof meta.veil === 'object') ? meta.veil : null;
+    var baseTide = v ? (v.cycleTide || 0) : (Number(meta.tideEarnedTotal) || 0);
+    var baseStar = v ? (v.cycleStar || 0) : (Number(meta.stardustEarned) || 0);
+    if (s === undefined) s = (SB.game && SB.game.run) ? SB.game.run() : null;
+    var tide = baseTide, star = baseStar;
+    var pending = { tide: 0, star: 0, active: false };
+    if (s && !s.breakSettled && qualified(s)) {
+      var rep = breakReport(s);
+      /* 与 doBreak 同一个乘子位置（《文明构造》本轮回 +20%），否则「本局预估」与实际
+       * 结算值会差 20%，玩家会以为显示错了。 */
+      pending.tide = rep.tidePoints * ((s.civics && s.civics.civilization) ? 1.2 : 1);
+      pending.star = rep.stardust;
+      tide += pending.tide;
+      star += pending.star;
+      pending.active = true;
+    }
+    return {
+      hasLedger: !!v,
+      tide: tide, star: star,
+      baseTide: baseTide, baseStar: baseStar,
+      pending: pending,
+      points: Math.round((tide / 10000 + star / 1000) * 100) / 100
+    };
+  }
+
+  /* 飞升点预估（下位稿 §3，用户拍板不取整、留两位小数）。
+   * 第二参数是**可选**的本局快照：不传就取当前局，传 null 表示「不算本局未结算部分」。 */
+  function estimateVeilPoints(meta, s) {
+    return veilPeriod(meta, s).points;
+  }
+
+  /* 掀幕预览：给确认面板展示「将得多少 / 将失去什么 / 开第几条路径」。
+   * ⚠️ 未掀幕档（veil === null）**也要返回结构**——首次掀幕正是最需要预览的那一次。
+   *    只有「连 meta 都读不到」才返回 null。 */
+  function veilPreview(s) {
+    var meta = SB.game && SB.game.meta && SB.game.meta();
+    if (!meta) return null;
+    if (s === undefined) s = (SB.game && SB.game.run) ? SB.game.run() : null;
+    var per = veilPeriod(meta, s);
+    var v = (meta.veil && typeof meta.veil === 'object') ? meta.veil : null;
+    var opened = (v && v.paths && v.paths.opened) || [];
+    var count = ((v && v.count) || 0) + 1;   // 本次掀幕后的重数
+    var unopened = PATH_IDS.filter(function (p) { return opened.indexOf(p) < 0; });
+    return {
+      points: per.points,
+      count: count,
+      cycleTide: per.tide,
+      cycleStar: per.star,
+      baseTide: per.baseTide,
+      baseStar: per.baseStar,
+      pendingTide: per.pending.tide,
+      pendingStar: per.pending.star,
+      pendingActive: per.pending.active,
+      hasLedger: per.hasLedger,
+      nextPath: unopened.length ? unopened[0] : null,   // 本次强制开一条（HUB §2 已拍）
+      allOpen: unopened.length === 0,
+      opened: opened.slice()
+    };
+  }
+
+  /* 掀幕：原子事务。学完《掀起帘幕》且周期星屑 ≥1000 才可调用（门在 UI 侧，这里再兜一层）。
+   * 顺序不可换（上位稿 §3.1）：先算点 → 清资产 → 发点建账 → 解锁路径 → startRun 重建本局。
+   * 任何一步失败都抛错、不改状态——但这里全是同步纯内存操作，理论上不会中途失败。 */
+  function doVeil(s, emit) {
+    var meta = SB.game && SB.game.meta && SB.game.meta();
+    if (!meta) throw new Error('无法读取跨周目存档');
+    if (!s || !s.techs || !s.techs.beyond_veil) throw new Error('尚未学成《掀起帘幕》');
+    /* ① 先算账（Must be before any mutation）：周期账 + 本周目未结算部分。
+     * ⚠️ 必须在建 meta.veil 之前算 —— 建账后 veilPeriod 会走「账本已存在」分支，
+     *    首次掀幕那笔「存档至今累计」的引导种子就丢了（回归到 0 点）。
+     * 门禁也用这份账，而不是 v.cycleStar：首次掀幕 v 还不存在。 */
+    var per = veilPeriod(meta, s);
+    if (per.star < 1000) {
+      throw new Error('本周期星屑不足 1000（当前 ' + Math.round(per.star) + '），无法掀幕');
+    }
+    var gained = per.points;
+
+    /* ② 建账（首次掀幕时才创建；之后只增不减 count） */
+    if (!meta.veil || typeof meta.veil !== 'object') {
+      meta.veil = {
+        count: 0, points: 0, perks: {}, cycleTide: 0, cycleStar: 0,
+        lifetimePoints: 0,
+        paths: { opened: [], organ: {}, void: {}, gene: {} }
+      };
+    }
+    var v = meta.veil;
+    if (!v.paths) v.paths = { opened: [], organ: {}, void: {}, gene: {} };
+    if (!Array.isArray(v.paths.opened)) v.paths.opened = [];
+    var openedBefore = v.paths.opened.slice();
+    // ③ 清资产（上位稿 §2「清」列）——只清这些，保留列一字不动
+    /* ⚠️ 2026-11-17 修正：此前这里写 `meta.spent = 0` 且把 tideEarnedTotal 也清零，
+     * 与 §2 保留列（tideEarnedTotal / stardustEarned）和决策 #1「保留历史获得过的
+     * 轮回点 / 星屑记录」直接冲突——掀一次幕就把玩家的历史成绩抹掉。
+     * 正解照 §3.2：把被清的**余额**记成一笔 spent（语义正是「被帷幕核销」），
+     * 定损方程 tideEarnedTotal − tide − spent ≡ 0 依然成立，历史总量一字不动。 */
+    meta.spent = (meta.spent || 0) + (Number(meta.tide) || 0);
+    meta.tide = 0;
+    meta.perks = {};
+    meta.stardust = 0;
+    meta.starPerks = emptyStarPerks();
+    meta.techLog = {};
+    meta.lastRun = null;
+    meta.oldFaith = 0;
+    meta.memorialWonders = {};
+    meta.oldArtworkEarnedTotal = 0;
+    meta.oldTideStelesEarnedTotal = 0;
+    meta.buildingLvlTotal = {};
+    meta.govPassiveCards = {};
+    meta.govEverAdopted = {};
+    meta.challengePopupPending = null;
+    // veil 自身：余额/本重飞升树重买/周期账归零，count +1 只增不减
+    v.points = 0;
+    v.perks = {};
+    v.cycleTide = 0;
+    v.cycleStar = 0;
+
+    // ④ 发点建账
+    v.count = (v.count || 0) + 1;
+    v.points = gained;
+    v.lifetimePoints = (v.lifetimePoints || 0) + gained;
+
+    // ⑤ 解锁一条路径（本次强制开一条，HUB §2）。三条全开之后不再追加，卡保留为永久入口。
+    var nextPath = PATH_IDS.filter(function (p) { return v.paths.opened.indexOf(p) < 0; })[0] || null;
+    if (nextPath) v.paths.opened.push(nextPath);
+
+    // ⑥ 落盘 + 重建本局（走 startRun，它负责 runs+1 与 freshRun）
+    SB.state.saveMeta(meta);
+    if (SB.game && SB.game.startRun) SB.game.startRun();
+    if (SB.saveTransfer && SB.saveTransfer.backupSoon) SB.saveTransfer.backupSoon();
+
+    (emit || function () {})(tr('ui.veil.break_done', {
+      points: gained.toFixed(2), count: v.count
+    }, '帷幕掀起 · 第 ' + v.count + ' 重：获得 ' + gained.toFixed(2) + ' 飞升点。'));
+
+    return {
+      points: gained, count: v.count,
+      opened: v.paths.opened.slice(),
+      openedBefore: openedBefore,
+      newPath: nextPath,
+      cycleTide: per.tide, cycleStar: per.star,
+      pendingTide: per.pending.tide, pendingStar: per.pending.star,
+      firstVeil: !per.hasLedger
+    };
+  }
+
+  /* emptyStarPerks 的本地镜像：掀幕要把星屑商店的 40+ 键全清。
+   * 不直接调 SB.state 私有函数，按 meta.starPerks 现有键逐个归零。 */
+  function emptyStarPerks() {
+    var out = {};
+    var cur = (SB.game && SB.game.meta && SB.game.meta().starPerks) || {};
+    for (var k in cur) out[k] = 0;
+    return out;
   }
 
   /* ── 轮回商店 ───────────────────────────────────────────────────────────
@@ -409,6 +605,13 @@
     if (SB.challenges && SB.challenges.tierDone('waterpollution', SB.game && SB.game.meta ? SB.game.meta() : null)) mul *= 1.1;
     if (SB.challenges && SB.challenges.stardustRewardMul)
       mul *= SB.challenges.stardustRewardMul(SB.game && SB.game.meta ? SB.game.meta() : null);
+    /* 硅基承续 · 鳞/眼/手 LV3（2026-11-17）：「工坊区每级建筑 +1% 结算星屑」，三处**叠加**成
+     * +3%/级（SPEC §0 #1 已拍：不是三选一、不是只算一次）。乘在整条 mul 之后，
+     * 与挑战奖励 / 祖先遗产等既有乘区各自独立。 */
+    if (SB.veilFx) {
+      var wLv = (s.lvl && s.lvl.workshop) || 0;
+      mul *= SB.veilFx.breakStardustMul(wLv);
+    }
     return Math.floor(levels * 0.1 * mul);
   }
   function starPerkDef(id) {
@@ -576,6 +779,12 @@
   SB.prestige = {
     breakReport: breakReport,
     doBreak: doBreak,
+    /* 帷幕之后（二层 prestige） */
+    estimateVeilPoints: estimateVeilPoints,
+    veilPeriod: veilPeriod,
+    veilPreview: veilPreview,
+    doVeil: doVeil,
+    PATH_IDS: PATH_IDS,
     qualified: qualified,
     legacy: legacy,
     harmonic: harmonic,

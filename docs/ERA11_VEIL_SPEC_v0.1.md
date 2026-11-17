@@ -1,8 +1,19 @@
-# ERA11「窥虚纪」与二层轮回「帷幕之后」规格 v0.1
+# ERA11「α」与二层轮回「帷幕之后」规格 v0.1
 
-> 状态：**设计稿 / 待拍板**，日期 2026-11-14。
-> **本稿未改任何生产代码**，未跑回归、未跑 balance / 参数扫描、未 commit / 封包 / 上传。
-> 决策来源：2026-11-14 两轮用户拍板（编号见 §0）。
+> 状态：**P0 骨架已实装（2026-11-17）**，初稿 2026-11-14，修订 2026-11-16（三项拍板见 §0 #7–#9；按钮落点 + 飞升点换算见 #10–#11）。
+> **2026-11-17 实装记录**：按下述落点改了生产代码（techs/tech/state/state-migrate/civics/prestige/render/game + 新增 ui/veil-hub-ui.js + css/99-veil.css + assets/veil/）。真实浏览器（headless Chrome）全链路核验通过：掀幕按钮显示、预估换算、doVeil 清档发点、三路径逐次解锁 1→3、装配台 10 热区 + LV3 红字。数值仍为占位待标定；**未 commit / 封包 / 上传**。
+> **2026-11-17 修阻塞（用户静态核查 #1/#5 + 复查中发现的三处口径偏差）**：
+> 1. **首次掀幕死锁已修**：`emptyMeta()` 的 `veil` 必须是 null（#4 口径 A 判据），而 `doBreak` 只在账本已存在时才累加周期账 ⇒ 首次掀幕门禁 `cycleStar≥1000` **永不成立**。
+>    修法 = 新增 `prestige.veilPeriod(meta, s)` 作为**唯一真源**：账本不存在时用「存档至今累计」(`tideEarnedTotal` / `stardustEarned`) 引导周期起点，并**并入本周目尚未结算的结算值**（原本掀幕会白打一局，§3.1 第①步那条「先结算本局」此前没落地）。
+>    预估 / 底栏提示 / 确认面板 / `doVeil` 四处同源调用它。
+> 2. **`s.got.stardust` 口径 A 补实装**：`state.starEarnedSeed(meta)` 单点收口 —— 未掀幕档读历史累计（存量档行为零变化），掀幕后读 `veil.cycleStar`（`freshRun` 的 got 初始化 + `doBreak` 结算当场两处都调它）。
+> 3. **清列修正**：`doVeil` 此前把 `tideEarnedTotal` / `stardustEarned` 一起清零、`spent` 也归零，违反 §2 保留列与决策 #1。改为 §3.2 的写法：`spent += tide; tide = 0`，历史总量一字不动，定损残差 `E − T − S ≡ 0` 仍成立（e2e 已钉）。
+> 4. **大厅常驻重开入口**：掀幕主界面此前只在「刚掀完」自动弹一次，关掉即失联（核查 #4）。轮回商店页新增 `.meta-veil` 分区 + `data-veil-open` 按钮（document 级委托，扛住 2 秒整页重写）。
+> 5. **e2e 覆盖**（核查 #6）：新增 `sim/e2e-suites/veil.mjs`（32 项），并把两处夹具缺口补上（假 DOM 缺 `createTextNode`、`techSeg` 未声明）——此前 `node sim/e2e.mjs` **启动即抛，一行都跑不了**。
+> 6. 械飞升 30 档效果已接 28 档（见 `VEIL_SI_ORGAN_SPEC_v0.2.md` §7 表末状态）。
+> 真实浏览器核验：首次掀幕（veil=null）→ 预估 25.00 → 掀幕 → 第 1 重 / 只开 si / 历史保留 / 残差 0；`node sim/e2e.mjs` 1927/1998（失败 143 项与改动前逐条同名，零新增）。
+> **待标定 / 待接**：VEIL_TREE 23 节点未建（首层软着陆待做）；装配台 30 效果档中 §7 七项未解挂点（礁口巢上限/工艺独立乘区/按岗位产出/食物需求/钻机被动破壳两轴/软实力消耗/敌国上限）暂只记等级、未接生产乘区；虚境/基因操作界面仍占位。
+> 决策来源：2026-11-14 两轮用户拍板 + 2026-11-16 三项拍板（编号见 §0）。
 > ⚠️ **覆盖声明**：本稿**作废**前几轮的「ERA11 局内三选一飞升路径 + ERA12 三型天灾」分层方案。
 > 现行分层 = 飞升是 **meta 层二层轮回**，ERA11 是一个大轮回周期末尾的唯一新纪元，ERA12 本期不做。
 
@@ -13,11 +24,16 @@
 | # | 决策 | 结果 |
 |---|---|---|
 | 1 | 清零档位 | **全部清零（基本等于删档重来）**，但保留「历史获得过的轮回点 / 星屑」记录 |
-| 1a | 成本基准（上轮 #1） | `unified_field` 44,700,000 →《帷幕之后》**447,000,000** 科技点（基础 cost，实付仍吃科技折扣） |
+| 1a | 成本基准（上轮 #1） | `unified_field` 44,700,000 →《掀起帘幕》**447,000,000** 科技点（基础 cost，实付仍吃科技折扣） |
 | 2 | 四项旧日遗产 | **要清**（`oldFaith` / `memorialWonders` / `oldArtworkEarnedTotal` / `oldTideStelesEarnedTotal`） |
 | 3 | 飞升树每轮掀幕 | **重买** |
-| 4 | `stardustEarned` 口径 | **口径 A：历史只记账，`s.got.stardust` 切本周期累计**（本轮拍板，细则见 §4） |
-| 5 | 纪元名 / 二层名 | ERA11 = **窥虚纪**；二层 = **帷幕之后**；《飞升虚境》= **假结局** |
+| 4 | `stardustEarned` 口径 | **口径 A：历史只记账，`s.got.stardust` 切本周期累计**（细则见 §4） |
+| 5 | 纪元名 / 二层名 | ERA11 = **α**（2026-11-16 改，覆盖原「窥虚纪」）；二层 = **帷幕之后**；《飞升虚境》= **假结局** |
+| 7 | 终极科技名（2026-11-16 拍） | 原《帷幕之后》→ **《掀起帘幕》**（id `beyond_veil` 不变）。二层系统仍叫「帷幕之后」，不再与科技同名 |
+| 8 | 终极科技尤里卡（2026-11-16 拍） | 原戴森竣工 `dysonPct:100` → **本帷幕周期累计星屑 ≥ 1000**，即 `cond:{t:'gathered',r:'stardust',n:1000}`；口径沿用 #4，读 `s.got.stardust`（掀幕后 = `veil.cycleStar`） |
+| 9 | 大统一方程（2026-11-16 拍） | `unified_field` 的尤里卡 `dysonPct:80` **不动**，只改《掀起帘幕》自己的尤里卡 |
+| 10 | 掀幕按钮落点（2026-11-16 拍） | 放在**轮回按钮下方**（`#btnBreak` / `#btnCycle` 那一行 `.foot` 的下一行），不放在原稿的「自然环境横幅行」；显示条件仍 = `s.techs.beyond_veil`（学完才出现） |
+| 11 | 帷幕点算法（2026-11-16 拍） | `points = round( cycleTide/10000 + cycleStar/1000, 2 )`——两项各自除门槛后相加、**保留两位小数不取整**（用户拍「不取整，留两位小数」）；星屑满 1000 恰 = 1.00 点，与尤里卡自洽 |
 | 6 | ERA12 天灾 | **本期不做** |
 | — | 层次 | **覆盖**（非叠加） |
 | — | 首层飞升 perk | 一开始就能点，且**当局就要获得**（见 §5） |
@@ -30,7 +46,7 @@
 
 ```
 第 1 层（现行）：单局 → 破壳 → 主动「轮回」→ doBreak → 发 tide / stardust → 买 TIDE_TREE / STAR_PERKS → 下一局
-第 2 层（本稿）：攒够 → ERA11《帷幕之后》→ 自然环境「掀开帷幕」→ 大轮回
+第 2 层（本稿）：攒够 → ERA11《掀起帘幕》→ 自然环境「掀开帷幕」→ 大轮回
                  → 清资产 → 发「帷幕点」→ 重买 VEIL_TREE → 回到第 1 层，规则按新树重跑
 ```
 
@@ -197,19 +213,21 @@ spent += tide;  tide = 0;   // tideEarnedTotal 一字不动
 
 ---
 
-## 6. ERA11「窥虚纪」与掀幕落点
+## 6. ERA11「α」与掀幕落点
 
 | 件 | 落点 | 纪律 |
 |---|---|---|
-| 纪元 | `techs.js:84` `ERAS` 加第 11 项「窥虚纪」 | `tech.js:1290` 英文 slug 表只到 10；TapTap zh-CN 走中文字段无碍，将来英文版需补 `peering_void` 之类 key |
-| 科技 | `TECHS` 尾加 `{id:'beyond_veil', name:'帷幕之后', era:11, key:true, layer:23, reqs:['unified_field'], cost:447000000}` | 尤里卡 = 戴森竣工：`cond:{t:'dysonPct',n:100}` 复用 `tech.js:401`，与 `economy-tick.js:333` 的 `dysonDone` 同一读数；`condShort:463` / `condText:629` 已支持 ⇒ 三处零改动 |
-| 前置 | `unified_field`（`techs.js:1071`，ERA10 最后科技，44,700,000，`cond:{t:'dysonPct',n:80}`） | 10 × 44,700,000 = **447,000,000**（基础 cost，实付吃折扣） |
+| 纪元 | `techs.js:84` `ERAS` 加第 11 项 name `'α'` | `tech.js:1290` 英文 slug 表只到 10；TapTap zh-CN 走中文字段无碍，将来英文版需补 `alpha` 之类 key |
+| 科技 | `TECHS` 尾加 `{id:'beyond_veil', name:'掀起帘幕', era:11, key:true, layer:23, reqs:['unified_field'], cost:447000000}` | 尤里卡 = 本帷幕周期累计星屑 ≥ 1000：`cond:{t:'gathered',r:'stardust',n:1000}`，复用现成 `gathered` 类型（`techs.js:1064`《继承繁星之人》同款），读 `s.got.stardust`（#4 口径：掀幕后 = `veil.cycleStar`）；`condShort` / `condText` 已支持 ⇒ 零新增 cond 类型，但**尤里卡文案需改**（见 §4.4 清单精神） |
+| 前置 | `unified_field`（`techs.js:1071`，ERA10 最后科技，44,700,000，`cond:{t:'dysonPct',n:80}`） | 10 × 44,700,000 = **447,000,000**（基础 cost，实付吃折扣）。⚠️ 其戴森 80% 尤里卡**不动**（#9） |
 | 市政树 | `civics.js:919` `visibleEra()` 按 `SB.ERAS.length` 循环 ⇒ ERA11 无市政会渲染出空的「第 11 纪元」 | 上限夹到「有市政的最大纪元」= 10 |
-| 按钮 | `render-environment.js` 稳定机器横幅行 + `src/ui/input.js:773` 事件委托（同 `data-skydrill` / `data-geek`） | ⚠️ 每帧重画容器**不许放按钮**（`render-environment.js:55-56 / :666-667`）；显示条件 = `s.techs.beyond_veil`；点开先出**重置预览**确认面板，明写「将得多少帷幕点 / 将失去什么」 |
+| 按钮 | `index.html` 轮回按钮那一行 `.foot`（`#btnBreak` / `#btnCycle` / `#breakHint`）**下方新增一行 `.foot`**，放 `#btnVeil` + `#veilHint`；事件委托走 `src/ui/input.js:773` 同款 `closest()` 分支 | ⚠️ 每帧重画的容器**不许放按钮**——放在 `.foot` 静态行，由 `renderBreakBtn()` 同款函数切 `hidden`（**不是**原稿的 `render-environment.js` 横幅行）。显示条件 = `s.techs.beyond_veil`（学完才出现，已拍）；点开先出**重置预览**确认面板，明写「将得多少帷幕点 / 将失去什么」 |
+| 预估文字 | `#breakHint` 右侧同款位置新增 `#veilHint`，显示 `当前掀幕预估：N.NN 飞升点（本周期 X 轮回点 + Y 星屑）` | 点数**实时只读展示**，公式只用周期累计 `cycleTide/cycleStar`；真正结算只在确认掀幕那一刻算一次写入 `veil.points`（防刷三条见下位稿 §3）。`X/Y` 读同一份周期账，与点数同源 |
 | 状态 | `emptyMeta()` 加 `veil` 默认 + `normalizeMeta()` 收口 | `state-migrate.js:530` 已动态读 `SB.ERAS.length`，只需把 fallback 常量 10 → 11 |
 | 文案 | 先登 `src/locales/zh-CN.js` 再写 UI | 非琐碎 UI 先做 demo 再实装；退休 key 永不复用 |
 
-**触发时机**：学完《帷幕之后》即可在自然环境点「掀开帷幕」，**不需要等 ERA12**（本期不做 ERA12）。
+**触发时机**：学完《掀起帘幕》即可在自然环境点「掀开帷幕」，**不需要等 ERA12**（本期不做 ERA12）。
+⚠️ 现在《掀起帘幕》尤里卡 = 本周期累计 1000 星屑，与前置《大统一方程》的戴森 80% 是**两道独立门槛**：玩家仍需先把戴森推到 80% 学完大统一方程，再在本帷幕周期里累计满 1000 星屑，才学得会《掀起帘幕》、才看得见掀幕按钮。
 
 ---
 
@@ -217,7 +235,8 @@ spent += tide;  tide = 0;   // tideEarnedTotal 一字不动
 
 1. **ERA10 零 key → 老档瞬跳（硬阻塞）**：`tech.js:1252 keysOf(10)` 返回空 ⇒ `eraProgress(10).done = 0>=0 = 真`（`:1260`）。`ERAS.length` 10→11 后下一拍 `pump → advanceEra`（`:1318`）会把**所有停在 ERA10 的存档**直接推进 ERA11，戴森没建完也能看见帷幕科技（`techs.js:107 / :968` 记的是同一次事故）。
    **修法**：给表尾 `unified_field` 加 `key:true`（它本就是 ERA10 最后科技），引擎一行不改；ERA11 那条也设 `key:true`，学完 `p.era >= E.length` 自然停，不需要 ERA12。
-2. **AI bot 在 `dysonDone` 后收手**：`ai-player.js:390`、`ai-strategy.js:917,926` ⇒ bot 永远学不到《帷幕之后》。要在**调用方**拆，与当年 9 处 `!broken` 门禁同构（只删首行早退是零效果）。
+2. **AI bot 在 `dysonDone` 后收手**：`ai-player.js:390`、`ai-strategy.js:917,926` ⇒ bot 永远学不到《掀起帘幕》。要在**调用方**拆，与当年 9 处 `!broken` 门禁同构（只删首行早退是零效果）。
+   ⚠️ 尤里卡改成星屑后新增一处分叉：`ai-strategy.js:442 deferredCycleStardustTech` 已会判 `gathered/stardust` 未达标就跳过该科技——bot 在周期星屑 <1000 时会主动延期《掀起帘幕》，这是期望行为（与真人门槛一致），不要误当 bug 拆掉。
 3. **停在 `dysonDone` 的老档要能自然进 ERA11**：`revealEra` 补揭示 + 允许补学 `unified_field`；`state-migrate.js:536` 每次读档清 `out.eureka`，靠 `metOf` 三档兜底（`tech.js:859` 已有）。
 4. **`dysonDone` 的 9 类消费方一字不动**（17 个 goal、`voidEnd`/`dysonEnd`、4 条榜、四段分镜、bot）⇒ 加时赛不计挑战成绩。
 5. **《飞升虚境》降格基本零代码**：它现在本来就是乱码假结局（`render.js:930-956`，面板明写「这一局到此为止…也可以留在这里看着它继续」）。`voidEnd` 成就、`void` 榜（`config.js:352`）、底栏 `renderBreakBtn` 的 `'void'` 态（`render.js:1641`）**全留**，只补一句「帷幕之后才是真的」的指向。
@@ -239,7 +258,7 @@ spent += tide;  tide = 0;   // tideEarnedTotal 一字不动
 | 期 | 交付 | 验收判据 |
 |---|---|---|
 | **P0 骨架** | `ERAS` 到 11 + `unified_field` 补 key、ERA10 key 修复、`veil` 状态与迁移、自然环境按钮 + 重置预览 demo、原子事务、4 处拆门 | 老档停在 ERA10 不瞬跳；掀幕后能 `startRun`；残差恒等式不变；e2e 按**失败清单 comm 对比**零新增（连跑 3 次，0xC0000005 崩溃遍不作结论） |
-| **P1 内容** | 《帷幕之后》科技 + `VEIL_TREE` 首层双节点 + 一次性入账 + 首层软着陆 | 掀幕 → 当场买到 tide/stardust perk → 当局到账；第二重帷幕可再买 |
+| **P1 内容** | 《掀起帘幕》科技 + `VEIL_TREE` 首层双节点 + 一次性入账 + 首层软着陆 | 掀幕 → 当场买到 tide/stardust perk → 当局到账；第二重帷幕可再买；本周期星屑 <1000 时《掀起帘幕》保持不可学、按钮不出现 |
 | **P2 口径** | §4 两处写入 + 7 处注释 + 9 处文案同步 | 掀幕前老档尤里卡/工坊效率不变；掀幕后 `s.got.stardust` 归零、尤里卡变灰；`state-migrate` 读档不回弹 |
 | **P3 验证** | 数值标定（用户拍板后）、e2e 新 suite、版本四件套 | 3 次连跑分布一致；`?v` bump 与 `_repack.py` 版本断言 |
 
@@ -251,7 +270,7 @@ spent += tide;  tide = 0;   // tideEarnedTotal 一字不动
 |---|---|---|
 | 1 | §4.3「`veil` 账本掀幕时才创建、之前照旧」是否确认 | 确认；否则仅更新版本就会掉收益 |
 | 2 | `meta.cycle` 加成例外 | 不动（§8） |
-| 3 | 《帷幕之后》科技与二层同名、ERA11 纪元名「窥虚纪」 | 已拍，仅登记 |
+| 3 | 科技《掀起帘幕》与二层「帷幕之后」不再同名、ERA11 纪元名「α」 | 2026-11-16 已拍，仅登记 |
 | 4 | 帷幕点公式与 `VEIL_TREE` 全部节点价格 / 效果 | **等标定，本稿只定结构** |
 | 5 | 是否开始实装 | 等用户当次明说；本稿纯设计 |
 

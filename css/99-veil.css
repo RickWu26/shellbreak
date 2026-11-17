@@ -1,0 +1,122 @@
+/* 帷幕之后 · 飞升路径界面（2026-11-17 · VEIL_HUB_SPEC v0.1）
+ * 外层三张路径卡 + 内层飞升操作弹窗。用主题变量，昼夜自适应；减少动态偏好下无动画。 */
+
+/* ── 底栏掀幕按钮 ── */
+.veil-foot{margin-top:6px}
+.veil-foot[hidden]{display:none}
+.big.veil-break{background:linear-gradient(100deg,#7044a2,#a45b9b);color:#fff;border:1px solid rgba(200,160,255,.4)}
+.big.veil-break:hover{filter:brightness(1.1)}
+
+/* ── 外层：帷幕路径主界面 ── */
+.veil-hub-layer{position:fixed;inset:0;z-index:1180;display:flex;align-items:center;justify-content:center;
+  padding:20px;background:radial-gradient(ellipse at 50% 30%,rgba(80,40,120,.32),rgba(4,7,16,.94) 72%);
+  backdrop-filter:blur(4px)}
+.veil-hub-layer.hidden,.veil-modal.hidden{display:none}
+.vh-inner{width:100%;max-width:1020px;max-height:92vh;overflow:auto}
+.vh-hd{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:6px}
+.vh-hd h2{margin:0;font-size:24px;letter-spacing:.14em;
+  background:linear-gradient(90deg,#c9a6ff,#8fd9ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+.vh-sub{margin:4px 0 0;font-size:13px;color:var(--dim,#8fa9bd)}
+.vh-close,.vm-close{background:transparent;border:1px solid var(--line,#20344a);color:var(--dim,#8fa9bd);
+  width:34px;height:34px;border-radius:8px;font-size:20px;line-height:1;cursor:pointer;flex:none}
+.vh-close:hover,.vm-close:hover{border-color:#a98bff;color:#c9a6ff}
+.vh-note{font-size:12px;color:var(--dim2,#64809a);margin:0 0 18px}
+.vh-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.vh-card{display:flex;flex-direction:column;background:var(--panel,#0d1725);
+  border:1px solid var(--line,#20344a);border-radius:14px;overflow:hidden;padding:0;cursor:pointer;
+  text-align:left;color:var(--txt,#e6f2f8);transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
+.vh-card.sealed{opacity:.62;cursor:default;filter:saturate(.5)}
+.vh-card.open:hover{transform:translateY(-3px);border-color:#a98bff;box-shadow:0 12px 30px rgba(120,70,190,.28)}
+.vh-card-img{width:100%;aspect-ratio:1/1;background-size:cover;background-position:center;background-repeat:no-repeat}
+.vh-card-body{padding:12px 14px 15px}
+.vh-card-body h3{margin:0 0 3px;font-size:17px;letter-spacing:.06em}
+.vh-card-sub{margin:0 0 9px;font-size:11px;color:var(--dim2,#64809a)}
+.vh-card-state{margin:0;font-size:12px;color:var(--dim,#8fa9bd)}
+.vh-card-state.on{color:#8fd9ff;font-weight:700}
+
+/* ── 内层：飞升操作弹窗 ── */
+.veil-modal{position:fixed;inset:0;z-index:1200;display:flex;align-items:center;justify-content:center;
+  padding:20px;background:rgba(3,6,14,.86);backdrop-filter:blur(5px)}
+.veil-modal-box{width:100%;max-width:1080px;max-height:94vh;overflow:auto;
+  background:var(--panel,#0d1725);border:1px solid var(--line,#20344a);border-radius:16px;padding:18px 20px 22px}
+.vm-hd{display:flex;align-items:center;justify-content:space-between;gap:16px;
+  border-bottom:1px solid var(--line,#20344a);padding-bottom:12px;margin-bottom:16px}
+.vm-hd h2{margin:0;font-size:19px;letter-spacing:.08em;color:#c9a6ff}
+.vm-placeholder{padding:40px 20px;text-align:center;color:var(--dim,#8fa9bd)}
+.vm-placeholder h3{font-size:20px;color:var(--txt,#e6f2f8)}
+.vm-todo{font-size:12px;color:var(--dim2,#64809a);margin-top:24px}
+
+/* ── 硅基装配台（内联 v0.2 三级）── */
+.vo-rig-wrap{display:grid;grid-template-columns:minmax(0,420px) 1fr;gap:20px;align-items:start}
+.vo-rig{position:relative;width:100%;max-width:420px;margin:0 auto;aspect-ratio:300/460;
+  background:var(--panel2,#111e2e);border:1px solid var(--line,#20344a);border-radius:10px;overflow:hidden}
+.vo-body{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;display:block}
+.vo-pt{position:absolute;transform:translate(-50%,-50%);width:44px;height:44px;border-radius:50%;
+  border:1px solid var(--line,#20344a);background:rgba(8,16,26,.82);color:var(--dim,#8fa9bd);
+  font-size:11px;font-variant-numeric:tabular-nums;cursor:pointer;padding:0;z-index:2;
+  display:grid;place-items:center;transition:transform .16s ease,border-color .16s ease,background .16s ease}
+.vo-pt:hover{transform:translate(-50%,-50%) scale(1.12)}
+.vo-pt.sel{border-color:#c9a6ff;color:#c9a6ff;box-shadow:0 0 0 2px rgba(201,166,255,.25)}
+.vo-pt.lv1{border-color:#7fd0c0;color:#7fd0c0}
+.vo-pt.lv2{border-color:#7fb8e8;color:#7fb8e8}
+.vo-pt.lv3{border-color:#ffb84d;color:#ffb84d;background:rgba(60,40,10,.85)}
+.vo-progress{margin-top:10px;text-align:center;font-size:12px;color:var(--dim,#8fa9bd)}
+.vo-progress b{color:#7fd0c0;font-size:14px}
+.vo-detail{background:var(--panel2,#111e2e);border:1px solid var(--line,#20344a);border-radius:12px;padding:16px}
+.vo-detail-hd{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+  border-bottom:1px solid var(--line,#20344a);padding-bottom:10px;margin-bottom:12px}
+.vo-detail-hd h3{margin:0;font-size:16px;color:var(--txt,#e6f2f8)}
+.vo-part{font-size:11px;color:var(--dim2,#64809a)}
+.vo-stages{display:flex;gap:8px;margin-bottom:14px}
+.vo-stage{flex:1;text-align:center;padding:6px 0;border:1px solid var(--line,#20344a);border-radius:6px;
+  font-size:12px;color:var(--dim2,#64809a)}
+.vo-stage.done{background:rgba(127,208,192,.14);border-color:#7fd0c0;color:#7fd0c0}
+.vo-stage.cur{border-color:#c9a6ff;color:#c9a6ff;box-shadow:inset 0 0 0 1px rgba(201,166,255,.3)}
+.vo-effect{background:var(--panel,#0d1725);border:1px solid var(--line,#20344a);border-radius:8px;
+  padding:10px 12px;margin-bottom:10px}
+.vo-effect.next{border-style:dashed;opacity:.9}
+.vo-effect-hd{font-size:11px;letter-spacing:.08em;color:var(--dim,#8fa9bd);margin-bottom:5px}
+.vo-effect p{margin:0 0 5px;font-size:13px;line-height:1.6;color:var(--txt,#e6f2f8)}
+.vo-effect code{font-size:11px;color:#7fd0c0;word-break:break-all}
+.vo-red{margin:10px 0;padding:10px 12px;border-left:2px solid #e2788f;
+  font-size:13px;color:#e2788f;letter-spacing:.04em;font-style:italic}
+.vo-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;
+  border-top:1px solid var(--line,#20344a);padding-top:12px}
+.vo-cost{font-size:12px;color:var(--dim,#8fa9bd)}
+.vo-cost b{color:#ffcf7a;font-size:15px;font-variant-numeric:tabular-nums}
+.vo-commit{background:linear-gradient(100deg,#7044a2,#a45b9b);color:#fff;border:0;
+  padding:9px 16px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer}
+.vo-commit:disabled{background:#24314a;color:#7c8ba3;cursor:default}
+
+html[data-ui-theme="day"] .vh-card-img{filter:saturate(.92)}
+html[data-ui-theme="day"] .vo-pt{background:rgba(255,255,255,.9)}
+@media(max-width:760px){
+  .vh-cards{grid-template-columns:1fr}
+  .vo-rig-wrap{grid-template-columns:1fr}
+}
+@media(prefers-reduced-motion:reduce){
+  .vh-card,.vo-pt{transition:none}
+}
+
+/* ── 轮回商店页的常驻入口（2026-11-17 · 用户静态核查 #4）───────────────────────
+ * 掀过幕之后，帷幕主界面不能只在「刚掀完那一次」自动弹出，否则关掉即失联。
+ * 版式沿用 meta-legacy 的卡片语言（同页同层级，不另造视觉体系）。 */
+.meta-veil{margin:14px 0 4px;padding:14px 16px;border-radius:14px;
+  border:1px solid rgba(160,120,230,.34);
+  background:linear-gradient(135deg,rgba(112,68,162,.16),rgba(20,14,34,.5));
+  display:grid;grid-template-columns:1fr auto;gap:12px 18px;align-items:center}
+.meta-veil-hd h2{margin:2px 0 3px;font-size:18px;letter-spacing:.12em;color:var(--txt,#e6f2f8)}
+.meta-veil-kicker{font-size:10px;letter-spacing:.18em;color:#a98bff;text-transform:uppercase}
+.meta-veil-hd p{margin:0;font-size:12px;color:var(--dim2,#64809a)}
+.meta-veil-stats{display:flex;gap:18px;grid-column:1 / -1;flex-wrap:wrap}
+.meta-veil-stats>div{min-width:96px}
+.meta-veil-stats span{display:block;font-size:11px;color:var(--dim2,#64809a)}
+.meta-veil-stats b{font-size:16px;color:#c9a6ff}
+.meta-veil-open{grid-row:1;grid-column:2;align-self:center;cursor:pointer;
+  padding:9px 18px;border-radius:10px;font-size:13px;font-weight:700;color:#fff;
+  border:1px solid rgba(200,160,255,.42);background:linear-gradient(100deg,#7044a2,#a45b9b)}
+.meta-veil-open:hover{filter:brightness(1.12)}
+@media (max-width:640px){
+  .meta-veil{grid-template-columns:1fr}
+  .meta-veil-open{grid-row:auto;grid-column:1;width:100%}
+}

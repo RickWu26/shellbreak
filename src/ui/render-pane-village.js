@@ -181,28 +181,18 @@
          *   （SB.ui.openIntro / SB.ui.render）。在这里 `var ui` 会把它遮蔽成循环下标，
          *   于是模块末尾 `SB.ui = SB.ui || {}` 读到数字 0 → falsy → 整个命名空间重建为空对象，
          *   页面启动即 `querySelector is not a function`。踩过一次，改名 `_upi`。 */
-        /* 2026-10-21（用户拍板）：描述走共享出口 SB.ui.buildingDescText —— 凡「科技改写数值」
-         *   的建筑（当前=核热厂）按本局实际状态出数，不写「如果研究了会是多少」的条件句。 */
+        /* 建筑卡与详情弹窗共用当前实际效果文案；移除独立的 desc / buildingDesc 旧文案源。 */
         var dispName = buildingName(b.id, b.name),
-            dispDesc = (SB.ui && SB.ui.buildingDescText) ? SB.ui.buildingDescText(s, b) : b.desc;
-        if (b.id === 'kelp') dispDesc = tr('building.kelp.description', { kelpPerLevel: SB.BLD.food }, dispDesc);
-        else if (b.id === 'nest') dispDesc = tr('building.nest.description', { populationCapacity: SB.BLD.house }, dispDesc);
+            dispDesc = (SB.ui && SB.ui.buildingInfoEffectText)
+              ? SB.ui.buildingInfoEffectText(s, b, lv)
+              : ((SB.ui && SB.ui.buildingDescText) ? SB.ui.buildingDescText(s, b) : b.desc);
         for (var _upi = 0; SB.UPGRADES && _upi < SB.UPGRADES.length; _upi++) {
           var _u = SB.UPGRADES[_upi];
           if (_u.upgradesBuilding === b.id && s.upgrades && s.upgrades[_u.id]) {
             dispName = SB.i18n && SB.i18n.contentName ? SB.i18n.contentName(_u.id, _u.name) : _u.name;
-            /* `buildingDesc` 是给建筑行准备的完整文案；没写就退回 `desc`。
-             *   两者主语不同：desc 说「砂矿坑升级：…」（升级面板里正确），buildingDesc
-             *   直接陈述效果（那一行已经叫鱼骨矿井了）。见 config 那段分工注释。 */
-            dispDesc = _u.buildingDesc || _u.desc;
           }
         }
-        /* ⚠️ 2026-10-29 用户拍板：建筑行**不再追加任何括号补充**。
-         *   这里曾拼过「（当前 −28.3%，上限 60%，再升 1 级只多省 1.32%）」——那是设计语汇，
-         *   一行字塞三个参数，玩家读起来像在看策划案。议事厅/城堡的减耗现况与「再升一级
-         *   多省多少」统一只在信息卡的「效果」段给（render-info 的 case 'hall'），
-         *   列表行只保留 config 的 desc 本身。
-         *   ⇒ 别再往这一行拼数值；要加信息请加到信息卡里去。 */
+        /* 显示口径与信息卡「效果」段一致；卡片仍由 CSS 限行，点建筑名可看完整效果。 */
         var c = SB.economy.costOf(s, b.id);
         var ok = SB.economy.canAfford(s, c);
         var blocked = !SB.habitat.needMet(s, b);
@@ -216,7 +206,10 @@
         var neededName = neededBuilding ? buildingName(neededBuilding.id, neededBuilding.name) : '';
         var label = blocked
           ? tr('village.building.requirement.needs', { requiredBuilding: neededName }, '需 ' + neededName)
-          : tr(lv > 0 ? 'village.building.action.upgrade' : 'village.building.action.build', null, lv > 0 ? '升级' : '建造') + ' ' + SB.economy.buildCostTxt(s, b.id, c);
+          : tr(lv > 0 ? 'village.building.action.upgrade' : 'village.building.action.build', null, lv > 0 ? '升级' : '建造') + ' ' + SB.economy.buildCostTxt(s, b.id, c, true);
+        /* ⚠️ buildCostTxt 第 4 参 = true（2026-11-16）：成本串里的「已有」逐 tick 在变，
+         * 不标记的话整个巢穴页每 2 秒整块重建（玩家报的「卡 / 点不动」主源之一）。
+         * 标记只是包 span，DOM 结构不变；回填见 renderCommon.paintLiveCost。 */
         /* 轻车熟路首建免费（2026-10-28）：costOf 已把资源项乘 0，buildCostTxt 会输出「免费」。
          *   优先级：blocked / canalCap / maxReached 都在它上面 —— 那三个是「点不动」，
          *   免费只表示「不用花钱」，不能让一个点不动的按钮看起来可以点。 */
@@ -485,7 +478,41 @@
           lvTitle = tr('village.building.level.virtual_bonus.tooltip', { wonderName: buildingName('great_library', '大潮纹馆') }, '含大潮纹馆虚级（只算科技产出效果，不算建筑等级、不加建造成本）');
         }
         var rowState = 'bld-row' + (lv > 0 ? ' is-owned' : '') + (blocked || canalCap ? ' is-blocked' : '') +
-          (!blocked && !canalCap && ok ? ' is-ready' : '');
+          (!blocked && !canalCap && !maxReached && ok ? ' is-ready' : '') +
+          (!blocked && !canalCap && !maxReached && !ok ? ' is-unaffordable' : '') +
+          (maxReached ? ' is-maxed' : '');
+        /* 仅把“已满足前置、但库存不足”的资源差额展示在卡片上。
+         * 数量与 track-dock / costOwnedTxt 走同一套存量取整和 enough 容差；
+         * 前置未满足、等级封顶和灯塔等级钳制仍由原状态单独表达。 */
+        var _shortfallHTML = '';
+        if (!ok && !blocked && !canalCap && !maxReached && SB.economy && SB.economy.enough) {
+          var _shortfallItems = [], _shortKey, _storageCapBlocked = false;
+          for (_shortKey in c) {
+            if (!Object.prototype.hasOwnProperty.call(c, _shortKey) || !(c[_shortKey] > 0)) continue;
+            var _shortHaveRaw = _shortKey === 'pop' ? s.pop : (s.res && s.res[_shortKey]);
+            var _shortHave = (typeof _shortHaveRaw === 'number' && isFinite(_shortHaveRaw)) ? Math.floor(_shortHaveRaw) : 0;
+            var _shortIsEnough = SB.economy.enough(_shortHave, c[_shortKey]);
+            if (!_shortIsEnough && _shortKey !== 'pop' && SB.economy.capOf) {
+              var _shortCap = SB.economy.capOf(s, _shortKey);
+              if (typeof _shortCap === 'number' && isFinite(_shortCap) && c[_shortKey] > _shortCap + 1e-9) {
+                _storageCapBlocked = true;
+                continue;
+              }
+            }
+            if (_shortIsEnough) continue;
+            /* 差额是**活数值**（攒资源时每 tick 都在变）。文案走 renderCommon.shortfallItemText
+             * 这个唯一出口，再挂 data-live-short / data-live-need 让 paintLiveCost 原地改写；
+             * 不标记的话，只要有一行差额在动，整个巢穴页就每 2 秒整块重建（2026-11-16）。 */
+            var _sfFn = SB.ui && SB.ui.renderCommon && SB.ui.renderCommon.shortfallItemText;
+            var _sfTxt = _sfFn ? _sfFn(s, _shortKey, c[_shortKey]) : '';
+            _shortfallItems.push('<span class="bld-shortfall-item" data-live-short="' + _shortKey +
+              '" data-live-need="' + c[_shortKey] + '">' + htmlText(_sfTxt) + '</span>');
+          }
+          if (_storageCapBlocked) {
+            _shortfallItems.unshift('<span class="bld-storage-cap-warning">' + htmlText(tr('village.building.storage_cap.insufficient')) + '</span>');
+          }
+          if (_shortfallItems.length) _shortfallHTML = '<div class="bld-shortfalls">' + _shortfallItems.join('') + '</div>';
+        }
         /* ERA10 市政（2026-10-20 · 虚境祭坛「每升一级按钮上就加一些血纹」）：
          * 血纹是**纯 CSS 装饰**（不做结算、不进 save）：按等级给行加 `void-lv-N`，
          * `60-star-map.css` 之外另开一块在 `40-atmosphere-theme.css`? 不——血纹放
@@ -569,17 +596,22 @@
          * 直接塞第三个子元素会被 1fr 拉成整条横幅（本文件 :540-546 的既有病历）。 */
         var _coTagHTML = (SB.ui.renderCommon && SB.ui.renderCommon.challengeTag)
           ? SB.ui.renderCommon.challengeTag(s, b) : '';
+        /* 运行数量控制和建筑名/等级共用标题行，避免把控制器单独撑成一整行。
+         * 进度条/缺料状态仍留在 bld-ops；仅移动已有的 ± 控件，不更改事件委托。 */
+        var _inlineRunControlsHTML = siltpitBtn + terraVatBtn + workshopBtn + furnBtn + turbBtn + shopBtn + satBtn + ssBtn + biomatlabBtn + launchCtl;
+        var _bldOpsHTML = _lpLackHTML + launchProgressHTML;
         zRows += '<div class="row ' + rowState + '"><div class="bld-main' + (buildingIconHTML ? ' has-building-icon' : '') + '">' + buildingIconHTML +
           '<div class="bld-copy"><div class="nm"><span class="bld-label"><button type="button" class="building-name" data-build-info="' + b.id +
           '" aria-haspopup="dialog" title="' + htmlText(tr('village.building.info.tooltip', { buildingName: dispName }, '查看' + dispName + '的效果与建造信息')) + '">' + htmlText(dispName) + '</button>' +
           ' <span class="tag" data-lv="' + b.id + '" title="' + htmlText(lvTitle) + '">' + htmlText(tr('village.building.level.label', { levelText: lvValueTxt }, '等级 ' + lvValueTxt)) + '</span>' +
           (_coTagHTML ? '<span class="co-tag-wrap">' + _coTagHTML + '</span>' : '') +
           (elBtn ? '<span class="launch-mode-anchor">' + elBtn + '</span>' : '') +
-          '</span><span class="bld-ops">' + _lpLackHTML + siltpitBtn + terraVatBtn + workshopBtn + furnBtn + turbBtn + shopBtn + satBtn + ssBtn + biomatlabBtn + launchCtl + launchProgressHTML + '</span></div>' +
+          (_inlineRunControlsHTML ? '<span class="bld-run-controls">' + _inlineRunControlsHTML + '</span>' : '') +
+          '</span>' + (_bldOpsHTML ? '<span class="bld-ops">' + _bldOpsHTML + '</span>' : '') + '</div>' +
           '<div class="ds">' + dispDesc + (blocked ? htmlText(tr('village.building.prerequisite.note', { requiredBuilding: neededName }, '（需先建成' + neededName + '）')) : '') +
           '</div></div></div>' +
-          '<div class="buy-actions' + (autoBtn ? ' has-auto-toggle' : '') + (trackBtn ? ' has-track' : '') + '">' + autoBtn +
-          '<button class="btn buy" data-build="' + b.id + '"' + (ok && !blocked && !canalCap && !maxReached ? '' : ' disabled') + '>' + label + '</button>' +
+          '<div class="buy-actions' + (autoBtn ? ' has-auto-toggle' : '') + (trackBtn ? ' has-track' : '') + '">' + _shortfallHTML + autoBtn +
+          '<button class="btn buy" data-build="' + b.id + '"' + (ok && !blocked && !canalCap && !maxReached ? '' : ' disabled') + '><span class="bld-action-label">' + label + '</span></button>' +
           trackBtn + '</div></div>';
         zShown++;
       }

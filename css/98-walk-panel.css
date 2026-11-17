@@ -1,0 +1,87 @@
+/* 随行资源面板（2026-11-16 四次拍板定稿）
+ * 右下角常驻按钮 → **角落可拖小窗**（约 300px，两列）。
+ * ⚠️ 无遮罩、不给 body 加锁：主页照常能点、不会变黑。
+ * ⚠️ 内容只镜像顶栏 #res（无热液能 / 工艺 / 星屑），格子带 `res wp-cell` 继承顶栏视觉；
+ *    但 50-module-polish.css 的 @media(max-width:620/390) 顶栏窄屏适配会连带命中，
+ *    故用 #walkPanel 高特异性拉回。本文件只负责 FAB、小窗骨架（拖动/位置）、格子紧凑排版。 */
+
+/* 遮罩节点已从 index.html 删除（用户拍板主页不变黑）；这里不再有 .walk-mask 规则。 */
+
+.walk-fab{
+  position:fixed; right:calc(16px + env(safe-area-inset-right,0px));
+  bottom:calc(16px + env(safe-area-inset-bottom,0px)); z-index:48;
+  width:66px; height:66px; border-radius:16px;
+  border:2px solid var(--cyan); background:var(--panel2); color:var(--cyan);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
+  font-size:11px; font-weight:800; line-height:1.2; cursor:pointer;
+  box-shadow:0 8px 26px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.08);
+  -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none;
+}
+.walk-fab .wp-fab-icon{font-size:23px; line-height:1}
+.walk-fab:active{transform:scale(.96)}
+@media (hover:hover){ .walk-fab:hover{filter:brightness(1.18)} }
+
+/* 小窗：left/top 由 walk-panel.js 的 place() 按视口比例写入；z-index 49
+ * —— 高于 FAB(48) 与跟踪坞(46)，低于真 modal(50)，打开真弹窗时会被正常盖住。 */
+.walk-panel{
+  position:fixed; left:0; top:0; z-index:49;
+  width:min(300px, calc(100vw - 20px)); max-height:min(70vh, 620px);
+  display:flex; flex-direction:column; overflow:hidden;
+  background:var(--panel); border:1px solid var(--line); border-radius:12px;
+  box-shadow:0 12px 34px rgba(0,0,0,.44);
+}
+.walk-panel.hidden,.walk-fab.hidden{display:none!important}
+
+/* 标题栏 = 唯一拖动把手。touch-action:none 只加在这里，面板内部列表照常滚。 */
+.wp-hd{
+  display:flex; align-items:center; gap:7px; flex:none;
+  padding:8px 9px; border-bottom:1px solid var(--line);
+  background:var(--panel2); flex-wrap:nowrap;
+  cursor:grab; touch-action:none; user-select:none; -webkit-user-select:none;
+}
+.walk-panel.is-dragging .wp-hd{cursor:grabbing}
+.wp-hd h2{margin:0; font-size:12px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.wp-tag{font-size:9px; color:var(--amber); border:1px solid var(--amber); border-radius:8px; padding:1px 5px; white-space:nowrap; flex:none}
+.wp-close{
+  margin-left:auto; width:24px; height:24px; flex:none; border:1px solid var(--line); border-radius:7px;
+  background:var(--panel); color:var(--txt); font-size:15px; line-height:1; cursor:pointer;
+  -webkit-tap-highlight-color:transparent; touch-action:manipulation;
+}
+.wp-close:active{transform:scale(.94)}
+
+.wp-scroll{overflow-y:auto; padding:8px 9px 14px; -webkit-overflow-scrolling:touch}
+.wp-sect{margin-bottom:10px}
+.wp-sect h3{
+  display:flex; align-items:center; gap:7px; margin:0 0 6px;
+  font-size:10px; color:var(--dim); font-weight:600; letter-spacing:.6px;
+}
+.wp-sect h3::after{content:""; flex:1; height:1px; background:var(--line)}
+
+/* 小窗内两列（用户 2026-11-16 拍板）：每列约 143px，图标 24 + 内容 105，数值/字号不动。 */
+.wp-grid{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px}
+#walkPanel .res.wp-cell{
+  display:grid; grid-template-columns:24px minmax(0,1fr); grid-template-rows:auto;
+  gap:0 7px; align-items:center; min-height:46px; padding:4px 6px;
+}
+#walkPanel .res.wp-cell>.res-icon{grid-column:1; grid-row:1; width:24px; height:24px}
+#walkPanel .res.wp-cell .res-content{display:block; grid-column:2; grid-row:1}
+/* 数值 14px / 名字 11px / 速率 10px：比原 19/11/11 小，但绝不缩到不可读的 6px。 */
+#walkPanel .res.wp-cell .res-content>b{font-size:14px; margin:0 0 1px}
+#walkPanel .res.wp-cell .res-details{min-height:14px; gap:0 5px; font-size:10px}
+#walkPanel .res.wp-cell .wp-val{font-size:inherit; color:var(--txt); font-variant-numeric:tabular-nums}
+#walkPanel .res.wp-cell .res-icon{display:block}
+#walkPanel .res.wp-cell .res-name{font-size:11px; color:var(--dim)}
+#walkPanel .res.wp-cell .cap{font-size:10px}
+#walkPanel .res.wp-cell .rate,#walkPanel .res.wp-cell .sd{font-size:10px}
+
+@media (max-width:480px){
+  .walk-fab{
+    right:calc(10px + env(safe-area-inset-right,0px));
+    bottom:calc(10px + env(safe-area-inset-bottom,0px));
+    width:60px; height:60px; border-radius:14px;
+  }
+  .walk-panel{width:min(300px, calc(100vw - 16px)); max-height:88vh}
+  /* 极窄屏再收一档图标列，但数值/名字字号不动（可读性优先）。 */
+  #walkPanel .res.wp-cell{grid-template-columns:22px minmax(0,1fr); gap:0 6px; padding:3px 5px}
+  #walkPanel .res.wp-cell>.res-icon{width:22px; height:22px}
+}

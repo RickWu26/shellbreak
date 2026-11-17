@@ -527,7 +527,7 @@
      *   ⇒ 读一张 era 9 的档，纪元被夹回 7，随后靠 advanceEra 两拍「7→8→9」自己爬回来。
      *   爬得回来是因为旧纪元的 key 早已全清，但这中间会重跑两次 revealEra(8)/(9)，
      *   且凡是「把 s.era 当作已到达之地」的判据（科技门、AI 的 era 过滤）都会短暂看错。 */
-    var _eraMax = (SB.ERAS && SB.ERAS.length) ? SB.ERAS.length : 10;
+    var _eraMax = (SB.ERAS && SB.ERAS.length) ? SB.ERAS.length : 11;
     out.era = (typeof raw.era === 'number' && isFinite(raw.era))
       ? Math.max(1, Math.min(_eraMax, Math.floor(raw.era))) : 1;
     /* ⚠️ 尤里卡一律重来：老档根本没有这个字段，而它记录的是「这些条件当时达成了」。

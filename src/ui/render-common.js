@@ -206,6 +206,59 @@
     }
   }
 
+  /* ── 成本 / 缺料差额的活数值原地回填（2026-11-16）────────────────────────
+   * 巢穴建筑行与奇观卡上的「藻食 53/600」逐 tick 在变，而它们住在**整块字符串**里：
+   * 任何一个数字动一下，整个 pane 的指纹就不命中 ⇒ 每 2 秒把上百行 DOM 拆了重建
+   * ⇒ 玩家看到「一闪一闪」+「按下去没反应」。方案与科技卡同源（见 render.js 的
+   * liveSig）：markup 挂 `data-live-cost`（资源键）+ `data-live-need`（需求量），
+   * render 侧比对前抹平内容，这里把真值原地写回 textContent —— 不重建任何节点。
+   *   · data-live-cost  → 「藻食 53/600」整段，算法复用 economy.costItemTxt（唯一来源）
+   *   · data-live-short → 「还差 547 藻食」，算法复用 shortfallItemText（唯一来源）
+   * ⚠️ 假 DOM（e2e）没有 querySelectorAll：判 typeof 直接返回，绝不抛错 ——
+   *    否则 boot 期 renderPanes 会把整份回归带崩（与 talentScroll / paintLive 同因）。 */
+  function costHaveOf(s, k) {
+    if (k === 'pop') return (typeof s.pop === 'number' && isFinite(s.pop)) ? Math.floor(s.pop) : 0;
+    var raw = s.res && s.res[k];
+    return (typeof raw === 'number' && isFinite(raw)) ? Math.floor(raw) : 0;
+  }
+  /* 「还差多少」的文案唯一出口：巢穴面板首绘与 paintLiveCost 回填都走它。
+   * ⚠️ 与首绘逐字一致（连「没有 fallback」这一点都一样）：否则某种语言缺这条词条时，
+   *    首绘空白、回填却有字，玩家会看到文字自己冒出来。 */
+  function shortfallItemText(s, k, need) {
+    var id = k === 'pop' ? 'population' : k;
+    var fb = k === 'pop' ? '人口' : ((SB.RESS && SB.RESS[k] && SB.RESS[k].name) || k);
+    var name = SB.i18n && SB.i18n.resourceName ? SB.i18n.resourceName(id, fb) : fb;
+    var deficit = Math.max(0, (Number(need) || 0) - costHaveOf(s, k));
+    var amount = SB.economy && SB.economy.fmtAmt ? SB.economy.fmtAmt(deficit) : String(deficit);
+    return tr('village.building.shortfall.item', { amount: amount, resourceName: name });
+  }
+  function paintLiveCost(s) {
+    if (!s) return;
+    var doc = (typeof document !== 'undefined') ? document : (root ? root.document : null);
+    if (!doc || typeof doc.querySelectorAll !== 'function') return;
+    var els;
+    try { els = doc.querySelectorAll('[data-live-cost],[data-live-short]'); }
+    catch (e) { return; }
+    if (!els || !els.length) return;
+    var eco = SB.economy || {};
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i], key, need, txt;
+      key = el.getAttribute('data-live-cost');
+      if (key) {
+        need = Number(el.getAttribute('data-live-need'));
+        txt = eco.costItemTxt ? eco.costItemTxt(s, key, need) : '';
+        if (txt) el.textContent = txt;
+        continue;
+      }
+      key = el.getAttribute('data-live-short');
+      if (key) {
+        need = Number(el.getAttribute('data-live-need'));
+        txt = shortfallItemText(s, key, need);
+        if (txt) el.textContent = txt;
+      }
+    }
+  }
+
   /* ── 挑战专属内容角标（2026-11-08 · 方案 B）──────────────────────────────
    * 背景：challengeOnly 内容在挑战周目里**静默混入**主线条目，玩家看不出它们
    *   是「本局临时工具」（habitat.js:135-137：通关回基游戏就该消失），容易砸满
@@ -305,6 +358,8 @@
   common.challengeTagIds = challengeTagIds;
   common.challengeTagResolve = challengeTagResolve;
   common.happyBonusNote = happyBonusNote;
+  common.shortfallItemText = shortfallItemText;
+  common.paintLiveCost = paintLiveCost;
   common.treeIconHTML = treeIconHTML;
   common.happyPanelHTML = happyPanelHTML;
   common.paintHappy = paintHappy;

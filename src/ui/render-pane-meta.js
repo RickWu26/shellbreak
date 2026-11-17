@@ -183,6 +183,29 @@
        * 不再 +1），继续写「周目」会让玩家以为重开算一世。用「已轮回」而不是「轮回」是与上面
        * 的「轮回点余额」区分开，两个词挨着时「轮回 3」容易被读成「轮回点 3」。 */
       '<div><span>' + tr('ui.prestige.stats.cycles', null, '已轮回') + '</span><b>' + m.cycle + '</b></div><div><span>' + tr('ui.prestige.stats.layers_broken', null, '破层') + '</span><b>' + m.layers + '</b></div></div></section>';
+    /* 帷幕之后 · 常驻重开入口（2026-11-17 · 用户静态核查 #4）：
+     * 此前帷幕主界面只在「刚掀完幕」那一次由 doVeil 回调自动弹出，关掉就再也进不去，
+     * 玩家手里有飞升点也花不掉 —— 等于死路。这里把它做成轮回商店页的常驻分区。
+     * ⚠️ 按钮必须走 document 级委托（veil-hub-ui.js 的 data-veil-open）：
+     *    本面板每 2 秒整块重写，直接 onclick 会在重写后失效。
+     * ⚠️ 只在 m.veil 存在时渲染：未掀幕的玩家不该看见一个点开就关掉的空壳。 */
+    if (m.veil) {
+      var _v = m.veil;
+      var _openedN = (_v.paths && _v.paths.opened) ? _v.paths.opened.length : 0;
+      h += '<section class="meta-veil"><div class="meta-veil-hd">'
+        + '<span class="meta-veil-kicker">' + tr('ui.veil.hub.kicker', null, 'BEYOND THE VEIL · 大轮回') + '</span>'
+        + '<h2>' + tr('ui.veil.hub.title', null, '帷幕之后') + '</h2>'
+        + '<p>' + tr('ui.veil.hub.meta_line', {
+          count: _v.count || 1, opened: _openedN
+        }, '第 {count} 重帷幕 · 已开启 {opened} / 3 条飞升路径') + '</p></div>'
+        + '<div class="meta-veil-stats">'
+        + '<div><span>' + tr('ui.veil.hub.points_balance', null, '飞升点余额') + '</span><b>' + (_v.points || 0).toFixed(2) + '</b></div>'
+        + '<div><span>' + tr('ui.veil.hub.cycle_star', null, '本周期星屑') + '</span><b>' + Math.round(_v.cycleStar || 0) + '</b></div>'
+        + '<div><span>' + tr('ui.veil.hub.lifetime_points', null, '累计飞升点') + '</span><b>' + (_v.lifetimePoints || 0).toFixed(2) + '</b></div>'
+        + '</div>'
+        + '<button type="button" class="meta-veil-open" data-veil-open="1">'
+        + tr('ui.veil.hub.enter', null, '进入帷幕 · 飞升路径') + '</button></section>';
+    }
     /* ⚠️ 2026-10-05 用户报「弹窗说会保留的东西，商店里很多都没显示」：
      *    结算弹窗承诺保留的旧日遗产四项，商店页此前一行都没渲染。数字全部走
      *    prestige.legacy() 同一个口（与实际加成同源），不在这里另写公式。 */

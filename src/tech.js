@@ -84,8 +84,15 @@
    *    「这里显示不全」。106 = 实测 102 + 4px 余量（不同节点的「关键」标签与字体
    *    亚像素渲染会差一两像素）。改小它，e2e 的「卡片高够装四行」会立刻红。 */
   var GEO = { W: 156, H: 106, COL: 94, ROW: 20, PADX: 46, PADY: 52, ERAPAD: 30 };
+  /* 桌面树卡片按确认稿横向加宽；卡间距仍为 54px，窄屏继续沿用紧凑几何。 */
+  var DESKTOP_GEO = { W: 255, H: 100, COL: 54, ROW: 20, PADX: 46, PADY: 52, ERAPAD: 30 };
   var COL_PITCH = GEO.W + GEO.COL;
   var ROW_PITCH = GEO.H + GEO.ROW;
+  var layoutCache = {}, layoutCacheTechs = null;
+
+  function isDesktopTreeViewport() {
+    return !!(root.matchMedia && root.matchMedia('(min-width: 761px)').matches);
+  }
 
   /* 列号 = 时代逻辑基准 + (layer − 本时代最早实际 layer)。
    * layer 仍决定时代内部的先后和列距，但数据里从 layer 3 起步的时代不会因此
@@ -95,16 +102,143 @@
     return (eraBase[t.era] || 0) + (t.layer || 1) - (minL[t.era] || 1);
   }
 
-  function layout() {
+  /* 科技树与市政树共用的行序整理器：列由数据层级决定，行只服从图的依赖关系。
+   * preferred 是每列的初始阅读顺序；pinnedRow 只给科技树保留少量明确锚点。
+   * 多轮前/后向重心扫描后，选择交叉数最低的一版，避免两张树各自长出不同算法。 */
+  function orderGraphRows(nodes, columns, edges) {
+    var byId = Object.create(null), colNodes = Object.create(null), orders = Object.create(null);
+    var rows = Object.create(null), parents = Object.create(null), children = Object.create(null);
+    var nodeIndex = Object.create(null), i, n, c, key;
+    for (i = 0; i < nodes.length; i++) {
+      n = nodes[i]; byId[n.id] = n; nodeIndex[n.id] = i;
+      key = '$' + n.col; (colNodes[key] = colNodes[key] || []).push(n);
+    }
+    for (i = 0; i < columns.length; i++) {
+      c = columns[i]; key = '$' + c;
+      colNodes[key] = colNodes[key] || [];
+      colNodes[key].sort(function (a, b) {
+        var ap = typeof a.preferred === 'number' ? a.preferred : 0;
+        var bp = typeof b.preferred === 'number' ? b.preferred : 0;
+        return ap - bp || (a.id < b.id ? -1 : a.id > b.id ? 1 : nodeIndex[a.id] - nodeIndex[b.id]);
+      });
+      orders[key] = colNodes[key].map(function (node) { return node.id; });
+    }
+    for (i = 0; i < edges.length; i++) {
+      n = edges[i];
+      if (!byId[n.from] || !byId[n.to]) continue;
+      (parents[n.to] = parents[n.to] || []).push(n.from);
+      (children[n.from] = children[n.from] || []).push(n.to);
+    }
+
+    function pinned(node) { return typeof node.pinnedRow === 'number' && node.pinnedRow >= 0; }
+    function placeColumn(column) {
+      var k = '$' + column, list = colNodes[k] || [], ids = orders[k] || [];
+      var fixedRows = Object.create(null), fixed = [], free = [], rr, node;
+      for (var ci = 0; ci < list.length; ci++) if (pinned(list[ci])) fixed.push(list[ci]);
+      fixed.sort(function (a, b) {
+        return a.pinnedRow - b.pinnedRow || nodeIndex[a.id] - nodeIndex[b.id];
+      });
+      for (ci = 0; ci < fixed.length; ci++) {
+        node = fixed[ci]; rr = Math.floor(node.pinnedRow);
+        while (fixedRows['$' + rr]) rr++;
+        fixedRows['$' + rr] = node.id; rows[node.id] = rr;
+      }
+      for (ci = 0; ci < ids.length; ci++) if (!pinned(byId[ids[ci]])) free.push(ids[ci]);
+      var freeRows = [];
+      for (rr = 0; freeRows.length < free.length; rr++) if (!fixedRows['$' + rr]) freeRows.push(rr);
+      for (ci = 0; ci < free.length; ci++) rows[free[ci]] = freeRows[ci];
+      ids = ids.slice();
+      ids.sort(function (a, b) { return rows[a] - rows[b] || nodeIndex[a] - nodeIndex[b]; });
+      orders[k] = ids;
+    }
+    function restoreRows() {
+      for (var ci = 0; ci < columns.length; ci++) placeColumn(columns[ci]);
+    }
+    function copyOrders(source) {
+      var copy = Object.create(null);
+      for (var ci = 0; ci < columns.length; ci++) {
+        var k = '$' + columns[ci]; copy[k] = source[k].slice();
+      }
+      return copy;
+    }
+    function edgeY(edge, x) {
+      var a = rows[edge.from], b = rows[edge.to];
+      return a + (b - a) * (x - edge.fromCol) / (edge.toCol - edge.fromCol);
+    }
+    function crossingCount() {
+      var count = 0;
+      for (var ei = 0; ei < edges.length; ei++) {
+        var ea = edges[ei];
+        for (var ej = ei + 1; ej < edges.length; ej++) {
+          var eb = edges[ej];
+          var left = Math.max(ea.fromCol, eb.fromCol), right = Math.min(ea.toCol, eb.toCol);
+          if (right <= left) continue;
+          var startDelta = edgeY(ea, left) - edgeY(eb, left);
+          var endDelta = edgeY(ea, right) - edgeY(eb, right);
+          if (startDelta * endDelta < -0.0001) count++;
+        }
+      }
+      return count;
+    }
+    function sweepColumn(column, forward) {
+      var k = '$' + column, ids = orders[k].slice(), free = [], orderIndex = Object.create(null);
+      for (var ii = 0; ii < ids.length; ii++) orderIndex[ids[ii]] = ii;
+      for (ii = 0; ii < ids.length; ii++) {
+        var id = ids[ii], neighbors = forward ? parents[id] : children[id], sum = 0, count = 0;
+        if (neighbors) for (var ni = 0; ni < neighbors.length; ni++) {
+          var neighbor = byId[neighbors[ni]];
+          if ((forward && neighbor.col < column) || (!forward && neighbor.col > column)) {
+            sum += rows[neighbor.id]; count++;
+          }
+        }
+        if (!pinned(byId[id])) free.push({ id: id, score: count ? sum / count : rows[id], prior: orderIndex[id] });
+      }
+      free.sort(function (a, b) {
+        return Math.abs(a.score - b.score) > 0.0001 ? a.score - b.score : a.prior - b.prior;
+      });
+      var next = [], fi = 0;
+      for (ii = 0; ii < ids.length; ii++) next.push(pinned(byId[ids[ii]]) ? ids[ii] : free[fi++].id);
+      orders[k] = next;
+      placeColumn(column);
+    }
+
+    restoreRows();
+    var bestOrders = copyOrders(orders), bestCrossings = crossingCount();
+    for (var pass = 0; pass < 12; pass++) {
+      var forward = pass % 2 === 0;
+      for (i = 0; i < columns.length; i++) {
+        var columnIndex = forward ? i : columns.length - 1 - i;
+        sweepColumn(columns[columnIndex], forward);
+      }
+      var crossings = crossingCount();
+      if (crossings < bestCrossings) { bestCrossings = crossings; bestOrders = copyOrders(orders); }
+    }
+    orders = bestOrders;
+    restoreRows();
+    return { rows: rows, crossings: bestCrossings };
+  }
+  SB.treeLayout = SB.treeLayout || {};
+  SB.treeLayout.orderRows = orderGraphRows;
+
+  function layout(desktop) {
+    if (desktop == null) desktop = isDesktopTreeViewport();
+    var G = desktop ? DESKTOP_GEO : GEO;
+    var colPitch = G.W + G.COL, rowPitch = G.H + G.ROW;
+    var cacheKey = desktop ? 'desktop' : 'mobile';
     var T = SB.TECHS || [];
+    if (layoutCacheTechs !== T) { layoutCache = {}; layoutCacheTechs = T; }
+    if (layoutCache[cacheKey]) return layoutCache[cacheKey];
     var byEra = {}, maxL = {}, minL = {}, e, i, t;
+    var colNodes = Object.create(null), byId = Object.create(null), indexById = Object.create(null);
     for (i = 0; i < T.length; i++) {
       t = T[i];
       (byEra[t.era] = byEra[t.era] || []).push(t);
       maxL[t.era] = Math.max(maxL[t.era] || 1, t.layer || 1);
       minL[t.era] = Math.min(minL[t.era] == null ? Infinity : minL[t.era], t.layer || 1);
+      byId[t.id] = t;
+      indexById[t.id] = i;
     }
-    /* 各时代把最早实际层级归一到本地第 0 列；时代分隔另用 GEO.ERAPAD 像素控制，
+    /* 各时代把最早实际层级归一到本地第 0 列；时代分隔另用 G.ERAPAD 像素控制，
      * 不为缺失的前置层级和时代边界浪费整列空间。 */
     var eraBase = {}, eraOffset = {}, base = 0, xOffset = 0, blocks = [];
     for (e = 1; e <= 12; e++) {
@@ -114,44 +248,66 @@
       eraOffset[e] = xOffset;
       blocks.push({ era: e, x0: base, cols: span, start: base, offset: xOffset });
       base += span;
-      xOffset += span * COL_PITCH + (byEra[e + 1] ? GEO.ERAPAD : 0);
+      xOffset += span * colPitch + (byEra[e + 1] ? G.ERAPAD : 0);
     }
-    /* 行分配：同列先放显式 treeRow，再由未指定的节点按 ID 填空位。
-     * 于是「同列不撞行、跨列允许对齐」—— 树会排成一条整齐的齿梳状；
-     * treeRow 只用于需要调整视觉顺序的节点，不改变科技层级或前置关系。 */
-    var used = {}, order = [], cells = {};
-    for (e = 1; e <= 12; e++) {
-      if (!byEra[e]) break;
-      for (i = 0; i < byEra[e].length; i++) order.push(byEra[e][i]);
+    var columns = [], col, key;
+    for (i = 0; i < T.length; i++) {
+      t = T[i];
+      col = colOf(t, eraBase, minL);
+      key = '$' + col;
+      (colNodes[key] = colNodes[key] || []).push(t);
+      if (columns.indexOf(col) < 0) columns.push(col);
     }
-    order.sort(function (a, b) {
-      var ca = colOf(a, eraBase, minL), cb = colOf(b, eraBase, minL);
-      if (ca !== cb) return ca - cb;
-      var ar = typeof a.treeRow === 'number' && a.treeRow >= 0;
-      var br = typeof b.treeRow === 'number' && b.treeRow >= 0;
-      if (ar !== br) return ar ? -1 : 1;
-      if (ar && a.treeRow !== b.treeRow) return a.treeRow - b.treeRow;
-      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
-    });
-    for (i = 0; i < order.length; i++) {
-      t = order[i];
-      var col = colOf(t, eraBase, minL);
-      var row = typeof t.treeRow === 'number' && t.treeRow >= 0 ? Math.floor(t.treeRow) : 0;
-      while (used[col] && used[col][row]) row++;
-      (used[col] = used[col] || {})[row] = true;
+    columns.sort(function (a, b) { return a - b; });
+
+    /* 行序先沿用原阅读顺序，再交给科技 / 市政共用的依赖图排序器。
+     * 具名 treeRow 继续作为固定锚点；布局只改上下位置，不触碰科技规则。 */
+    var graphNodes = [], graphEdges = [], cells = {};
+    for (i = 0; i < columns.length; i++) {
+      col = columns[i]; key = '$' + col;
+      var columnNodes = colNodes[key];
+      columnNodes.sort(function (a, b) {
+        var ar = typeof a.treeRow === 'number' && a.treeRow >= 0;
+        var br = typeof b.treeRow === 'number' && b.treeRow >= 0;
+        if (ar !== br) return ar ? -1 : 1;
+        if (ar && a.treeRow !== b.treeRow) return a.treeRow - b.treeRow;
+        return a.id < b.id ? -1 : a.id > b.id ? 1 : indexById[a.id] - indexById[b.id];
+      });
+      for (var oi = 0; oi < columnNodes.length; oi++) {
+        var initialNode = columnNodes[oi];
+        graphNodes.push({ id: initialNode.id, col: col, preferred: oi,
+          pinnedRow: typeof initialNode.treeRow === 'number' ? initialNode.treeRow : null });
+      }
+    }
+    for (i = 0; i < T.length; i++) {
+      t = T[i];
+      if (!t.reqs || !t.reqs.length) continue;
+      col = colOf(t, eraBase, minL);
+      for (var r = 0; r < t.reqs.length; r++) {
+        var parent = byId[t.reqs[r]];
+        if (!parent) continue;
+        var parentCol = colOf(parent, eraBase, minL);
+        graphEdges.push({ from: parent.id, to: t.id, fromCol: parentCol, toCol: col });
+      }
+    }
+    var rowLayout = orderGraphRows(graphNodes, columns, graphEdges), rows = rowLayout.rows;
+
+    for (i = 0; i < T.length; i++) {
+      t = T[i]; col = colOf(t, eraBase, minL);
+      var row = rows[t.id];
       cells[t.id] = {
         id: t.id, era: t.era, layer: t.layer || 1, col: col, row: row,
-        x: GEO.PADX + eraOffset[t.era] + ((t.layer || 1) - minL[t.era]) * COL_PITCH,
-        y: GEO.PADY + row * ROW_PITCH
+        x: G.PADX + eraOffset[t.era] + ((t.layer || 1) - minL[t.era]) * colPitch,
+        y: G.PADY + row * rowPitch
       };
     }
     var maxRight = 0, maxRow = 0;
     for (var k in cells) {
-      maxRight = Math.max(maxRight, cells[k].x + GEO.W);
+      maxRight = Math.max(maxRight, cells[k].x + G.W);
       if (cells[k].row > maxRow) maxRow = cells[k].row;
     }
-    var w = GEO.PADX + maxRight;
-    var h = GEO.PADY * 2 + maxRow * ROW_PITCH + GEO.H;
+    var w = G.PADX + maxRight;
+    var h = G.PADY * 2 + maxRow * rowPitch + G.H;
 
     /* 连线：从前置节点的右腰出发、到本节点的左腰，走一条三次贝塞尔。
      * 两端都必须在 cells 里（数据写错 id 时这里会静默少一条线，于是有断言盯着）。 */
@@ -164,8 +320,8 @@
       for (var r = 0; r < t.reqs.length; r++) {
         var from = cells[t.reqs[r]];
         if (!from) continue;
-        var x1 = from.x + GEO.W, y1 = from.y + GEO.H / 2;
-        var x2 = to.x, y2 = to.y + GEO.H / 2;
+        var x1 = from.x + G.W, y1 = from.y + G.H / 2;
+        var x2 = to.x, y2 = to.y + G.H / 2;
         var dx = Math.max(40, (x2 - x1) / 2);
         edges.push({
           from: t.reqs[r], to: t.id, done: false,
@@ -174,11 +330,14 @@
         });
       }
     }
-    return {
-      geo: GEO, w: w, h: h, cells: cells, edges: edges, blocks: blocks,
+    var result = {
+      geo: G, pitch: { col: colPitch, row: rowPitch }, w: w, h: h, cells: cells, edges: edges, blocks: blocks,
+      crossings: rowLayout.crossings,
       colOf: function (id) { return cells[id] ? cells[id].col : -1; },
       rowOf: function (id) { return cells[id] ? cells[id].row : -1; }
     };
+    layoutCache[cacheKey] = result;
+    return result;
   }
 
   /* 某个纪元在长卷里的锚点 x —— 点纪元按钮时把横向滚动落在这里。
@@ -189,8 +348,8 @@
    *    也就是「点纪元一 = 回到开面板时的位置」，不需要为它写特例。
    * ⚠️ 用 blocks 的 offset 而不是「该纪元节点的最小列」：标题轨道与跳转锚点共用同一基准；
    *    取节点最小列会在「某纪元第一个节点的 layer 不是 1」时错位。 */
-  function eraAnchorX(era) {
-    var L = layout();
+  function eraAnchorX(era, desktop) {
+    var L = layout(desktop == null ? isDesktopTreeViewport() : desktop);
     for (var i = 0; i < L.blocks.length; i++) {
       if (L.blocks[i].era === era) return L.blocks[i].offset;
     }
@@ -198,6 +357,32 @@
   }
 
   // ── 尤里卡条件判定 ────────────────────────────────────────────────
+  /* ── 一趟 discover 内共享的 rates() 快照（2026-11-17，性能） ──
+   * 为什么需要：`case 'rate'` 要跑一遍完整 rates()（20+ 乘区 × 遍历已解锁的卡/政策/奇观/
+   *   特权），而 discover 会逐科技调 condMet。同一份状态在一趟扫描内**完全不变**，
+   *   却要为每个 rate 类条件各算一次 —— 实测占补算每步 78% 的 rates 调用来自这里。
+   *
+   * ⚠️ 为什么只在 discover 趟内共享，**不做成全局缓存**：condMet 同时被渲染（metOf）、
+   *   canStudy（studyBlocked）、panelOpen 逐帧调用，那些调用之间 s.res 在变而 techVer 不变，
+   *   全局缓存会让面板显示过期的达成状态（正是 2026-11-03「面板正常但按钮灰」那类事故的形状）。
+   *
+   * 趟内为什么安全：discover 是纯扫描，不推进时间、不写 s.res；唯一可能改变 rates 的写点
+   *   是「免费项揭示即掌握」（`s.techs[id]=true`），而那一行必带 `s.techVer++`
+   *   （tech.js 里标注的 tech.mul 缓存契约）⇒ 正好被下面的失效键捕获，会自动重算。
+   * 与 `settleFree` 的关系：它在 discover 之外单独跑（只认 free 项、最多 1 个），不共享，
+   *   保持原样 —— 少一个共享点就少一处「将来改了忘同步」的风险。 */
+  var _dscSnap = null;
+  function ratesForCond(s) {
+    if (!SB.economy || !SB.economy.rates) return null;
+    var sp = _dscSnap;
+    if (sp && sp.s === s) {
+      var ver = s.techVer | 0;
+      if (!sp.rt || sp.ver !== ver) { sp.rt = SB.economy.rates(s); sp.ver = ver; }
+      return sp.rt;
+    }
+    return SB.economy.rates(s);
+  }
+
   function condMet(s, c) {
     if (!c) return true;
     if ((c.t === 'gov' || c.t === 'govWildSlots' || c.t === 'govId')
@@ -215,11 +400,13 @@
         return n >= c.n;
       case 'res': return s.res[c.r] >= c.n;
       case 'gathered': return (s.got && s.got[c.r] || 0) >= c.n;
-      case 'rate':
+      case 'rate': {
         /* rates() 不算便宜（要跑一遍完整算式），判定与文案共用同一次结果，
-         * 免得每帧重复算两遍还可能算出两个不同的数。 */
-        if (!SB.economy || !SB.economy.rates) return false;
-        return (SB.economy.rates(s)[c.r] || 0) >= c.n;
+         * 免得每帧重复算两遍还可能算出两个不同的数。
+         * 2026-11-17：趟内共享见 ratesForCond —— 一趟 discover 只算一次（按 techVer 失效）。 */
+        var _rt = ratesForCond(s);
+        return !!_rt && (_rt[c.r] || 0) >= c.n;
+      }
       case 'pop': return !!(SB.challenges && SB.challenges.ignorePopulationGates(s)) || s.pop >= c.n;
       case 'job': return !!(SB.challenges && SB.challenges.ignorePopulationGates(s)) || (s.jobs[c.j] || 0) >= c.n;
       case 'techs': return techCount(s) >= c.n;
@@ -774,7 +961,7 @@
   }
   function eraName(n) {
     var E = SB.ERAS || [];
-    var slugs = { 1: 'undercurrent', 2: 'coldfire', 3: 'sulfur_vent', 4: 'ocean_current', 5: 'shellbreak', 6: 'emergence', 7: 'stars', 8: 'exploration', 9: 'seeking_light', 10: 'starforging' };
+    var slugs = { 1: 'undercurrent', 2: 'coldfire', 3: 'sulfur_vent', 4: 'ocean_current', 5: 'shellbreak', 6: 'emergence', 7: 'stars', 8: 'exploration', 9: 'seeking_light', 10: 'starforging', 11: 'alpha' };
     for (var i = 0; i < E.length; i++) if (E[i].id === n)
       return localizedName('tech.era.' + slugs[n] + '.name', E[i].name);
     return n + ' 纪元';
@@ -820,6 +1007,13 @@
    *   玩家看到的就是「条件写着 0/60，科技内容却已经摊在面前」——
    *   那正是用户 2026-09-26 截图里指出来的那个问题。 */
   function discover(s) {
+    /* 趟内共享 rates 的作用域入口（见 ratesForCond）。包一层是为了让「共享只在本趟有效」
+     * 这件事在结构上不可忘：任何出口都走 finally 复位，哪怕将来加了 early return。 */
+    var prevSnap = _dscSnap;
+    _dscSnap = { s: s, ver: (s.techVer | 0), rt: null };
+    try { return discoverBody(s); } finally { _dscSnap = prevSnap; }
+  }
+  function discoverBody(s) {
     if (!s.eureka) s.eureka = {};
     if (!s.eurekaMet) s.eurekaMet = {};
     var T = SB.TECHS || [], got = [];
@@ -1297,7 +1491,7 @@
 
   function localizedEraField(era, field) {
     var slugs = { 1: 'undercurrent', 2: 'coldfire', 3: 'sulfur_vent', 4: 'ocean_current',
-      5: 'shellbreak', 6: 'emergence', 7: 'stars', 8: 'exploration', 9: 'seeking_light', 10: 'starforging' };
+      5: 'shellbreak', 6: 'emergence', 7: 'stars', 8: 'exploration', 9: 'seeking_light', 10: 'starforging', 11: 'alpha' };
     var slug = slugs[era.id];
     if (!slug) return era[field] || '';
     var key = field === 'description' && era.id === 5
@@ -1559,7 +1753,8 @@
     keysOf: keysOf, eraProgress: eraProgress, advanceEra: advanceEra, pump: pump,
     eurekaLine: eurekaLine, flushEureka: flushEureka,
     mul: mul, techCount: techCount, eraTechCount: eraTechCount,
-    layout: layout, geo: GEO, pitch: { col: COL_PITCH, row: ROW_PITCH }, eraAnchorX: eraAnchorX,
+    layout: layout, geo: GEO, desktopGeo: DESKTOP_GEO, isDesktopTreeViewport: isDesktopTreeViewport,
+    pitch: { col: COL_PITCH, row: ROW_PITCH }, eraAnchorX: eraAnchorX,
     bName: bName, resName: resName, eraName: eraName, jobName: jobName, condText: condText
   };
 })(typeof window !== 'undefined' ? window : globalThis);

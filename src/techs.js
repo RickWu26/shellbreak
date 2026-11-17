@@ -83,38 +83,45 @@
    * 与人类技术史的顺序刻意相反（火→力→电），见 docs/TECH_TREE_v0.2.md §1.1。 */
   var ERAS = [
     { id: 1, name: '暗流纪', motto: '摸到石头', color: '#6FE3D2', glyph: '一',
-      desc: '在冰壳下认得第一块能用的东西：珊瑚、骨材、怎么活过第一个寒季。' },
+      desc: '水下生命的萌芽' },
     { id: 2, name: '冷焰纪', motto: '第一次有光', color: '#7FE9C8', glyph: '二',
-      desc: '学会留住热、把珊瑚凿成骨材、让一部分人不再去采而是去想。' },
+      desc: '在冰冷的海渊留下光与热' },
     { id: 3, name: '硫泉纪', motto: '材料革命', color: '#FF7A45', glyph: '三',
-      desc: '热液丘把硫铁送到手里。精铁一旦够用，冰壳就第一次变成「可以算的工程量」。' },
+      desc: '铸剑为犁，抑或熔犁为剑' },
     { id: 4, name: '洋流纪', motto: '借力', color: '#4FC3F7', glyph: '四',
-      desc: '潮汐的机械能被抓在手里：地热、转速、把整座礁当成一台机器。' },
+      desc: '从手摇曲柄开始' },
     { id: 5, name: '破壳纪', motto: '工业化', color: '#F2C14E', glyph: '五',
-      desc: '造得出天穹钻机这样的奇迹装置，凿穿最后 ' + 25 + '% 壳厚是这一纪元的全部内容。' },
+      desc: '突破天穹，终见群星' },
     { id: 6, name: '初生纪', motto: '出壳', color: '#9B7BFF', glyph: '六',
-      desc: '壳已破。钛金板件让工坊第一次造出「壳外」才用得上的东西：研究实验室、星空观测站、总物流站。' },
+      desc: '更广阔的世界' },
     /* ERA7（2026-10-17 实装 · spec docs/ERA7_TECHS_SPEC_v0.1.md）：名称/口号/配色为提议值，待用户拍。
      * 关键节点 = 火箭研究（rocket）——研成即推进入本纪元；本纪元终局无 key，靠星空探索/星图线收尾。 */
     { id: 7, name: '繁星纪', motto: '离开摇篮', color: '#FF8ED4', glyph: '七',
-      desc: '燃料把第一枚火箭送出海面。卫星、空间站与核火点亮夜空——摇篮之外，还有整片星海。' },
+      desc: '星间飞行' },
     /* ERA8（2026-10-18 实装 · spec docs/ERA8_TECHS_SPEC_v0.1.md v0.3）。关键节点 = 生物材料（biomat）。
      * 颜色深空蓝紫（与繁星纪粉区分）；glyph 八；口号「星海为家」。 */
     { id: 8, name: '探索纪', motto: '星海为家', color: '#6E5BD6', glyph: '八',
-      desc: '深空力学推开星门，生物材料改写生命形态，星海区第一次有了「在地」的工业。' },
+      desc: '自摇篮至新世界' },
     /* ERA9（2026-10-19 实装）：名称/口号/配色为提议值。颜色太阳金，与 era8 深紫、era7 粉拉开。
      * ⚠️ 2026-10-20 ERA10 实装后本纪元**不再是终局**：层顶「星球改造」已改 key:true
      *    （ERA9 原本零 key ⇒ eraProgress.done 恒真，加 ERA10 会令玩家进 ERA9 后瞬跳）。
      *    星球改造本就是绝热材料/强人工智能的前置，拿它当门不挡任何正常路线。 */
     { id: 9, name: '寻光纪', motto: '以光为帆', color: '#FFC857', glyph: '九',
-      desc: '恒星工程纪——太阳帆航线连接聚落、能源与轨道农业，文明的尺度第一次以光年计。' },
+      desc: '捕获更遥远的光' },
     /* ERA10（2026-10-20 实装 · 用户 ERA10 科技表）：名称/口号/配色为提议值，待用户拍。
      * 关键节点 = 星球改造（terraform，ERA9 层顶，见上注）——研成即推进入本纪元。
      * 纪元内部三层无 key：L1 绝热材料/强人工智能/引力弹弓 → L2 近恒星轨道建设/空间矢量控制/
      * 继承繁星之人（孤儿）→ L3 大统一方程；终局靠戴森球进度（双达标取小）收尾。
      * 颜色星环青 #4FD1C9，与 ERA9 金 / ERA8 紫 / ERA7 粉拉开。 */
     { id: 10, name: '驭星纪', motto: '以星为盾', color: '#4FD1C9', glyph: '十',
-      desc: '太阳帆铺成轨道环，戴森球的影子第一次落在母星上——文明的尺度开始以恒星计。' }
+      desc: '以星为炉' },
+    /* ERA11（2026-11-16 用户拍板 · spec docs/ERA11_VEIL_SPEC_v0.1.md §6）：纪元名「α」。
+     * 关键节点 = 终极科技《掀起帘幕》（beyond_veil），研成即抵达帷幕之后——本期不做 ERA12，
+     *   靠 beyond_veil 自身 key:true 让 eraProgress(11).done 后 advanceEra 自然停住。
+     * ⚠️ 必须与 ERA10 的 unified_field 同设 key:true，否则停在 ERA10 的存量档在加本项后
+     *    会因 keysOf(10) 空 ⇒ done 恒真而瞬跳两级（见 ERA11 spec §7 #1 硬阻塞）。 */
+    { id: 11, name: 'α', motto: '帷幕之后', color: '#E8D9FF', glyph: 'Α',
+      desc: '以轮回为阶' }
   ];
 
   var TECHS = [
@@ -1068,7 +1075,11 @@
        *   s.got.stardust/100——动态值进不了静态 eff 表，必须写读数，这是最易漏接的一类）。 */
       unlockDesc: '本轮回星屑点 +100%；工坊工艺效率 +x%，x 为星屑点累计数（跨周目累积）。' },
 
-    { id: 'unified_field', name: '大统一方程', icon: 'assets/tech-icons/era-10/era10-unified-field.png?v=2', era: 10, cost: 44700000, branch: 'know', key: false, reqs: ['near_star_orbit', 'vector_ctrl'], layer: 22, treeRow: 0,
+    /* ⚠️ 2026-11-16（ERA11 spec §7 #1）：key 从 false 改 true。ERA10 原本零 key，
+     * 加入 ERA11 后若仍为 false，keysOf(10) 空 ⇒ eraProgress(10).done 恒真 ⇒ 所有停在
+     * ERA10 的存量档下一拍被 advanceEra 瞬跳到 ERA11，戴森没建完也能看见帷幕科技。
+     * unified_field 本就是 ERA10 层顶最后科技，拿它当 key 不挡任何正常路线。 */
+    { id: 'unified_field', name: '大统一方程', icon: 'assets/tech-icons/era-10/era10-unified-field.png?v=2', era: 10, cost: 44700000, branch: 'know', key: true, reqs: ['near_star_orbit', 'vector_ctrl'], layer: 22, treeRow: 0,
       /* 尤里卡 = 戴森球进度 80%（dysonPct，新 cond）。 */
       cond: { t: 'dysonPct', n: 80 },
       eff: {},
@@ -1077,7 +1088,19 @@
        *   oldFaithAllProductionBonus（0.005×faithTier）逐字同式（已核 prestige.js:62/71）。
        *   ⚠️ 走 globalMulX 逐行接，**不折进 globalMul**——科技/市政产出行确实吃 globalMul，
        *      折进去会误推它们自己（用户表明文排除）。tick 与 rates 必须同式（单位铁律）。 */
-      unlockDesc: '按当前科技点 + 市政点给予全产加成（与旧日信仰同式：每高一个数量级 +0.5%），作用于除科技、市政、信仰之外的全部产出。' }
+      unlockDesc: '按当前科技点 + 市政点给予全产加成（与旧日信仰同式：每高一个数量级 +0.5%），作用于除科技、市政、信仰之外的全部产出。' },
+
+    /* ═════════ 纪元十一 · α · 终极科技《掀起帘幕》（2026-11-16 实装）═════════
+     * spec docs/ERA11_VEIL_SPEC_v0.1.md §0 #1a/#7/#8/#9 + §6：
+     *   · 成本 447,000,000 = 10 × 44,700,000（大统一方程），基础 cost，实付仍吃科技折扣；
+     *   · 尤里卡 = 本帷幕周期累计星屑 ≥ 1000（cond gathered/stardust，复用现成类型，
+     *     读 s.got.stardust——#4 口径 A：掀幕后归零、只记本周期）；
+     *   · 前置 unified_field 的戴森 80% 尤里卡不动，与本项形成两道独立门槛；
+     *   · key:true + ERA12 不存在 ⇒ 学完即停在 ERA11，掀幕按钮由 s.techs.beyond_veil 点亮。 */
+    { id: 'beyond_veil', name: '掀起帘幕', icon: 'assets/tech-icons/era-10/era10-unified-field.png?v=2', era: 11, cost: 447000000, branch: 'know', key: true, reqs: ['unified_field'], layer: 23, treeRow: 0,
+      cond: { t: 'gathered', r: 'stardust', n: 1000 },
+      eff: {},
+      unlockDesc: '学成即可在底栏「掀起帘幕」：结算本帷幕周期的飞升点，清空轮回点与星屑，带着飞升点从 ERA1 重开。' }
   ];
 
   var BRANCHES = [

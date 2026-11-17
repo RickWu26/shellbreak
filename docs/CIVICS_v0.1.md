@@ -423,12 +423,15 @@ card_craft   技艺      effect:{}   （待工坊内容，见 9.4）
 
 | 层 | 处置 |
 |---|---|
-| 几何算法 | **照抄同构**：`civics.layout()` 与 `tech.layout()` 逐行对应（列 = `layer`、行 = 排版产物、连线 = `reqs`） |
-| 卡片尺寸 | **借 `SB.tech.geo`**，不另立一份 —— 两张树的卡片必须逐像素一样高 |
+| 几何算法 | 原版独立实现；2026-11-15 起改用 `SB.treeLayout.orderRows()`，与科技树共用依赖重排与交叉优化。市政将 `reqs`、`reqsAny` 一并传入 |
+| 初始行序 | `layoutOrder` 仍表示视觉偏好，但只作初始顺序；共享算法可按依赖调整最终行序 |
+| 卡片尺寸 / 间距 | 直接读取 `SB.tech.geo` 的 `W/H/COL/ROW/PADX/PADY/ERAPAD`，不在市政侧另立数字 |
 | CSS | **直接共用** `.techscroll` / `.techcanvas` / `.technode` / `.tel` / `.tntag` / `.minibar` |
 | 容器 id | **独立** `civicScroll`（共用 id 会让拖动/滚动留存两边抢一个元素） |
 | 滚动位置持久化 | **没做**：市政只有一个纪元、没有纪元跳转按钮，那一套 persist/restore 现在无用 |
 | 纪元横幅 | **多于一个纪元才画**：单纪元横幅是纯噪音 |
+
+两棵树的当前共用规格与尺寸表见 [科技树 / 市政树界面规格](TREE_UI_SPEC.md)。上表记录初版取舍；市政节点的鼓舞、成本、解锁和可见性仍由市政规则单独决定。
 
 ### 10.2 数据侧新增 `layer`
 
@@ -439,6 +442,8 @@ laws   layer:1   ┐ 根，独占第 0 列
 craft  layer:2   ├ 同在第 1 列，一上一下（row 0 / row 1）
 mystic layer:2   ┘
 ```
+
+上面是初版的阅读顺序示意。现在 `layoutOrder` 只提供初始偏好，最终行号由共享依赖排序器决定；具体算法与两树界面规格见 §10.1 和 [TREE_UI_SPEC.md](TREE_UI_SPEC.md)。
 
 ⚠️ 与 `techs.js` 同一条纪律：**形状必须落在数据里**。只写在注释里的「层」骗过一次人
 （2026-09-26 科技树那次），所以 e2e 的「市政树几何」一节把三条节点的 (col, row) 钉住了
