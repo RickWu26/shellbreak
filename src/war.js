@@ -205,13 +205,14 @@
     if (SB.veilFx) soldierPactMul *= (1 + SB.veilFx.soldierPactPct());
     soldierOutput *= soldierPactMul;
     var academyOutput = nonNegative(s.pop) * academyLevel * nonNegative(B.militaryAcademyPowerPerPopulationPerLevel);
-    var total = (soldierOutput + academyOutput) * conquestProductionMultiplier(s);
+    var cloneOutput = nonNegative(s.pop) * nonNegative(s.perk && s.perk.cloneMilitaryPowerPerPopulation);
+    var total = (soldierOutput + academyOutput + cloneOutput) * conquestProductionMultiplier(s);
     return isFinite(total) ? Math.max(0, total) : 0;
   }
   /* 军力来源分项（顶栏资源详情弹窗用）。格式与 economy.ratesParts 的 parts 对齐：
    * 每项 { l:来源名, v:最终值, b:基数, m:[[乘区名,倍率],...] }；partRow 据此渲染「基数 × 各乘区」。
    * 军力无逐 tick 消耗分项（只在战争行动中一次性扣减），故只返回产出分项；
-   * 两项 v 均已含征服生产乘区，使「分项之和 === 净值(rate)」结构一致。
+   * 三项 v 均已含征服生产乘区，使「分项之和 === 净值(rate)」结构一致。
    * ⚠️ 整段复刻 rate() 的算式（不调用 rate()，以免把 soldierOutput 拆开）；
    *   若将来 rate() 改军工力公式，此处须同步。 */
   function powerParts(s) {
@@ -251,6 +252,7 @@
     if (SB.veilFx) soldierPactMul *= (1 + SB.veilFx.soldierPactPct());
     soldierOutput *= soldierPactMul;
     var academyOutput = nonNegative(s.pop) * academyLevel * nonNegative(B.militaryAcademyPowerPerPopulationPerLevel);
+    var cloneOutput = nonNegative(s.pop) * nonNegative(s.perk && s.perk.cloneMilitaryPowerPerPopulation);
     var conquestMul = conquestProductionMultiplier(s);
     var parts = [];
     if (soldierBase > 0) {
@@ -266,6 +268,11 @@
       var am = [];
       if (conquestMul !== 1) am.push([tr('ui.resource.detail.power.conquest'), conquestMul]);
       parts.push({ l: tr('building.military_academy.name'), v: academyOutput * conquestMul, b: academyOutput, m: am });
+    }
+    if (cloneOutput > 0) {
+      var cm = [];
+      if (conquestMul !== 1) cm.push([tr('ui.resource.detail.power.conquest'), conquestMul]);
+      parts.push({ l: tr('ui.resource.detail.power.clone_attack', null, '克隆人的进攻'), v: cloneOutput * conquestMul, b: cloneOutput, m: cm });
     }
     return parts;
   }

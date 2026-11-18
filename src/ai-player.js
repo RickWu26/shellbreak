@@ -6,7 +6,7 @@
   var SB = root.SB;
   if (!SB || !SB.game || !SB.aiStrategy) return;
   var GAME_SPEED = 30;
-  var AI_PLAYER_VERSION = 26;
+  var AI_PLAYER_VERSION = 27;
   var REQUESTED_CHALLENGE_IDS = ['anarchy', 'good_old_days', 'three_launch_sites', 'eternity_moment'];
   /* 主模拟与 AI 共用浏览器主线程。30× 时主循环已经要结算约 300 个 0.1s tick/秒；
    * 每 400ms 再跑一次完整策略（里面会多次计算 rates）会把主线程挤满，名义 30×
@@ -17,6 +17,8 @@
   var lastWarAction = null, warActionCounts = {};
   var lastRebirth = null;
   var lastInvestment = null;
+  var lastStarInvestment = null;
+  var lastObservedTide = null, lastObservedStardust = null;
   var legacyPrep = null;
   var LEGACY_PREP_MIN_SECONDS = 2 * 60 * 60;
   var sampleAt = 0, sampleGameT = 0, sampleScience = 0;
@@ -207,6 +209,84 @@
     }
     return lastInvestment;
   }
+  /* 星屑树先按目录顺序补齐所有有限节点，再把余额平均分配给可购买的无限节点。
+   * 所有门槛与成本都通过正式 starPerkState / buyStarPerk API 读取和结算。 */
+  function investStardust(s, reason) {
+    if (!s || !SB.prestige || !SB.prestige.starPerkState || !SB.prestige.buyStarPerk ||
+        !Array.isArray(SB.STAR_PERKS)) return null;
+    var meta = SB.game.meta();
+    if (!meta || !(Number(meta.stardust) > 0)) return null;
+    var before = Number(meta.stardust) || 0, purchases = [];
+    function buyTo(id, target) {
+      var guard = 0, st;
+      while (guard++ < 10000) {
+        st = SB.prestige.starPerkState(id);
+        if (!st || st.done || st.lv >= target) return;
+        if (st.locked) {
+          var prereqs = st.prerequisites || [];
+          if (!prereqs.length) return;
+          var priorLevels = prereqs.map(function (prereqId) {
+            var prior = SB.prestige.starPerkState(prereqId);
+            return prior ? prior.lv : -1;
+          });
+          for (var pi = 0; pi < prereqs.length; pi++) buyTo(prereqs[pi], 1);
+          st = SB.prestige.starPerkState(id);
+          if (!st || st.locked) return;
+          /* 递归补前置时余额不足，直接退出，避免无进展循环。 */
+          if (prereqs.every(function (prereqId, index) {
+            var prior = SB.prestige.starPerkState(prereqId);
+            return prior && prior.lv <= priorLevels[index];
+          })) return;
+          continue;
+        }
+        if (!st.afford) return;
+        var price = Number(st.next) || 0;
+        if (!(price > 0) || !SB.prestige.buyStarPerk(id)) return;
+        purchases.push({ id: id, level: st.lv + 1, cost: price });
+      }
+    }
+    var finite = SB.STAR_PERKS.filter(function (perk) { return perk && perk.n !== Infinity; });
+    var infinite = SB.STAR_PERKS.filter(function (perk) { return perk && perk.n === Infinity; });
+    for (var fi = 0; fi < finite.length; fi++) buyTo(finite[fi].id, finite[fi].n || 1);
+    /* 先解锁各条无限线，再逐级轮转，避免目录靠前的一条无限线吃光余额。 */
+    for (var ii = 0; ii < infinite.length; ii++) buyTo(infinite[ii].id, 1);
+    var changed = true, rounds = 0;
+    while (changed && rounds++ < 5000) {
+      changed = false;
+      for (var ri = 0; ri < infinite.length; ri++) {
+        var state = SB.prestige.starPerkState(infinite[ri].id);
+        if (!state || state.done) continue;
+        var priorCount = purchases.length;
+        buyTo(infinite[ri].id, state.lv + 1);
+        if (purchases.length > priorCount) changed = true;
+      }
+    }
+    var after = Number(SB.game.meta().stardust) || 0;
+    lastStarInvestment = {
+      reason: reason || 'AI运行期间', before: before, after: after,
+      spent: before - after, purchases: purchases,
+    };
+    if (purchases.length && SB.game.renderAll) SB.game.renderAll();
+    return lastStarInvestment;
+  }
+  /* 玩家手动轮回或兑换后余额会在当前 AI 会话中改变；余额变化时自动投资，
+   * 页面启动、恢复 AI 和挑战结算也走同一入口。 */
+  function investAvailableMetaProgress(s, reason) {
+    if (!s || !SB.game || !SB.game.meta) return;
+    var meta = SB.game.meta();
+    if (!meta) return;
+    var tide = Number(meta.tide) || 0, stardust = Number(meta.stardust) || 0;
+    if (meta.shopUnlocked && tide > 0 &&
+        (lastObservedTide === null || Math.abs(tide - lastObservedTide) > 1e-9))
+      investTidePoints(s, reason);
+    meta = SB.game.meta();
+    lastObservedTide = meta && meta.shopUnlocked ? (Number(meta.tide) || 0) : null;
+    if (meta && stardust > 0 &&
+        (lastObservedStardust === null || Math.abs(stardust - lastObservedStardust) > 1e-9))
+      investStardust(s, reason);
+    meta = SB.game.meta();
+    lastObservedStardust = meta ? (Number(meta.stardust) || 0) : null;
+  }
   function nextChallengeId() {
     if (!SB.challenges || !SB.challenges.canStartFresh) return null;
     var order = REQUESTED_CHALLENGE_IDS;
@@ -240,7 +320,7 @@
     }
     say('挑战通关：' + challenge.name + ' · ' +
       (challenge.tiers[s.challenge.tier | 0].label || '完成挑战') + '。');
-    investTidePoints(s, '挑战通关后');
+    investAvailableMetaProgress(s, '挑战通关后');
     var nextId = nextChallengeId();
     if (nextId && SB.challenges.begin(nextId)) {
       say('按挑战顺序开始下一项：' + SB.challenges.byId(nextId).name + '。');
@@ -377,10 +457,10 @@
       if (!completedTier || (s.challengeOutcome && s.challengeOutcome.failed)) {
         pause(); return;
       }
-      investTidePoints(s, '挑战通关后');
+      investAvailableMetaProgress(s, '挑战通关后');
       var nextQueuedChallenge = nextChallengeId();
       if (nextQueuedChallenge && SB.challenges.begin(nextQueuedChallenge)) {
-        investTidePoints(SB.game.run(), '挑战通关后');
+        investAvailableMetaProgress(SB.game.run(), '挑战通关后');
         return;
       }
       pause(); return;
@@ -412,6 +492,7 @@
       say('挑战已判定，解除本轮限制，继续建设壳外设施。');
     }
     try {
+      investAvailableMetaProgress(s, 'AI运行期间');
       if (tryAutoRebirth(s)) return;
       chooseLaunchMode(s);
       var measuredSpeed = Number(effectiveSpeed);
@@ -743,6 +824,17 @@
       tidePoints: Number(SB.game.meta().tide) || 0,
       popcapPerkLevel: Number((s.perk && s.perk.startPop) || 0),
       metaPerks: numericMap(SB.game.meta().perks),
+      stardustBalance: Number(SB.game.meta().stardust) || 0,
+      starPerkLevelTotal: Object.keys(SB.game.meta().starPerks || {}).reduce(function (sum, id) {
+        return sum + Math.max(0, Math.floor(Number(SB.game.meta().starPerks[id]) || 0));
+      }, 0),
+      lastStarInvestment: lastStarInvestment ? {
+        reason: lastStarInvestment.reason,
+        before: lastStarInvestment.before,
+        after: lastStarInvestment.after,
+        spent: lastStarInvestment.spent,
+        purchaseCount: lastStarInvestment.purchases.length,
+      } : null,
       lastInvestment: lastInvestment,
       legacyPrep: lastRebirth && lastRebirth.legacy ? lastRebirth.legacy : legacyPrep,
       rebirth: lastRebirth || {
@@ -1023,7 +1115,7 @@
     }
     if (!started) {
       started = true; SB.game.setSpeed(GAME_SPEED);
-      investTidePoints(SB.game.run(), '继续AI');
+      investAvailableMetaProgress(SB.game.run(), '继续AI');
       var b = document.querySelector('.spd[data-spd="' + GAME_SPEED + '"]'); if (b) b.classList.add('on');
       say('AI 正在通过共用策略和正式游戏 API 操作这一局。');
     }
@@ -1046,7 +1138,7 @@
     }
     var speedBtn = document.querySelector('.spd[data-spd="' + GAME_SPEED + '"]'); if (speedBtn) speedBtn.classList.add('on');
     started = true;
-    investTidePoints(SB.game.run(), '页面启动');
+    investAvailableMetaProgress(SB.game.run(), '页面启动');
     timer = root.setInterval(timerTick, AI_TIMER_MS);
     say('接管当前周目，游戏速度 ' + GAME_SPEED + '×。'); safeRefresh();
   }

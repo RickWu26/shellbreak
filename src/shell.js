@@ -52,6 +52,14 @@
     return 1 - SB.economy.rOf(s);
   }
 
+  /* 星屑商店的壳层强化存于跨周目 meta，不并入 breakCoef：该系数还影响暖石费率与星空进度。 */
+  function starPerkLevel(id) {
+    try {
+      var m = SB.game && SB.game.meta ? SB.game.meta() : null;
+      return Math.max(0, Math.floor(Number(m && m.starPerks && m.starPerks[id]) || 0));
+    } catch (e) { return 0; }
+  }
+
   /* 万众热忱（2026-11-05 用户拍板）：基础自动削壳的**独立乘区**，加算 1+0.2×级数。
    * ⚠️ 绝不可并进 breakCoef —— 那里还被暖石费率 warmRate(0.03×coef)、星空槽 starRate、
    *    coef 型尤里卡阈值与建造日志共用，且 COLD ×1.35 / 总动员令乘在整段上。
@@ -61,11 +69,13 @@
   function autoRate(s) {
     var lv = (s.perk && s.perk.shellDrive) || 0;   // 老档缺键按 0 处理，不依赖存档迁移
     var drive = 1 + (SB.CFG.SHELL_DRIVE_STEP || 0) * lv;
+    /* 星屑树「民众热忱」只增加自动削壳，与天穹钻机强化分轴计算。 */
+    var starDrive = 1 + 0.20 * starPerkLevel('starPeopleZeal');
     /* 硅基承续 · 脑 LV3（2026-11-17）：被动破壳速度 +100% ⇒ ×2。
      * ⚠️ 只乘这一段（自动削壳），**绝不并进 breakCoef** —— 那里被暖石费率/星空槽/
      *    尤里卡阈值共用，并进去会顺带加重寒流季暖石消耗（静默惩罚）。 */
     var veilDrive = SB.veilFx ? SB.veilFx.passiveShellMul() : 1;
-    return SB.CFG.BREAK_BASE * breakCoef(s) * drive * veilDrive;
+    return SB.CFG.BREAK_BASE * breakCoef(s) * drive * starDrive * veilDrive;
   }
 
   /* 天元突破：天穹钻机钻头倍率的**唯一读数口**（2026-11-05）。
@@ -216,6 +226,8 @@
         var _ss = 1 + 0.05 * ((s.perk && s.perk.shellSurvey) || 0);
         var sWant = SB.CFG.SKYDRILL_RATE * _ss * _dm * dt
           * (SB.faith && SB.faith.shellDrillSpeedMul ? SB.faith.shellDrillSpeedMul(s) : 1)
+          /* 星屑树「硬化钻头」每级 +20% 速度，不增加共振钻头或热液能消耗。 */
+          * (1 + 0.20 * (starPerkLevel('starHardenedDrill1') + starPerkLevel('starHardenedDrill2')))
           /* 硅基承继 · 尾 LV3（2026-11-17）：钻机破壳速度 +200% ⇒ ×3。
            * ⚠️ 与 passiveShellMul（脑）**两轴隔离**（SPEC §7-5 明写）：钻机不吃被动倍率，
            *    被动削壳也不吃钻机倍率，合并会让「只有钻机」和「只有被动」的玩家收益对不上。 */

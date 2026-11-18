@@ -1949,6 +1949,17 @@
     var supply = 0, rW = 1, turbineSupply = 0, pressSupply = 0, fissionSupply = 0, titancloudSupply = 0;
     /* 平等主义的每人口热液加成覆盖所有供给源；只在汽轮机/管道上乘会漏掉 ERA7+ 的并联能源。 */
     var govHydroMul = SB.civic ? SB.civic.govHydroPerPop(s) : 1;
+    /* 硅基承续 · 尾（2026-11-17）：「热液能产出 +50/100/150%」。乘在**全部六个供给源**上
+     *   （汽轮机 / 高压热机管道 / 核热厂 / 泰坦气云 / 太阳帆 / 洁净三源），与 govHydroMul 同一覆盖范围。
+     *   ⚠️ 只在汽轮机上乘会漏掉 ERA7+ 的并联能源 —— 玩家「只有核热厂」时装了尾看不到任何变化。
+     *   ⚠️ 乘在**供给侧**，不影响分配顺序：分配（shopDraw/skyDraw/…）都在 supply 求和之后，
+     *      这里只是把总量放大，不改变谁先取。
+     *   ⚠️ **不计入排放**（见下面 pollutionTurbine / press 两处的 /veilHydroMul）：
+     *      暖石/铀/石头消耗都按**等级**算、不按产出算（`turL * hydroWarm`、`fisL * 1000`），
+     *      所以同样燃料产出更多是效率提升，排放不该跟着涨。否则在「水体污染」挑战里，
+     *      花飞升点买的器官会变成静默惩罚 —— 与本文件既有的「星屑树乘区豁免」同一条原则。 */
+    var veilHydroMul = (SB.veilFx && SB.veilFx.hydroOutMul) ? SB.veilFx.hydroOutMul() : 1;
+    if (!(veilHydroMul > 0)) veilHydroMul = 1;
     /* 水体污染（2026-11-02）：脏源**每秒**排放（未乘政策 rateMul / k），与上面几个 supply 局部变量
      * 同源同值（`/dt` 归一）。分两枝返回，是因为装罐填埋只削**汽轮机**那一枝（§1.2 的坑）：
      *   pollutionTurbine = 汽轮机；pollutionOther = 高压热机管道 + 轨道工厂 + 核热厂 + 泰坦气云站。 */
@@ -1970,13 +1981,15 @@
       : 0;
     if (turL > 0) {
       turbineSupply = turL * SB.UNIT.hydroOut * (1 + upgSum(s, 'hydroMul')) * _sourceFactor * govHydroMul
-        * (SB.faith && SB.faith.turbineOutputMul ? SB.faith.turbineOutputMul(s) : 1);
-      if (dt > 0) pollutionTurbine += turbineSupply / dt;
+        * (SB.faith && SB.faith.turbineOutputMul ? SB.faith.turbineOutputMul(s) : 1)
+        * veilHydroMul;
+      /* 排放先从产出里除掉 veilHydroMul：暖石按等级烧，产出涨了燃料没涨 ⇒ 不该多排。 */
+      if (dt > 0) pollutionTurbine += turbineSupply / dt / veilHydroMul;
     }
     /* ERA5 并联进汽口：停用汽轮机只停汽轮机本身，不关高压热机管道/轨道工厂。 */
-    pressSupply = _press * _sourceFactor * govHydroMul;
+    pressSupply = _press * _sourceFactor * govHydroMul * veilHydroMul;
     supply = turbineSupply + pressSupply;
-    if (dt > 0) pollutionOther += pressSupply / dt;
+    if (dt > 0) pollutionOther += pressSupply / dt / veilHydroMul;
     /* ERA7（2026-10-17 · spec §4）：核热厂——每级 +10 热液能/秒，**不烧暖石**的新热液源
      *   （供给侧直接相加，与高压热机管道 _press 同类；×挑战乘区与汽轮机同口径）。
      *   ⚠️ 铀消耗不在此扣（tick 侧直耗），这里只管流；「断铀不停堆」为提议口径待标定。
@@ -1993,15 +2006,17 @@
       var _fisPM = (SB.challenges ? SB.challenges.productionMul(s) : 1);
       var _fisRatio = (s.upgrades && s.upgrades.upg_reheavfusion) ? (1 + fissionStoneRatio) : 1;
       fissionSupply = fisL * (SB.BLD.fissionHydro || 0) * starNuclearHydroMul(s) * dt * _nf
-        * _fisRatio * _fisPM * govHydroMul;
+        * _fisRatio * _fisPM * govHydroMul * veilHydroMul;
       supply += fissionSupply;
+      /* ⚠️ 下面那行排放**不加** veilHydroMul：铀按等级烧，产出涨了不额外排。 */
       pollutionOther += fisL * (SB.BLD.fissionHydro || 0) * _nf * _fisRatio * _fisPM * govHydroMul;
     }
     /* ERA8（2026-10-18 · spec §4）：泰坦星气云采集站——每级 +6 热液能/秒（不烧暖石，
      *   与核热厂同一供给侧通道）+ 每级产 5 燃料/秒（燃料行在 tick/rates，不进流）。 */
     if (tcL > 0) {
       var _tcPM = (SB.challenges ? SB.challenges.productionMul(s) : 1);
-      titancloudSupply = tcL * (SB.BLD.titancloudHydro || 0) * starAlienOutputMul(s) * dt * _tcPM * govHydroMul;
+      titancloudSupply = tcL * (SB.BLD.titancloudHydro || 0) * starAlienOutputMul(s) * dt * _tcPM * govHydroMul
+        * veilHydroMul;
       supply += titancloudSupply;
       /* 排放同样豁免星屑树 `starAlienOutputMul`（与核热厂同一条统一原则）。 */
       pollutionOther += tcL * (SB.BLD.titancloudHydro || 0) * _tcPM * govHydroMul;
@@ -2012,7 +2027,7 @@
     var sunSailSupply = 0;
     if ((s.sunSails || 0) > 0) {
       sunSailSupply = (s.sunSails || 0) * (SB.CFG.SUNSAIL_HYDRO || 0.05) * starSailHydroMul(s) * dt
-        * (SB.challenges ? SB.challenges.productionMul(s) : 1) * govHydroMul;
+        * (SB.challenges ? SB.challenges.productionMul(s) : 1) * govHydroMul * veilHydroMul;
       supply += sunSailSupply;
     }
     /* 水体污染（2026-11-02）：三座**洁净**热液源 —— 潮汐往复机 +1/s·级、太阳能基站 +3/s·级、
@@ -2023,7 +2038,7 @@
       var _cleanPM = (SB.challenges ? SB.challenges.productionMul(s) : 1);
       cleanSupply = (_tideL * (SB.BLD.tideHydro || 0)
         + _solarL * (SB.BLD.solarHydro || 0)
-        + _windL * (SB.BLD.windHydro || 0)) * dt * _cleanPM * govHydroMul;
+        + _windL * (SB.BLD.windHydro || 0)) * dt * _cleanPM * govHydroMul * veilHydroMul;
       supply += cleanSupply;
     }
     /* 工坊（低阶科技先吃满）：从本 tick 流里取 min(需求, 供给)。 */

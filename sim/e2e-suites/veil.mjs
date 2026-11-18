@@ -69,6 +69,8 @@ export function run({ SB, check }) {
     const pv0 = SB.prestige.veilPreview(sNo);
     check('首次掀幕也能拿到预览（此前 veilPreview 返回 null ⇒ 整条路走不通）',
       !!pv0 && pv0.hasLedger === false && pv0.nextPath === 'si', pv0 ? 'nextPath=' + pv0.nextPath : 'null');
+    check('预览给出「玩家可选池」selectable：当前只实装 si，玩家只能选机械飞升',
+      !!pv0 && pv0.selectable && pv0.selectable.join() === 'si', pv0 ? 'selectable=' + (pv0.selectable || []).join() : 'null');
 
     /* ---------------- ③ 门槛：周期星屑 < 1000 ⇒ 拒绝且不改任何状态 ---------------- */
     const sLow = SB.state.freshRun(false);
@@ -80,6 +82,19 @@ export function run({ SB, check }) {
     check('被拒时账本都没建（原子性：失败不留半个 veil / 不清档）',
       M.veil === null && M.tideEarnedTotal === 25000 && M.stardustEarned === 600,
       'veil=' + JSON.stringify(M.veil) + ' earned=' + M.tideEarnedTotal + '/' + M.stardustEarned);
+
+    /* 玩家自选的非法 id 校验（2026-11-18）：传未实装 / 不存在的 id 必须抛错且账本一字不动。
+     * 门槛这里用 600/1000 的 sLow，本身也够不着 1000 —— 但 chooseId 的校验在算账之前，
+     * 所以即使门槛没过，非法 id 也该先被拒（错误优先级确定）。用一个达标的 s 更干净地测。 */
+    const sBad = SB.state.freshRun(false);
+    sBad.techs.beyond_veil = true;
+    sBad.civics.theology = false;
+    M.stardustEarned = 1500; M.stardust = 1500;   // 达标，排除「因门槛被拒」的混淆
+    let badErr = null;
+    try { SB.prestige.doVeil(sBad, () => {}, 'vo'); } catch (e) { badErr = e; }  // vo 未实装
+    check('选未实装路径（vo）⇒ 抛错、账本仍未建（自选校验先于算账，原子性）',
+      !!badErr && M.veil === null, badErr ? badErr.message : '没有抛错');
+    M.stardustEarned = 600; M.stardust = 600;     // 还原，继续下面的门槛测试
 
     /* ---------------- ④ 达标掀幕：原子事务的「清 / 保留」两列 ---------------- */
     M.stardustEarned = 1500;      // 跨过 1000 门槛
@@ -94,10 +109,13 @@ export function run({ SB, check }) {
       'pending=' + pv1.pendingTide + '/' + pv1.pendingStar + ' cycleStar=' + pv1.cycleStar);
 
     const gained = pv1.points;
-    const r1 = SB.prestige.doVeil(s1, () => {});
-    check('首飞：第 1 重帷幕 / 强制只开一条（si）/ 实发点数 === 预览点数',
-      r1.count === 1 && r1.opened.join() === 'si' && near(r1.points, gained) && r1.firstVeil === true,
-      'count=' + r1.count + ' opened=' + r1.opened.join() + ' points=' + r1.points + ' vs ' + gained);
+    /* 玩家自选：首掀显式传 'si'（当前唯一可选）。不传也能掀幕，但按「没选就不开」不开路径。 */
+    const r1 = SB.prestige.doVeil(s1, () => {}, 'si');
+    check('首飞：第 1 重帷幕 / 玩家选 si ⇒ 开 si / newPath=si / 实发点数 === 预览点数',
+      r1.count === 1 && r1.opened.join() === 'si' && r1.newPath === 'si'
+        && near(r1.points, gained) && r1.firstVeil === true,
+      'count=' + r1.count + ' opened=' + r1.opened.join() + ' newPath=' + r1.newPath
+        + ' points=' + r1.points + ' vs ' + gained);
     check('清资产：轮回点 / 星屑余额归零，潮汐之树清空',
       M.tide === 0 && M.stardust === 0 && Object.keys(M.perks || {}).length === 0,
       'tide=' + M.tide + ' stardust=' + M.stardust);
@@ -125,7 +143,10 @@ export function run({ SB, check }) {
     check('新局 got.stardust 也走新口径（=0），不会开局白送尤里卡',
       SB.game.run().got.stardust === 0, 'got.stardust=' + SB.game.run().got.stardust);
 
-    /* ---------------- ⑥ 逐次解锁：1 → 2 → 3，之后不再追加 ---------------- */
+    /* ---------------- ⑥ 自选解锁：仅 si 可选，之后掀幕「没可选就不开」 ---------------- */
+    /* 2026-11-18 用户拍板「玩家自己选，暂时只能选机械飞升」：可选池现在只有 si，
+     * 首掀已开掉 ⇒ 第 2 次起 selectable 为空 ⇒ 不传 chooseId 的新掀幕一律不开新路径，
+     * 但照常给点、count 照涨。vo/gn 的 WIP 门与 OPENABLE_IDS 解耦，实装时加 id 即回归多选。 */
     const prime = () => {
       const s = SB.game.run();
       s.techs.beyond_veil = true;
@@ -133,13 +154,33 @@ export function run({ SB, check }) {
       M.veil.cycleStar = 1000;
       M.veil.cycleTide = 0;
     };
+    const pv2 = (prime(), SB.prestige.veilPreview(SB.game.run()));
+    check('第 2 次掀幕前可选池已空（si 已开，vo/gn 未实装 ⇒ selectable=[]）',
+      !!pv2 && pv2.selectable.length === 0, pv2 ? 'selectable=' + pv2.selectable.join() : 'null');
     prime(); const r2 = SB.prestige.doVeil(SB.game.run(), () => {});
-    check('第 2 重帷幕开第二条（vo）', r2.opened.join() === 'si,vo', r2.opened.join());
+    check('第 2 重帷幕：没选路径 ⇒ 不开新路径（opened 仍 si），但 count 照涨到 2 且给出点数',
+      r2.opened.join() === 'si' && r2.newPath === null && r2.count === 2 && r2.points > 0,
+      'opened=' + r2.opened.join() + ' newPath=' + r2.newPath + ' count=' + r2.count + ' points=' + r2.points);
     prime(); const r3 = SB.prestige.doVeil(SB.game.run(), () => {});
-    check('第 3 重帷幕三条全开（si,vo,gn）', r3.opened.join() === 'si,vo,gn', r3.opened.join());
+    check('第 3 重帷幕（没选）count 继续涨到 3，opened 保持 si',
+      r3.count === 3 && r3.opened.join() === 'si' && r3.newPath === null,
+      'count=' + r3.count + ' opened=' + r3.opened.join() + ' newPath=' + r3.newPath);
     prime(); const r4 = SB.prestige.doVeil(SB.game.run(), () => {});
-    check('第 4 次不再追加（三张卡保留为永久入口，不重复解锁 / count 照涨）',
-      r4.opened.length === 3 && r4.count === 4, 'opened=' + r4.opened.join() + ' count=' + r4.count);
+    check('第 4 次同样不开新路径（count 照涨、不重复解锁）',
+      r4.opened.join() === 'si' && r4.count === 4, 'opened=' + r4.opened.join() + ' count=' + r4.count);
+
+    /* 重复选已开启的 si ⇒ 必须抛错、账本一字不动（校验在算账前，原子性）。
+     * 另造一个达标局，避免复用被上面掀幕 startRun 换掉的本局。 */
+    const sDup = SB.game.run();
+    sDup.techs.beyond_veil = true; sDup.civics.theology = false;
+    M.veil.cycleStar = 1000; M.veil.cycleTide = 0;
+    const openedBeforeDup = M.veil.paths.opened.slice();
+    let dupErr = null;
+    try { SB.prestige.doVeil(sDup, () => {}, 'si'); } catch (e) { dupErr = e; }
+    check('重复选已开启的 si ⇒ 抛错，账本 opened / 周期账一字不动（原子性）',
+      !!dupErr && M.veil.paths.opened.join() === openedBeforeDup.join() && M.veil.cycleStar === 1000,
+      (dupErr ? dupErr.message : '没有抛错') + ' opened=' + M.veil.paths.opened.join()
+        + ' cycleStar=' + M.veil.cycleStar);
 
     /* ---------------- ⑦ 已掀幕档：doBreak 增量累加周期账 ---------------- */
     M.veil.cycleStar = 0;
@@ -159,15 +200,38 @@ export function run({ SB, check }) {
       near(sB.got.stardust, SB.state.starEarnedSeed(M)),
       'got=' + sB.got.stardust + ' seed=' + SB.state.starEarnedSeed(M));
 
-    /* ---------------- ⑧ UI：轮回商店页的常驻重开入口 ---------------- */
-    /* 2026-11-17 用户静态核查 #4：帷幕主界面此前只在「刚掀完幕」自动弹出，关掉即失联。 */
+    /* ---------------- ⑧ UI：帷幕是独立页签，不是弹窗 ---------------- */
+    /* 2026-11-17 晚用户拍板：「加一个新的标签，就叫帷幕，点了就切换到帷幕页面，不是弹窗那种」。
+     * 原先落在轮回商店页底部的 .meta-veil 入口卡已随本次改动删除 —— 这里改钉新形态：
+     * ① 页签集合里有 veil；② 大厅正文由 veilHub.markup() 出；③ 不再有弹窗/关闭按钮。 */
     M.shopUnlocked = true;
-    const html = SB.ui.render.paneMeta();
-    check('轮回商店页渲染出「进入帷幕」常驻入口（data-veil-open，走 document 级委托）',
-      typeof html === 'string' && html.indexOf('data-veil-open') >= 0 &&
-      html.indexOf('meta-veil') >= 0, 'len=' + (html || '').length);
-    check('入口里写明第几重帷幕 / 已开路径数 / 飞升点余额',
-      /第 \d+ 重帷幕/.test(html) && /已开启 \d+ \/ 3/.test(html) && /飞升点/.test(html), '');
+    const keys = SB.ui.render.PANE_KEYS || [];
+    check('PANE_KEYS 含独立页签 veil（点页签切页，不是弹窗）',
+      keys.indexOf('veil') >= 0 && keys.indexOf('meta') >= 0, 'keys=' + keys.join(','));
+    const hubHtml = SB.ui.veilHub && SB.ui.veilHub.markup ? SB.ui.veilHub.markup() : '';
+    check('帷幕页正文出三张路径卡（data-veil-path）',
+      (hubHtml.match(/data-veil-path=/g) || []).length === 3,
+      'len=' + hubHtml.length + ' cards=' + (hubHtml.match(/data-veil-path=/g) || []).length);
+    check('大厅写明第几重帷幕 / 已开路径数 / 飞升点余额',
+      /第 \d+ 重帷幕/.test(hubHtml) && /已开启 \d+ \/ 3/.test(hubHtml) && /飞升点/.test(hubHtml), '');
+    check('大厅不再有「关闭」语义（页签即导航，右上角改为飞升点余额）',
+      hubHtml.indexOf('data-veil-action="close"') < 0 && hubHtml.indexOf('vh-points') >= 0, '');
+    const metaHtml2 = SB.ui.render.paneMeta();
+    check('轮回商店页不再有第二个帷幕入口（换成独立页签后是冗余）',
+      typeof metaHtml2 === 'string' && metaHtml2.indexOf('data-veil-open') < 0 &&
+      metaHtml2.indexOf('meta-veil') < 0, 'len=' + (metaHtml2 || '').length);
+    /* 进装配台：view 从 hub 切到 si，正文换成十个器官热区 + 返回按钮。 */
+    if (SB.ui.veilHub && SB.ui.veilHub.openPath) {
+      SB.ui.veilHub.openPath('si');
+      const pathHtml = SB.ui.veilHub.markup();
+      check('点 si 路径后页内切到装配台（十热区 + 返回帷幕，仍不是弹窗）',
+        (pathHtml.match(/data-organ=/g) || []).length === 10 &&
+        pathHtml.indexOf('data-veil-action="back"') >= 0 &&
+        pathHtml.indexOf('vm-box') >= 0,
+        'organs=' + (pathHtml.match(/data-organ=/g) || []).length);
+      SB.ui.veilHub.back && SB.ui.veilHub.back();
+      check('返回后回到大厅', (SB.ui.veilHub.markup() || '').indexOf('vh-cards') >= 0, '');
+    }
   } finally {
     restore();
     /* 掀幕把本局换成了 ERA1 新局；还原账本后再开一局，别让后续/收尾读到半截状态。 */

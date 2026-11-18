@@ -93,11 +93,17 @@
       starPerks: { starShellPress1: 0, starShellPress2: 0, starShellPress3: 0,
         starFolk1: 0, starFolk2: 0, starFolk3: 0, starInfinite: 0, starModuleHousing: 0, starFoldableStructure: 0,
         starCompanyMaturity1: 0, starCompanyMaturity2: 0, starCompanyMaturity3: 0, starCompanyResearchSynergy: 0,
-        starSmelt1: 0, starSmelt2: 0, starSmelt3: 0, starLaunchSpeed1: 0, starNuclearHydro1: 0, starNuclearHydro2: 0, starNuclearHydro3: 0,
+        starSmelt1: 0, starSmelt2: 0, starSmelt3: 0, starSmelt4: 0, starSmeltResonance: 0, starLaunchSpeed1: 0, starNuclearHydro1: 0, starNuclearHydro2: 0, starNuclearHydro3: 0,
         starSailHydro1: 0, starSailHydro2: 0, starSolarRing1: 0, starSolarRing2: 0, starSolarRing3: 0,
-        starRingRocketEngineCraft: 0, starRingThetaFilmCraft: 0, starRingStrongPropellantCraft: 0,
+        starRingRocketEngineCraft: 0, starRocketEngineCraft2: 0, starRocketEngineAssembly: 0, starRingThetaFilmCraft: 0, starRingThetaFilmCraft2: 0, starThetaFilmAssembly: 0, starRingStrongPropellantCraft: 0,
+        starRocketFuelRefine1: 0, starRocketFuelRefine2: 0, starRocketFuelRefine3: 0, starRocketFuelRefine4: 0, starRocketFuelRefinery: 0,
+        starTiplatePress1: 0, starTiplatePress2: 0, starTiplatePress3: 0, starTiplatePress4: 0, starTiplatePressLine: 0,
+        starSealbinAssembly1: 0, starSealbinAssembly2: 0, starSealbinAssembly3: 0, starSealbinAssembly4: 0, starSealbinAssemblyLine: 0, starSolarRingResonance: 0,
+        starExoskeleton1: 0, starExoskeleton2: 0, starExoskeleton3: 0, starExoskeleton4: 0, starExoskeletonLine: 0,
+        starOrbitalBombardment1: 0, starOrbitalBombardment2: 0, starOrbitalBombardment3: 0, starOrbitalBombardment4: 0, starOrbitalBombardmentLine: 0,
+        starCloneOffensive1: 0, starCloneOffensive2: 0, starCloneOffensive3: 0, starCloneOffensive4: 0,
         starExplore1: 0, starExplore2: 0, starExplore3: 0, starExploreScholar1: 0, starExploreScholar2: 0,
-        starAlienOutput1: 0, starAlienOutput2: 0, starAlienOutput3: 0, starTerraform1: 0, starTerraform2: 0,
+        starAlienOutput1: 0, starAlienOutput2: 0, starAlienOutput3: 0, starAlienOutput4: 0, starAlienOutputResonance: 0, starTerraform1: 0, starTerraform2: 0,
         earlyAutoBuildCore: 0, earlyAutoBuildFood: 0, earlyAutoBuildWorkshop: 0, earlyAutoBuildTrade: 0,
         earlyAutoBuildAcademy: 0, earlyAutoBuildCivic: 0, earlyAutoBuildFaith: 0, earlyAutoBuildSpace: 0 }, starPerksVersion: 0 };
   }
@@ -144,7 +150,7 @@
        * 2026-11-14 第二批：warPopLoss / warSalvage 由 executeAction 读，
        *    warThreat 由 threatRateOf 读（四处共读），slotMil 由 civics.perkPolicySlots 读。
        *    ⚠️ slotMil 是「之位」类计数键，与 slotCraft/slotEcon/slotSci 同量纲，别当倍率乘。 */
-      soldierPact: 0, warScaleDamage: 0, warSuccessOdds: 0, cultureCostCut: 0,
+      soldierPact: 0, warScaleDamage: 0, warSuccessOdds: 0, cultureCostCut: 0, cloneMilitaryPowerPerPopulation: 0,
       warPopLoss: 0, warSalvage: 0, warThreat: 0, slotMil: 0,
       /* 帷幕飞升树（VEIL_ASCENSION_SPEC §5.2 潮律组）两条新读点：一层轮回点/星屑结算 +X%。
        * 读点各一处（prestige.js doBreak 结算段），不新造乘区，直接进这条 perk 表。 */

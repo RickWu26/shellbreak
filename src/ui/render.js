@@ -14,7 +14,9 @@
 
   /* 页签 / 面板键顺序（也是 renderPanes 的遍历顺序）。faith 紧挨 civic：
    *   两者都是「文明认了什么」的轴（市政=制度，信仰=宗教），语义相邻。 */
-  var PANE_KEYS = ['village', 'folk', 'tech', 'civic', 'faith', 'diplomacy', 'workshop', 'wonder', 'star-map', 'company', 'meta', 'challenges', 'achievements'];
+  /* 2026-11-17 晚：「帷幕」（veil）是独立页签，不再是 meta 页里的入口卡 ——
+   * 用户要求「点了就切换到帷幕页面，不是弹窗那种」。顺序与 index.html 的页签条一致。 */
+  var PANE_KEYS = ['village', 'folk', 'tech', 'civic', 'faith', 'diplomacy', 'workshop', 'wonder', 'star-map', 'company', 'meta', 'veil', 'challenges', 'achievements'];
 
   function res() { return SB.game.run(); }
   function meta() { return SB.game.meta(); }
@@ -93,7 +95,8 @@
     'star-map': { color: '#87a7ff' },
     challenges: { color: '#f0a45c' },
     achievements: { color: '#d7bd80' },
-    meta:     { color: '#9fb4ff' }
+    meta:     { color: '#9fb4ff' },
+    veil:     { color: '#a98bff' }
   };
   /* ── 巢穴页内的建筑分区标题配色（2026-09-30 晚，用户：「这里的文字颜色也改了，就是生息区这些」）──
    * 上一步只把最外层卡片标题上了色，页**内部**的区标题（礁栖核心 / 生息区 / 工坊区 …）还是
@@ -146,7 +149,8 @@
       faith: 'ui.pane.faith.title', diplomacy: 'ui.pane.diplomacy.title', workshop: 'ui.workshop.title', wonder: 'ui.pane.wonders.title',
       'star-map': 'ui.pane.star_map.title', company: 'ui.pane.companies.title',
       challenges: 'ui.pane.challenges.title', achievements: 'ui.pane.achievements.title',
-      meta: 'ui.pane.prestige_shop.title'
+      meta: 'ui.pane.prestige_shop.title',
+      veil: 'ui.pane.veil.title'
     };
     var nm = (key === 'village')
       ? (SB.habitat && SB.habitat.habitatName ? SB.habitat.habitatName(SB.game.run()) : tr('ui.habitat.name'))
@@ -1117,7 +1121,13 @@
     /* 2026-10-24：成就独立页签。与 challenges 同一个渲染部件文件、同一道门
      * （meta.shopUnlocked = 首次轮回），只是从页尾拆成了独立 pane。 */
     achievements: SB.ui.renderParts.paneAchievements,
-    company: SB.ui.renderParts.paneCompany };
+    company: SB.ui.renderParts.paneCompany,
+    /* 帷幕之后（2026-11-17 晚由全屏遮罩改成独立页签）：正文在 veil-hub-ui.js。
+     * ⚠️ 这里必须**惰性转发**、不能写成 `SB.ui.renderParts.paneVeil` —— 那个文件在
+     *    render.js **之后**加载，顶层取值只会拿到 undefined，页签永远是空白。 */
+    veil: function () {
+      return (SB.ui.veilHub && SB.ui.veilHub.markup) ? SB.ui.veilHub.markup() : '';
+    } };
 
   function stardustShopOpen() {
     if (SB.game && SB.game.stardustShopUnlocked) return SB.game.stardustShopUnlocked();
@@ -1172,13 +1182,20 @@
     civilization: 'assets/tech-icons/era-10/era10-heir-of-stars.png',
     enterprise: 'assets/company-icons/craftco.png',
     industry: 'assets/building-icons/era-10/era10-solar-ring-v2.png',
+    interstellar_manufacturing: 'assets/resource-icons/rocketFuel.png',
+    military: 'assets/building-icons/era-2/era2-barracks.png',
     frontier: 'assets/resource-icons/starExplore.png',
-    automation: 'assets/tech-icons/era-8/era8-robotics.png'
+    automation: 'assets/tech-icons/era-8/era8-robotics.png',
+    stardust: 'assets/resource-icons/stardust.png'
   };
   var STAR_PERK_ICON_BY_ID = {
     starShellPress1: 'assets/resource-icons/thinafilm.png?v=2',
+    starPeopleZeal: 'assets/tech-icons/era-1/era1-cultivation.png',
+    starHardenedDrill1: 'assets/resource-icons/resonantDrill.png',
     starFolk1: 'assets/tech-icons/era-1/era1-cultivation.png',
     starInfinite: 'assets/resource-icons/stardust.png',
+    starStardustReturn1: 'assets/resource-icons/stardust.png',
+    starStardustResonance: 'assets/resource-icons/stardust.png',
     starModuleHousing: 'assets/building-icons/era-5/era5-tenement.png',
     starFoldableStructure: 'assets/building-icons/era-8/era8-robotbay.png',
     starCompanyMaturity1: 'assets/company-icons/craftco.png',
@@ -1189,8 +1206,28 @@
     starSailHydro1: 'assets/resource-icons/starExplore.png',
     starSolarRing1: 'assets/building-icons/era-10/era10-solar-ring-v2.png',
     starRingRocketEngineCraft: 'assets/resource-icons/rocketEngine.png',
+    starRocketEngineCraft2: 'assets/resource-icons/rocketEngine.png',
+    starRocketEngineAssembly: 'assets/resource-icons/rocketEngine.png',
     starRingThetaFilmCraft: 'assets/resource-icons/thinafilm.png',
+    starRingThetaFilmCraft2: 'assets/resource-icons/thinafilm.png',
+    starThetaFilmAssembly: 'assets/resource-icons/thinafilm.png',
     starRingStrongPropellantCraft: 'assets/resource-icons/strongProp.png',
+    starRocketFuelRefine1: 'assets/resource-icons/rocketFuel.png',
+    starRocketFuelRefine2: 'assets/resource-icons/rocketFuel.png',
+    starRocketFuelRefine3: 'assets/resource-icons/rocketFuel.png',
+    starRocketFuelRefine4: 'assets/resource-icons/rocketFuel.png',
+    starRocketFuelRefinery: 'assets/resource-icons/rocketFuel.png',
+    starTiplatePress1: 'assets/resource-icons/tiplate.png',
+    starTiplatePress2: 'assets/resource-icons/tiplate.png',
+    starTiplatePress3: 'assets/resource-icons/tiplate.png',
+    starTiplatePress4: 'assets/resource-icons/tiplate.png',
+    starTiplatePressLine: 'assets/resource-icons/tiplate.png',
+    starSealbinAssembly1: 'assets/resource-icons/sealbin.png',
+    starSealbinAssembly2: 'assets/resource-icons/sealbin.png',
+    starSealbinAssembly3: 'assets/resource-icons/sealbin.png',
+    starSealbinAssembly4: 'assets/resource-icons/sealbin.png',
+    starSealbinAssemblyLine: 'assets/resource-icons/sealbin.png',
+    starSolarRingResonance: 'assets/building-icons/era-10/era10-solar-ring-v2.png',
     starExplore1: 'assets/resource-icons/starExplore.png',
     starExploreScholar1: 'assets/building-icons/era-7/era7-spacestation.png',
     starAlienOutput1: 'assets/building-icons/era-9/era9-mars-workshop.png',
@@ -1206,6 +1243,8 @@
   };
   function starPerkIconSrc(perk) {
     if (STAR_PERK_ICON_BY_ID[perk.id]) return STAR_PERK_ICON_BY_ID[perk.id];
+    if (/^starStardust/.test(perk.id)) return STAR_PERK_ICON_BY_ID.starStardustReturn1;
+    if (/^starHardenedDrill/.test(perk.id)) return STAR_PERK_ICON_BY_ID.starHardenedDrill1;
     if (/^starShellPress/.test(perk.id)) return STAR_PERK_ICON_BY_ID.starShellPress1;
     if (/^starFolk/.test(perk.id)) return STAR_PERK_ICON_BY_ID.starFolk1;
     if (/^starCompanyMaturity/.test(perk.id)) return STAR_PERK_ICON_BY_ID.starCompanyMaturity1;
@@ -1217,6 +1256,9 @@
     if (/^starExploreScholar/.test(perk.id)) return STAR_PERK_ICON_BY_ID.starExploreScholar1;
     if (/^starAlienOutput/.test(perk.id)) return STAR_PERK_ICON_BY_ID.starAlienOutput1;
     if (/^starTerraform/.test(perk.id)) return STAR_PERK_ICON_BY_ID.starTerraform1;
+    if (/^starExoskeleton/.test(perk.id)) return 'assets/resource-icons/militaryPower.png';
+    if (/^starOrbitalBombardment/.test(perk.id)) return 'assets/building-icons/era-7/era7-satellite.png';
+    if (/^starCloneOffensive/.test(perk.id)) return 'assets/building-icons/era-5/era5-military-academy.png';
     return '';
   }
 
@@ -1268,12 +1310,15 @@
       }
     }
     var starTrees = [
-      { key: 'shell', icon: '◐', accent: '#a8b8f0', ids: ['starShellPress1', 'starShellPress2', 'starShellPress3'] },
+      { key: 'shell', icon: '◐', accent: '#a8b8f0', ids: ['starShellPress1', 'starShellPress2', 'starShellPress3', 'starPeopleZeal', 'starHardenedDrill1', 'starHardenedDrill2'] },
       { key: 'civilization', icon: '✦', accent: '#b2a5ff', ids: ['starFolk1', 'starFolk2', 'starFolk3', 'starInfinite', 'starModuleHousing', 'starFoldableStructure'] },
       { key: 'enterprise', icon: '⌂', accent: '#d9b878', ids: ['starCompanyMaturity1', 'starCompanyMaturity2', 'starCompanyMaturity3', 'starCompanyResearchSynergy'] },
-      { key: 'industry', icon: '⚙', accent: '#70d0d9', ids: ['starSmelt1', 'starSmelt2', 'starSmelt3', 'starLaunchSpeed1', 'starNuclearHydro1', 'starNuclearHydro2', 'starNuclearHydro3', 'starSailHydro1', 'starSailHydro2', 'starSolarRing1', 'starSolarRing2', 'starSolarRing3', 'starRingRocketEngineCraft', 'starRingThetaFilmCraft', 'starRingStrongPropellantCraft'] },
-      { key: 'frontier', icon: '◎', accent: '#83d9ba', ids: ['starExplore1', 'starExplore2', 'starExplore3', 'starExploreScholar1', 'starExploreScholar2', 'starAlienOutput1', 'starAlienOutput2', 'starAlienOutput3', 'starTerraform1', 'starTerraform2'] },
-      { key: 'automation', icon: '◈', accent: '#dfb879', ids: ['earlyAutoBuildCore', 'earlyAutoBuildFood', 'earlyAutoBuildWorkshop', 'earlyAutoBuildTrade', 'earlyAutoBuildAcademy', 'earlyAutoBuildCivic', 'earlyAutoBuildFaith', 'earlyAutoBuildSpace'] }
+      { key: 'industry', icon: '⚙', accent: '#70d0d9', ids: ['starSmelt1', 'starSmelt2', 'starSmelt3', 'starSmelt4', 'starSmeltResonance', 'starLaunchSpeed1', 'starNuclearHydro1', 'starNuclearHydro2', 'starNuclearHydro3', 'starSailHydro1', 'starSailHydro2', 'starSolarRing1', 'starSolarRing2', 'starSolarRing3', 'starRingRocketEngineCraft', 'starRocketEngineCraft2', 'starRocketEngineAssembly', 'starRingThetaFilmCraft', 'starRingThetaFilmCraft2', 'starThetaFilmAssembly', 'starRingStrongPropellantCraft'] },
+      { key: 'interstellar_manufacturing', icon: '⚒', accent: '#d9b878', ids: ['starRocketFuelRefine1', 'starRocketFuelRefine2', 'starRocketFuelRefine3', 'starRocketFuelRefine4', 'starRocketFuelRefinery', 'starTiplatePress1', 'starTiplatePress2', 'starTiplatePress3', 'starTiplatePress4', 'starTiplatePressLine', 'starSealbinAssembly1', 'starSealbinAssembly2', 'starSealbinAssembly3', 'starSealbinAssembly4', 'starSealbinAssemblyLine', 'starSolarRingResonance'] },
+      { key: 'military', icon: '⚔', accent: '#e47c70', ids: ['starExoskeleton1', 'starExoskeleton2', 'starExoskeleton3', 'starExoskeleton4', 'starExoskeletonLine', 'starOrbitalBombardment1', 'starOrbitalBombardment2', 'starOrbitalBombardment3', 'starOrbitalBombardment4', 'starOrbitalBombardmentLine', 'starCloneOffensive1', 'starCloneOffensive2', 'starCloneOffensive3', 'starCloneOffensive4'] },
+      { key: 'frontier', icon: '◎', accent: '#83d9ba', ids: ['starExplore1', 'starExplore2', 'starExplore3', 'starExploreScholar1', 'starExploreScholar2', 'starAlienOutput1', 'starAlienOutput2', 'starAlienOutput3', 'starAlienOutput4', 'starAlienOutputResonance', 'starTerraform1', 'starTerraform2'] },
+      { key: 'automation', icon: '◈', accent: '#dfb879', ids: ['earlyAutoBuildCore', 'earlyAutoBuildFood', 'earlyAutoBuildWorkshop', 'earlyAutoBuildTrade', 'earlyAutoBuildAcademy', 'earlyAutoBuildCivic', 'earlyAutoBuildFaith', 'earlyAutoBuildSpace'] },
+      { key: 'stardust', icon: '✧', accent: '#80d8ed', ids: ['starStardustReturn1', 'starStardustReturn2', 'starStardustReturn3', 'starStardustResonance'] }
     ];
     for (var treeIndex = 0; treeIndex < starTrees.length; treeIndex++) {
       var starTree = starTrees[treeIndex], starTreeKey = 'ui.star_dome.tree.' + starTree.key + '.';
@@ -3008,6 +3053,14 @@
       mt.classList.toggle('locked', !mopen);
       mt.title = mopen ? '' : tr('ui.render.sync_tab_locks.unlock_after_your_first_prestige_or_after');
     }
+    /* 帷幕页签（2026-11-17 晚新增）：门 = 已掀过幕（meta.veil 非 null）。
+     * 与 game.js setTab 里那道是同一件事写两遍（理由同科技/市政：直达路径也要过门）。 */
+    var vl = document.querySelector('.tab[data-tab="veil"]');
+    if (vl) {
+      var vopen = !!(meta() && meta().veil);
+      vl.classList.toggle('locked', !vopen);
+      vl.title = vopen ? '' : tr('ui.pane.veil.locked_hint');
+    }
     var ch = document.querySelector('.tab[data-tab="challenges"]');
     if (ch) {
       var chopen = !!(meta() && meta().shopUnlocked);
@@ -3139,6 +3192,8 @@
           if (node.dataset.tab === 'faith' &&
               !(SB.economy && SB.economy.resUnlocked(res(), 'faith'))) return;
           if (node.dataset.tab === 'star-map' && !(res() && (res().shellOpened || res().breakSettled) && res().shell <= 0)) return;
+          /* 帷幕页的门 = 已掀过幕（meta.veil）。与 setTab 里那道重复是刻意的。 */
+          if (node.dataset.tab === 'veil' && !(meta() && meta().veil)) return;
           /* 高亮不在这里翻 —— 它是 setTab 的一部分（见 game.js 那段注释：
            * 弹窗里那条直达科技的路径也走 setTab，高亮写在事件里就会漏掉那条路）。 */
           SB.game.setTab(node.dataset.tab);

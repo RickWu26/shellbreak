@@ -1,5 +1,8 @@
-/* 帷幕之后 · 飞升路径界面（2026-11-17 · VEIL_HUB_SPEC v0.1）
- * 外层三张路径卡 + 内层飞升操作弹窗。用主题变量，昼夜自适应；减少动态偏好下无动画。 */
+/* 帷幕之后 · 飞升路径页（2026-11-17 · VEIL_HUB_SPEC v0.1）
+ * ⚠️ 2026-11-17 晚形态变更：原先是 fixed 全屏遮罩（.veil-hub-layer + .veil-modal），
+ *    现改为独立页签 #pane-veil 内的**流式内容** —— 两层的定位/背景/backdrop 全部撤掉，
+ *    层级由页签条与卡片标题负责，这里只排内容。
+ * 用主题变量，昼夜自适应；减少动态偏好下无动画。 */
 
 /* ── 底栏掀幕按钮 ── */
 .veil-foot{margin-top:6px}
@@ -8,40 +11,48 @@
 .big.veil-break:hover{filter:brightness(1.1)}
 
 /* ── 外层：帷幕路径主界面 ── */
-.veil-hub-layer{position:fixed;inset:0;z-index:1180;display:flex;align-items:center;justify-content:center;
-  padding:20px;background:radial-gradient(ellipse at 50% 30%,rgba(80,40,120,.32),rgba(4,7,16,.94) 72%);
-  backdrop-filter:blur(4px)}
-.veil-hub-layer.hidden,.veil-modal.hidden{display:none}
-.vh-inner{width:100%;max-width:1020px;max-height:92vh;overflow:auto}
+/* ⚠️ 页签形态下的实色底板：原先这些文字压在全屏遮罩的暗底上，遮罩一撤就落在
+ * 页面背景图（雪山）上 —— 截图实测「帷幕之后」与说明行对比不足、发糊。
+ * 与 .vm-box 取同一个 --panel，两个视图看起来才是同一层东西。 */
+.vh-inner{width:100%;background:var(--panel,#0d1725);border:1px solid var(--line,#20344a);
+  border-radius:16px;padding:18px 20px 20px}
 .vh-hd{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:6px}
 .vh-hd h2{margin:0;font-size:24px;letter-spacing:.14em;
   background:linear-gradient(90deg,#c9a6ff,#8fd9ff);-webkit-background-clip:text;background-clip:text;color:transparent}
 .vh-sub{margin:4px 0 0;font-size:13px;color:var(--dim,#8fa9bd)}
-.vh-close,.vm-close{background:transparent;border:1px solid var(--line,#20344a);color:var(--dim,#8fa9bd);
-  width:34px;height:34px;border-radius:8px;font-size:20px;line-height:1;cursor:pointer;flex:none}
-.vh-close:hover,.vm-close:hover{border-color:#a98bff;color:#c9a6ff}
+/* 页签形态后不再有「关闭」语义：右上是飞升点余额，二级视图左上角是「返回帷幕」。 */
+.vh-points{flex:none;text-align:right;padding:6px 12px;border-radius:10px;
+  border:1px solid rgba(160,120,230,.34);background:rgba(112,68,162,.14)}
+.vh-points span{display:block;font-size:10px;letter-spacing:.14em;color:var(--dim2,#64809a)}
+.vh-points b{font-size:19px;color:#c9a6ff;font-variant-numeric:tabular-nums}
+.vm-back{background:transparent;border:1px solid var(--line,#20344a);color:var(--dim,#8fa9bd);
+  padding:6px 12px;border-radius:8px;font-size:12px;cursor:pointer;flex:none}
+.vm-back:hover{border-color:#a98bff;color:#c9a6ff}
 .vh-note{font-size:12px;color:var(--dim2,#64809a);margin:0 0 18px}
 .vh-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
 .vh-card{display:flex;flex-direction:column;background:var(--panel,#0d1725);
   border:1px solid var(--line,#20344a);border-radius:14px;overflow:hidden;padding:0;cursor:pointer;
   text-align:left;color:var(--txt,#e6f2f8);transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
-.vh-card.sealed{opacity:.62;cursor:default;filter:saturate(.5)}
+.vh-card.sealed{opacity:.62;cursor:not-allowed;filter:saturate(.5)}
 .vh-card.open:hover{transform:translateY(-3px);border-color:#a98bff;box-shadow:0 12px 30px rgba(120,70,190,.28)}
 .vh-card-img{width:100%;aspect-ratio:1/1;background-size:cover;background-position:center;background-repeat:no-repeat}
 .vh-card-body{padding:12px 14px 15px}
-.vh-card-body h3{margin:0 0 3px;font-size:17px;letter-spacing:.06em}
-.vh-card-sub{margin:0 0 9px;font-size:11px;color:var(--dim2,#64809a)}
+.vh-card-body h3{margin:0 0 2px;font-size:17px;letter-spacing:.06em}
+.vh-card-focus{margin:0 0 9px;font-size:12px;color:#9fb8c9;letter-spacing:.04em}
 .vh-card-state{margin:0;font-size:12px;color:var(--dim,#8fa9bd)}
 .vh-card-state.on{color:#8fd9ff;font-weight:700}
+.vh-card.wip{cursor:not-allowed;filter:saturate(.55)}
+.vh-card.wip .vh-card-img{opacity:.82}
+.vh-card-state.wip{color:#c9a6ff;font-weight:700}
 
 /* ── 内层：飞升操作弹窗 ── */
-.veil-modal{position:fixed;inset:0;z-index:1200;display:flex;align-items:center;justify-content:center;
-  padding:20px;background:rgba(3,6,14,.86);backdrop-filter:blur(5px)}
-.veil-modal-box{width:100%;max-width:1080px;max-height:94vh;overflow:auto;
+.vm-box{width:100%;
   background:var(--panel,#0d1725);border:1px solid var(--line,#20344a);border-radius:16px;padding:18px 20px 22px}
-.vm-hd{display:flex;align-items:center;justify-content:space-between;gap:16px;
+/* 页签形态：标题跟在「← 返回帷幕」右侧、左对齐。原先是 space-between 把标题推到右端
+ * （弹窗时代左侧是 × 按钮，两端分居才合理），现在左侧是返回按钮，标题该紧跟其后。 */
+.vm-hd{display:flex;align-items:center;justify-content:flex-start;gap:14px;
   border-bottom:1px solid var(--line,#20344a);padding-bottom:12px;margin-bottom:16px}
-.vm-hd h2{margin:0;font-size:19px;letter-spacing:.08em;color:#c9a6ff}
+.vm-hd h2{margin:0;font-size:18px;letter-spacing:.04em;color:#c9a6ff}
 .vm-placeholder{padding:40px 20px;text-align:center;color:var(--dim,#8fa9bd)}
 .vm-placeholder h3{font-size:20px;color:var(--txt,#e6f2f8)}
 .vm-todo{font-size:12px;color:var(--dim2,#64809a);margin-top:24px}
@@ -51,15 +62,32 @@
 .vo-rig{position:relative;width:100%;max-width:420px;margin:0 auto;aspect-ratio:300/460;
   background:var(--panel2,#111e2e);border:1px solid var(--line,#20344a);border-radius:10px;overflow:hidden}
 .vo-body{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;display:block}
-.vo-pt{position:absolute;transform:translate(-50%,-50%);width:44px;height:44px;border-radius:50%;
-  border:1px solid var(--line,#20344a);background:rgba(8,16,26,.82);color:var(--dim,#8fa9bd);
-  font-size:11px;font-variant-numeric:tabular-nums;cursor:pointer;padding:0;z-index:2;
-  display:grid;place-items:center;transition:transform .16s ease,border-color .16s ease,background .16s ease}
-.vo-pt:hover{transform:translate(-50%,-50%) scale(1.12)}
-.vo-pt.sel{border-color:#c9a6ff;color:#c9a6ff;box-shadow:0 0 0 2px rgba(201,166,255,.25)}
-.vo-pt.lv1{border-color:#7fd0c0;color:#7fd0c0}
-.vo-pt.lv2{border-color:#7fb8e8;color:#7fb8e8}
-.vo-pt.lv3{border-color:#ffb84d;color:#ffb84d;background:rgba(60,40,10,.85)}
+/* 热区 = 圆形徽章：圆内嵌部位缩略图 + 右上角编号角标。
+ * 直径用 13.3% 而不是固定 px：rig 宽 420 时 = 55.9px，窄到 350 时 = 46.6px，
+ * 都能保证「心-胃」这对最近点（圆心距 = rig 宽 15.33%）不碰。
+ * ⚠️ 不能再大：55.9px 时两点间隙 8.5px 已是极限，62px 以上会相切。 */
+.vo-pt{position:absolute;transform:translate(-50%,-50%);width:13.3%;aspect-ratio:1;
+  box-sizing:border-box;border-radius:50%;border:1px solid var(--line,#20344a);
+  background:#0a1420;cursor:pointer;padding:0;z-index:2;
+  box-shadow:0 2px 6px rgba(0,0,0,.45);
+  transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease}
+/* 缩略图内缩 8%：十张部位图本身是「方形暗框+中央发光部件」的徽章稿，
+ * 铺满会把圆形轮廓吃掉（07/09 尤其明显，看着像方块）→ 留一圈按钮底色当内壁。 */
+.vo-pt .pi{position:absolute;inset:8%;border-radius:50%;overflow:hidden;
+  background-position:center;background-size:cover;background-repeat:no-repeat}
+/* 编号角标放在圈内右上：压条会盖掉部件底部 1/4（实测 07 下框 / 09 下端 / 08 下缘全被吃），
+ * 外挂又悬在身体插画上，收进圈内是最干净的做法。 */
+.vo-pt .pn{position:absolute;top:4%;right:4%;font-size:9px;line-height:1;padding:1px 3px;
+  border-radius:5px;background:rgba(8,16,26,.92);color:#e8f4ff;
+  border:1px solid rgba(140,172,200,.55);font-variant-numeric:tabular-nums}
+.vo-pt:hover{transform:translate(-50%,-50%) scale(1.1)}
+.vo-pt.lv0 .pi{filter:saturate(.42) brightness(.8)}
+.vo-pt.lv1{border-color:#7fd0c0}
+.vo-pt.lv2{border-color:#7fb8e8}
+.vo-pt.lv3{border-color:#ffb84d;box-shadow:0 0 7px rgba(255,184,77,.5),0 2px 6px rgba(0,0,0,.5)}
+/* 选中只加外环、不碰 border-color：否则紫色会顶掉 lv1/2/3 的等级色，
+ * 满级（金）和一级（青）选中后长得一样，等级信息就丢了。 */
+.vo-pt.sel{outline:2px solid rgba(201,166,255,.65);outline-offset:2px}
 .vo-progress{margin-top:10px;text-align:center;font-size:12px;color:var(--dim,#8fa9bd)}
 .vo-progress b{color:#7fd0c0;font-size:14px}
 .vo-detail{background:var(--panel2,#111e2e);border:1px solid var(--line,#20344a);border-radius:12px;padding:16px}
@@ -67,6 +95,13 @@
   border-bottom:1px solid var(--line,#20344a);padding-bottom:10px;margin-bottom:12px}
 .vo-detail-hd h3{margin:0;font-size:16px;color:var(--txt,#e6f2f8)}
 .vo-part{font-size:11px;color:var(--dim2,#64809a)}
+/* 部位大图与「当前效果」卡同排（2026-11-17 加）：图是 512² webp，132px 显示。
+ * 图用 background-image（见 veil-hub-ui.js 注释），所以这里只给盒子和 no-repeat。 */
+.vo-art-row{display:flex;gap:12px;align-items:stretch;margin-bottom:10px}
+.org-fig{width:132px;height:132px;flex:0 0 auto;border-radius:10px;border:1px solid var(--line,#20344a);
+  background:var(--panel,#0d1725) center/cover no-repeat;box-shadow:inset 0 0 26px rgba(0,0,0,.55)}
+.vo-art-col{flex:1;min-width:0}
+.vo-art-col .vo-effect{margin-bottom:0;height:100%;box-sizing:border-box}
 .vo-stages{display:flex;gap:8px;margin-bottom:14px}
 .vo-stage{flex:1;text-align:center;padding:6px 0;border:1px solid var(--line,#20344a);border-radius:6px;
   font-size:12px;color:var(--dim2,#64809a)}
@@ -75,9 +110,11 @@
 .vo-effect{background:var(--panel,#0d1725);border:1px solid var(--line,#20344a);border-radius:8px;
   padding:10px 12px;margin-bottom:10px}
 .vo-effect.next{border-style:dashed;opacity:.9}
+/* 未接枝档（2026-11-17）：三级全部展开后，比当前档再退一层，但正文一字不少、保持可读。
+ * 若哪天要「锁住」后面的等级，只需把 opacity 调低 —— 但用户明确要求能预览，别锁。 */
+.vo-effect.dim{border-style:dashed;opacity:.62}
 .vo-effect-hd{font-size:11px;letter-spacing:.08em;color:var(--dim,#8fa9bd);margin-bottom:5px}
-.vo-effect p{margin:0 0 5px;font-size:13px;line-height:1.6;color:var(--txt,#e6f2f8)}
-.vo-effect code{font-size:11px;color:#7fd0c0;word-break:break-all}
+.vo-effect p{margin:0;font-size:13px;line-height:1.6;color:var(--txt,#e6f2f8)}
 .vo-red{margin:10px 0;padding:10px 12px;border-left:2px solid #e2788f;
   font-size:13px;color:#e2788f;letter-spacing:.04em;font-style:italic}
 .vo-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;
@@ -93,30 +130,9 @@ html[data-ui-theme="day"] .vo-pt{background:rgba(255,255,255,.9)}
 @media(max-width:760px){
   .vh-cards{grid-template-columns:1fr}
   .vo-rig-wrap{grid-template-columns:1fr}
+  /* 窄屏：132px 的图会把效果卡挤成一条，缩到 96px 仍能看清是哪个部位 */
+  .org-fig{width:96px;height:96px}
 }
 @media(prefers-reduced-motion:reduce){
   .vh-card,.vo-pt{transition:none}
-}
-
-/* ── 轮回商店页的常驻入口（2026-11-17 · 用户静态核查 #4）───────────────────────
- * 掀过幕之后，帷幕主界面不能只在「刚掀完那一次」自动弹出，否则关掉即失联。
- * 版式沿用 meta-legacy 的卡片语言（同页同层级，不另造视觉体系）。 */
-.meta-veil{margin:14px 0 4px;padding:14px 16px;border-radius:14px;
-  border:1px solid rgba(160,120,230,.34);
-  background:linear-gradient(135deg,rgba(112,68,162,.16),rgba(20,14,34,.5));
-  display:grid;grid-template-columns:1fr auto;gap:12px 18px;align-items:center}
-.meta-veil-hd h2{margin:2px 0 3px;font-size:18px;letter-spacing:.12em;color:var(--txt,#e6f2f8)}
-.meta-veil-kicker{font-size:10px;letter-spacing:.18em;color:#a98bff;text-transform:uppercase}
-.meta-veil-hd p{margin:0;font-size:12px;color:var(--dim2,#64809a)}
-.meta-veil-stats{display:flex;gap:18px;grid-column:1 / -1;flex-wrap:wrap}
-.meta-veil-stats>div{min-width:96px}
-.meta-veil-stats span{display:block;font-size:11px;color:var(--dim2,#64809a)}
-.meta-veil-stats b{font-size:16px;color:#c9a6ff}
-.meta-veil-open{grid-row:1;grid-column:2;align-self:center;cursor:pointer;
-  padding:9px 18px;border-radius:10px;font-size:13px;font-weight:700;color:#fff;
-  border:1px solid rgba(200,160,255,.42);background:linear-gradient(100deg,#7044a2,#a45b9b)}
-.meta-veil-open:hover{filter:brightness(1.12)}
-@media (max-width:640px){
-  .meta-veil{grid-template-columns:1fr}
-  .meta-veil-open{grid-row:auto;grid-column:1;width:100%}
 }

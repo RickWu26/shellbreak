@@ -56,6 +56,9 @@
     /* 局外商店页（meta 页）：首次合格轮回开放轮回点商店，首座卫星永久开放星屑商店。
      * 直达路径也必须经过同一门；挑战入口仍另行要求真实轮回解锁。 */
     if (k === 'meta' && !meta.shopUnlocked && !stardustShopUnlocked()) return;
+    /* 帷幕页签（2026-11-17 晚新增）：门 = 已掀过幕（meta.veil）。与 render.js 的
+     * tab onclick / syncTabLocks 是同一件事写三遍，理由同上面几道：直达路径也要过门。 */
+    if (k === 'veil' && !(meta && meta.veil)) return;
     if (k === 'challenges' && !meta.shopUnlocked) return;
     /* 成就页签（2026-10-24 从「挑战与成就」拆出）：与挑战**同一道门**
      * （首次轮回开放），直达路径（弹窗/测试）也必须过它。 */
@@ -64,6 +67,9 @@
      * 与上面几道闸同一套写法：直达路径（弹窗/测试）走 setTab 也进不去。 */
     if (k === 'faith' && S && !(SB.economy && SB.economy.resUnlocked(S, 'faith'))) return;
     if (k === 'star-map' && S && !(S.shellOpened && S.shell <= 0)) return;
+    /* 切走帷幕页时把页内视图退回大厅（不碰 DOM，只改视图状态）：
+     * 下次点「帷幕」总是先看到三条路径，而不是上次停留的某个装配台。 */
+    if (k !== 'veil' && SB.ui.veilHub && SB.ui.veilHub.leave) SB.ui.veilHub.leave();
     tab = k; dirty = true;
     var keys = SB.ui.render.PANE_KEYS;
     for (var i = 0; i < keys.length; i++) {
@@ -3074,26 +3080,54 @@
       ? '<div class="note">其中本局尚未结算：<b>' + pv.pendingTide.toFixed(2) + ' 轮回点</b> + <b>'
         + Math.round(pv.pendingStar) + ' 星屑</b>（掀幕时一并计入飞升点）。</div>'
       : '';
+    var pathName = function (id) {
+      var p = (SB.ui.veilHub && SB.ui.veilHub.PATHS ? SB.ui.veilHub.PATHS : []).filter(function (x) { return x.id === id; })[0];
+      return p ? p.name : id;
+    };
+    /* 路径选择区（2026-11-18 用户拍板「玩家自己选，暂时只能选机械飞升」）：
+     * 有可选 → 原生 radio 单选，默认选中第一项（当前只有 si）；其余未实装项置灰不可选。
+     * 池空（第 2 次起，si 已开）→ 不开新路径、不放单选区，只写一行灰字说明，飞升点照给。*/
+    var pickBlock = '';
+    var sel = pv.selectable || [];
+    if (sel.length) {
+      var opts = '';
+      for (var i = 0; i < sel.length; i++) {
+        opts += '<label style="display:block;padding:8px 10px;margin:6px 0;border:1px solid var(--line);border-radius:8px;cursor:pointer">'
+          + '<input type="radio" name="veilPath" value="' + sel[i] + '"' + (i === 0 ? ' checked' : '')
+          + ' style="margin-right:8px;vertical-align:middle"><b>' + pathName(sel[i]) + '</b></label>';
+      }
+      /* 尚未实装的路径也列出来，明确告知玩家「制作中、这次选不了」，避免只给一个选项却不说为什么。 */
+      var wipNames = (SB.ui.veilHub && SB.ui.veilHub.PATHS ? SB.ui.veilHub.PATHS : [])
+        .filter(function (p) { return p.wip && sel.indexOf(p.id) < 0; })
+        .map(function (p) { return p.name; });
+      var wipTip = wipNames.length
+        ? '<div class="note" style="color:var(--dim);margin-top:2px">另两条路径（' + wipNames.join('、')
+          + '）仍在制作中，暂不可选。</div>'
+        : '';
+      pickBlock = '<div class="note" style="margin-top:10px"><b>选择本次要开启的飞升路径：</b></div>'
+        + opts + wipTip;
+    } else {
+      pickBlock = '<div class="note" style="color:var(--dim);margin-top:10px">当前没有可开启的新路径（另两条制作中）；本次仍可获得飞升点，但不开启新路径。</div>';
+    }
     var body = '<div class="warnbox">当幕布掀起，本重轮回的一切将归零重来：'
       + '<b>' + pv.cycleTide.toFixed(2) + ' 轮回点</b>、<b>' + Math.round(pv.cycleStar)
       + ' 星屑</b>，以及潮汐之树、星屑商店与四项旧日遗产。本局也从 ERA1 重开。</div>'
       + pendingLine
       + '<div class="note">你将获得 <b>' + pv.points.toFixed(2) + ' 飞升点</b>，进入第 <b>' + pv.count
       + '</b> 重帷幕。</div>'
-      + '<div class="note">' + (pv.allOpen
-        ? '三条飞升路径已全部开启，可随时进入。'
-        : '本次将开启一条新路径：<b>' + (SB.ui.veilHub ? (function () {
-            var p = SB.ui.veilHub.PATHS.filter(function (x) { return x.id === pv.nextPath; })[0];
-            return p ? p.name : pv.nextPath;
-          })() : pv.nextPath) + '</b>。')
-      + '</div>'
+      + pickBlock
       + '<div class="note">保留：成就、挑战记录、轮回次数、商店解锁、自动研究设置。</div>';
     SB.ui.render.confirmPanel({
       title: '掀起帘幕 · 进入大轮回？',
       body: body, ok: '掀起帘幕', danger: true,
       onOk: function () {
+        /* 在 hideModal 之前把选中值读出来 —— confirmPanel 的 okBtn.onclick 先 hideModal()
+         * 再调 onOk()；虽然 hideModal 不清空 innerHTML，但显式先读更稳、也便于无 DOM 的桩。 */
+        var chosen = null;
+        var checked = document.querySelector && document.querySelector('input[name="veilPath"]:checked');
+        if (checked && checked.value) chosen = checked.value;
         try {
-          var r = SB.prestige.doVeil(S0, emit);
+          var r = SB.prestige.doVeil(S0, emit, chosen);
           /* 掀幕后自动打开帷幕主界面，让玩家立刻看到新解锁的路径（下位稿 §7「掀幕后引导」）。 */
           if (r && SB.ui.veilHub && SB.ui.veilHub.open) SB.ui.veilHub.open();
         } catch (err) {

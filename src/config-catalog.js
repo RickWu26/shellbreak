@@ -199,7 +199,7 @@
   /* 星屑商店：星之至宝节点等级写入 meta.starPerks；apply 与 recipe 分别提供数值和工艺效果。 */
   var STAR_PERKS = [
     /* ── 天壳压制（2026-11-05 用户拍板）──
-     * 星屑商店里唯一影响「破壳前」的一组，定位是留给多周目的长期投资。
+     * 星屑商店里影响破壳阶段的一组，定位是留给多周目的长期投资。
      * ⚠️ 复用 perk.thin（线性 −10%/级）：freshRun 的壳厚公式、challenges.shellTarget、
      *    state-migrate 的两段壳厚迁移全都读它 ⇒ 不另开字段，避免同一口径写四遍。
      *    与潮汐之树「薄壳之智」(apply thin:2) **加算、无硬顶**：满配 thin=5 ⇒ 壳厚 250000。
@@ -210,13 +210,21 @@
     { id: 'starShellPress1', name: '天外重压 I', desc: '每局开局天壳厚度 −10%（下一局起生效）', kind: 'shell', layer: 1, n: 1, cost: 4, apply: { thin: 1 } },
     { id: 'starShellPress2', name: '天外重压 II', desc: '天壳厚度再 −10%（累计 −20%，下一局起生效）', kind: 'shell', layer: 2, nest: 'starShellPress1', n: 1, cost: 8, apply: { thin: 1 } },
     { id: 'starShellPress3', name: '天外重压 III', desc: '天壳厚度再 −10%（累计 −30%，下一局起生效）', kind: 'shell', layer: 3, nest: 'starShellPress2', n: 1, cost: 16, apply: { thin: 1 } },
+    { id: 'starPeopleZeal', name: '民众热忱', desc: '基础削壳速度 +20%（仅自动削壳段，天穹钻机不变）', kind: 'shell', layer: 3, nest: 'starShellPress2', n: 1, cost: 20 },
+    { id: 'starHardenedDrill1', name: '硬化钻头 I', desc: '天穹钻机破壳速度 +20%', kind: 'shell', layer: 3, nest: 'starShellPress2', n: 1, cost: 15 },
+    { id: 'starHardenedDrill2', name: '硬化钻头 II', desc: '天穹钻机破壳速度再 +20%（累计 +40%）', kind: 'shell', layer: 4, nest: 'starHardenedDrill1', n: 1, cost: 30 },
 
     { id: 'starFolk1', name: '繁星劳作 I', desc: '族民岗位产出 +10%', kind: 'folk', layer: 1, n: 1, cost: 1, apply: { starFolk: 0.10 } },
     { id: 'starFolk2', name: '繁星劳作 II', desc: '族民岗位产出额外 +10%（累计 +20%）', kind: 'folk', layer: 2, nest: 'starFolk1', n: 1, cost: 2, apply: { starFolk: 0.10 } },
     { id: 'starFolk3', name: '繁星劳作 III', desc: '族民岗位产出再额外 +10%（累计 +30%）', kind: 'folk', layer: 3, nest: 'starFolk2', n: 1, cost: 4, apply: { starFolk: 0.10 } },
-    { id: 'starInfinite', name: '轮回共鸣', desc: '轮回商店无限等级商品的每级效果 +100%；可重复强化', kind: 'infinite', layer: 4, nest: 'starFolk3', n: Infinity, cost: 8, apply: { starInfinite: 1 } },
+    { id: 'starInfinite', name: '轮回共鸣', desc: '轮回商店无限等级商品的每级效果 +100%；可重复强化', kind: 'infinite', layer: 4, nest: 'starFolk3', n: Infinity, cost: 8, scale: 1.5, apply: { starInfinite: 1 } },
     { id: 'starModuleHousing', name: '模块住房', desc: '每级廉租社区额外提供 +1 人口上限', kind: 'housing', layer: 3, nest: 'starFolk2', n: 1, cost: 5, apply: { starModuleHousing: 1 } },
     { id: 'starFoldableStructure', name: '可折叠结构', desc: '每级机器人充能站额外维持 +1 机器人，并额外消耗 2 热液能/秒', kind: 'robot', layer: 4, nest: 'starModuleHousing', n: 1, cost: 5, apply: { starFoldableStructure: 1 } },
+
+    { id: 'starStardustReturn1', name: '星尘回流 I', desc: '轮回结算星屑收益 +5%', kind: 'stardust', layer: 1, n: 1, cost: 8, apply: { starStardustYield: 0.05 } },
+    { id: 'starStardustReturn2', name: '星尘回流 II', desc: '轮回结算星屑收益再 +5%（累计 +10%）', kind: 'stardust', layer: 2, nest: 'starStardustReturn1', n: 1, cost: 16, apply: { starStardustYield: 0.05 } },
+    { id: 'starStardustReturn3', name: '星尘回流 III', desc: '轮回结算星屑收益再 +5%（累计 +15%）', kind: 'stardust', layer: 3, nest: 'starStardustReturn2', n: 1, cost: 32, apply: { starStardustYield: 0.05 } },
+    { id: 'starStardustResonance', name: '星尘共鸣', desc: '轮回结算星屑收益 +1%/级；可重复强化', kind: 'stardust', layer: 4, nest: 'starStardustReturn3', n: Infinity, cost: 20, scale: 1.6, apply: { starStardustYield: 0.01 } },
 
     { id: 'starCompanyMaturity1', name: '快速扩张 I', desc: '公司升级所需时间 −10%', kind: 'company', layer: 1, n: 1, cost: 1, apply: { starCompanyMaturity: 0.10 } },
     { id: 'starCompanyMaturity2', name: '快速扩张 II', desc: '公司升级时间额外 −10%（累计 −20%）', kind: 'company', layer: 2, nest: 'starCompanyMaturity1', n: 1, cost: 2, apply: { starCompanyMaturity: 0.10 } },
@@ -225,6 +233,8 @@
     { id: 'starSmelt1', name: '星炉淬炼 I', desc: '精铁、钢与生物材料研究所产出的 θ金属 +10%', kind: 'industry', layer: 1, n: 1, cost: 2, apply: { starSmelt: 0.10 } },
     { id: 'starSmelt2', name: '星炉淬炼 II', desc: 'θ金属产出额外 +10%（累计 +20%）', kind: 'industry', layer: 2, nest: 'starSmelt1', n: 1, cost: 4, apply: { starSmelt: 0.10 } },
     { id: 'starSmelt3', name: '星炉淬炼 III', desc: 'θ金属产出再额外 +10%（累计 +30%）', kind: 'industry', layer: 3, nest: 'starSmelt2', n: 1, cost: 8, apply: { starSmelt: 0.10 } },
+    { id: 'starSmelt4', name: '星炉淬炼 IV', desc: '精铁、钢与生物材料研究所产出的 θ金属再 +10%（累计 +40%）', kind: 'industry', layer: 4, nest: 'starSmelt3', n: 1, cost: 16, apply: { starSmelt: 0.10 } },
+    { id: 'starSmeltResonance', name: '星炉回响', desc: '精铁、钢与生物材料研究所产出的 θ金属 +2%/级；可重复强化', kind: 'industry', layer: 5, nest: 'starSmelt4', n: Infinity, cost: 25, scale: 1.6, apply: { starSmelt: 0.02 } },
     { id: 'starLaunchSpeed1', name: '快速装配', desc: '所有发射器制造周期 −1 秒', kind: 'industry', layer: 2, nest: 'starSmelt1', n: 1, cost: 10, apply: { starLaunchSpeed: 1 } },
     { id: 'starNuclearHydro1', name: '核电，轻而易举啊 I', desc: '核热厂热液能产出 +10%', kind: 'industry', layer: 1, n: 1, cost: 1, apply: { starNuclearHydro: 0.10 } },
     { id: 'starNuclearHydro2', name: '核电，轻而易举啊 II', desc: '核热厂热液能产出额外 +10%（累计 +20%）', kind: 'industry', layer: 2, nest: 'starNuclearHydro1', n: 1, cost: 2, apply: { starNuclearHydro: 0.10 } },
@@ -235,7 +245,11 @@
     { id: 'starSolarRing2', name: '星环共振 II', desc: '太阳星环 θ金属产出额外 +10%（累计 +20%）', kind: 'industry', layer: 2, nest: 'starSolarRing1', n: 1, cost: 4, apply: { starSolarRing: 0.10 } },
     { id: 'starSolarRing3', name: '星环共振 III', desc: '太阳星环 θ金属产出再额外 +10%（累计 +30%）', kind: 'industry', layer: 3, nest: 'starSolarRing2', n: 1, cost: 8, apply: { starSolarRing: 0.10 } },
     { id: 'starRingRocketEngineCraft', name: '火箭引擎工艺增效', desc: '火箭引擎工艺效率 +30%', kind: 'industry', layer: 2, nest: 'starSolarRing1', n: 1, cost: 2, recipe: 'craft_rocketengine', rmul: 0.30 },
+    { id: 'starRocketEngineCraft2', name: '火箭引擎总装 II', desc: '火箭引擎工艺效率额外 +30%（累计 +60%）', kind: 'industry', layer: 3, nest: 'starRingRocketEngineCraft', n: 1, cost: 10, recipe: 'craft_rocketengine', rmul: 0.30 },
+    { id: 'starRocketEngineAssembly', name: '火箭引擎总装线', desc: '火箭引擎工艺效率 +5%/级；可重复强化', kind: 'industry', layer: 4, nest: 'starRocketEngineCraft2', n: Infinity, cost: 25, scale: 1.6, recipe: 'craft_rocketengine', rmul: 0.05 },
     { id: 'starRingThetaFilmCraft', name: '西塔金属薄膜工艺增效', desc: 'θ金属自适应薄膜工艺效率 +30%', kind: 'industry', layer: 3, nest: 'starSolarRing2', n: 1, cost: 4, recipe: 'craft_thinafilm', rmul: 0.30 },
+    { id: 'starRingThetaFilmCraft2', name: 'θ金属薄膜工艺增效 II', desc: 'θ金属自适应薄膜工艺效率额外 +30%（累计 +60%）', kind: 'industry', layer: 4, nest: 'starRingThetaFilmCraft', n: 1, cost: 10, recipe: 'craft_thinafilm', rmul: 0.30 },
+    { id: 'starThetaFilmAssembly', name: '薄膜连续镀制', desc: 'θ金属自适应薄膜工艺效率 +5%/级；可重复强化', kind: 'industry', layer: 5, nest: 'starRingThetaFilmCraft2', n: Infinity, cost: 25, scale: 1.6, recipe: 'craft_thinafilm', rmul: 0.05 },
     { id: 'starRingStrongPropellantCraft', name: '强工质火箭工艺增效', desc: '强工质火箭引擎工艺效率 +30%', kind: 'industry', layer: 4, nest: 'starSolarRing3', n: 1, cost: 8, recipe: 'craft_strongprop', rmul: 0.30 },
 
     { id: 'starExplore1', name: '深空观测阵列 I', desc: '卫星与空间站提供的星空探索 +10%', kind: 'frontier', layer: 1, n: 1, cost: 1, apply: { starExplore: 0.10 } },
@@ -246,8 +260,41 @@
     { id: 'starAlienOutput1', name: '异星工造网 I', desc: '异星建筑产出 +10%', kind: 'frontier', layer: 1, n: 1, cost: 2, apply: { starAlienOutput: 0.10 } },
     { id: 'starAlienOutput2', name: '异星工造网 II', desc: '异星建筑产出额外 +10%（累计 +20%）', kind: 'frontier', layer: 2, nest: 'starAlienOutput1', n: 1, cost: 4, apply: { starAlienOutput: 0.10 } },
     { id: 'starAlienOutput3', name: '异星工造网 III', desc: '异星建筑产出再额外 +10%（累计 +30%）', kind: 'frontier', layer: 3, nest: 'starAlienOutput2', n: 1, cost: 8, apply: { starAlienOutput: 0.10 } },
+    { id: 'starAlienOutput4', name: '异星工造网 IV', desc: '异星建筑产出再 +10%（累计 +40%）', kind: 'frontier', layer: 4, nest: 'starAlienOutput3', n: 1, cost: 16, apply: { starAlienOutput: 0.10 } },
+    { id: 'starAlienOutputResonance', name: '异星工造共鸣', desc: '异星建筑产出 +2%/级；可重复强化', kind: 'frontier', layer: 5, nest: 'starAlienOutput4', n: Infinity, cost: 25, scale: 1.6, apply: { starAlienOutput: 0.02 } },
     { id: 'starTerraform1', name: '行星重构加速 I', desc: '恩克拉多斯与泰拉改造时间 −10%', kind: 'frontier', layer: 2, nest: 'starAlienOutput1', n: 1, cost: 5, apply: { starTerraform: 0.10 } },
     { id: 'starTerraform2', name: '行星重构加速 II', desc: '恩克拉多斯与泰拉改造时间额外 −10%（累计 −20%）', kind: 'frontier', layer: 3, nest: 'starTerraform1', n: 1, cost: 5, apply: { starTerraform: 0.10 } },
+
+    { id: 'starRocketFuelRefine1', name: '火箭燃料精炼 I', desc: '火箭燃料工艺效率 +15%', kind: 'industry', layer: 1, n: 1, cost: 4, recipe: 'craft_rocketfuel', rmul: 0.15 },
+    { id: 'starRocketFuelRefine2', name: '火箭燃料精炼 II', desc: '火箭燃料工艺效率额外 +15%（累计 +30%）', kind: 'industry', layer: 2, nest: 'starRocketFuelRefine1', n: 1, cost: 8, recipe: 'craft_rocketfuel', rmul: 0.15 },
+    { id: 'starRocketFuelRefine3', name: '火箭燃料精炼 III', desc: '火箭燃料工艺效率再 +15%（累计 +45%）', kind: 'industry', layer: 3, nest: 'starRocketFuelRefine2', n: 1, cost: 12, recipe: 'craft_rocketfuel', rmul: 0.15 },
+    { id: 'starRocketFuelRefine4', name: '火箭燃料精炼 IV', desc: '火箭燃料工艺效率再 +15%（累计 +60%）', kind: 'industry', layer: 4, nest: 'starRocketFuelRefine3', n: 1, cost: 20, recipe: 'craft_rocketfuel', rmul: 0.15 },
+    { id: 'starRocketFuelRefinery', name: '燃料催化线', desc: '火箭燃料工艺效率 +5%/级；可重复强化', kind: 'industry', layer: 5, nest: 'starRocketFuelRefine4', n: Infinity, cost: 25, scale: 1.6, recipe: 'craft_rocketfuel', rmul: 0.05 },
+    { id: 'starTiplatePress1', name: '钛金板件精压 I', desc: '钛金板件工艺效率 +15%', kind: 'industry', layer: 1, n: 1, cost: 4, recipe: 'craft_tiplate', rmul: 0.15 },
+    { id: 'starTiplatePress2', name: '钛金板件精压 II', desc: '钛金板件工艺效率额外 +15%（累计 +30%）', kind: 'industry', layer: 2, nest: 'starTiplatePress1', n: 1, cost: 8, recipe: 'craft_tiplate', rmul: 0.15 },
+    { id: 'starTiplatePress3', name: '钛金板件精压 III', desc: '钛金板件工艺效率再 +15%（累计 +45%）', kind: 'industry', layer: 3, nest: 'starTiplatePress2', n: 1, cost: 12, recipe: 'craft_tiplate', rmul: 0.15 },
+    { id: 'starTiplatePress4', name: '钛金板件精压 IV', desc: '钛金板件工艺效率再 +15%（累计 +60%）', kind: 'industry', layer: 4, nest: 'starTiplatePress3', n: 1, cost: 20, recipe: 'craft_tiplate', rmul: 0.15 },
+    { id: 'starTiplatePressLine', name: '板件连续压制', desc: '钛金板件工艺效率 +5%/级；可重复强化', kind: 'industry', layer: 5, nest: 'starTiplatePress4', n: Infinity, cost: 25, scale: 1.6, recipe: 'craft_tiplate', rmul: 0.05 },
+    { id: 'starSealbinAssembly1', name: '封闭藻仓装配 I', desc: '封闭藻仓工艺效率 +15%', kind: 'industry', layer: 1, n: 1, cost: 4, recipe: 'craft_sealbin', rmul: 0.15 },
+    { id: 'starSealbinAssembly2', name: '封闭藻仓装配 II', desc: '封闭藻仓工艺效率额外 +15%（累计 +30%）', kind: 'industry', layer: 2, nest: 'starSealbinAssembly1', n: 1, cost: 8, recipe: 'craft_sealbin', rmul: 0.15 },
+    { id: 'starSealbinAssembly3', name: '封闭藻仓装配 III', desc: '封闭藻仓工艺效率再 +15%（累计 +45%）', kind: 'industry', layer: 3, nest: 'starSealbinAssembly2', n: 1, cost: 12, recipe: 'craft_sealbin', rmul: 0.15 },
+    { id: 'starSealbinAssembly4', name: '封闭藻仓装配 IV', desc: '封闭藻仓工艺效率再 +15%（累计 +60%）', kind: 'industry', layer: 4, nest: 'starSealbinAssembly3', n: 1, cost: 20, recipe: 'craft_sealbin', rmul: 0.15 },
+    { id: 'starSealbinAssemblyLine', name: '封闭藻仓装配线', desc: '封闭藻仓工艺效率 +5%/级；可重复强化', kind: 'industry', layer: 5, nest: 'starSealbinAssembly4', n: Infinity, cost: 25, scale: 1.6, recipe: 'craft_sealbin', rmul: 0.05 },
+    { id: 'starSolarRingResonance', name: '星环共振 IV', desc: '太阳星环 θ金属产出 +2%/级；可重复强化', kind: 'industry', layer: 4, nest: 'starSolarRing3', n: Infinity, cost: 25, scale: 1.6, apply: { starSolarRing: 0.02 } },
+    { id: 'starExoskeleton1', name: '外骨骼 I', desc: '军人军力产出 +15%', kind: 'military', layer: 1, n: 1, cost: 2, apply: { soldierPact: 1.5 } },
+    { id: 'starExoskeleton2', name: '外骨骼 II', desc: '军人军力产出再 +15%（累计 +30%）', kind: 'military', layer: 2, nest: 'starExoskeleton1', n: 1, cost: 4, apply: { soldierPact: 1.5 } },
+    { id: 'starExoskeleton3', name: '外骨骼 III', desc: '军人军力产出再 +15%（累计 +45%）', kind: 'military', layer: 3, nest: 'starExoskeleton2', n: 1, cost: 8, apply: { soldierPact: 1.5 } },
+    { id: 'starExoskeleton4', name: '外骨骼 IV', desc: '军人军力产出再 +15%（累计 +60%）', kind: 'military', layer: 4, nest: 'starExoskeleton3', n: 1, cost: 16, apply: { soldierPact: 1.5 } },
+    { id: 'starExoskeletonLine', name: '外骨骼强化线', desc: '军人军力产出 +5%/级；可重复强化', kind: 'military', layer: 5, nest: 'starExoskeleton4', n: Infinity, cost: 10, scale: 1.5, apply: { soldierPact: 0.5 } },
+    { id: 'starOrbitalBombardment1', name: '轨道轰炸 I', desc: '战争行动对敌国规模损耗 +10%', kind: 'military', layer: 1, n: 1, cost: 2, apply: { warScaleDamage: 0.10 } },
+    { id: 'starOrbitalBombardment2', name: '轨道轰炸 II', desc: '战争行动对敌国规模损耗再 +10%（累计 +20%）', kind: 'military', layer: 2, nest: 'starOrbitalBombardment1', n: 1, cost: 4, apply: { warScaleDamage: 0.10 } },
+    { id: 'starOrbitalBombardment3', name: '轨道轰炸 III', desc: '战争行动对敌国规模损耗再 +10%（累计 +30%）', kind: 'military', layer: 3, nest: 'starOrbitalBombardment2', n: 1, cost: 8, apply: { warScaleDamage: 0.10 } },
+    { id: 'starOrbitalBombardment4', name: '轨道轰炸 IV', desc: '战争行动对敌国规模损耗再 +10%（累计 +40%）', kind: 'military', layer: 4, nest: 'starOrbitalBombardment3', n: 1, cost: 16, apply: { warScaleDamage: 0.10 } },
+    { id: 'starOrbitalBombardmentLine', name: '轨道轰炸校准线', desc: '战争行动对敌国规模损耗再 +5%/级；可重复强化', kind: 'military', layer: 5, nest: 'starOrbitalBombardment4', n: Infinity, cost: 10, scale: 1.5, apply: { warScaleDamage: 0.05 } },
+    { id: 'starCloneOffensive1', name: '克隆人的进攻 I', desc: '每名族民额外产出 +1 军力/秒', kind: 'military', layer: 1, n: 1, cost: 20, apply: { cloneMilitaryPowerPerPopulation: 1 } },
+    { id: 'starCloneOffensive2', name: '克隆人的进攻 II', desc: '每名族民额外产出再 +1.5（累计 +2.5 军力/秒）', kind: 'military', layer: 2, nest: 'starCloneOffensive1', n: 1, cost: 40, apply: { cloneMilitaryPowerPerPopulation: 1.5 } },
+    { id: 'starCloneOffensive3', name: '克隆人的进攻 III', desc: '每名族民额外产出再 +2（累计 +4.5 军力/秒）', kind: 'military', layer: 3, nest: 'starCloneOffensive2', n: 1, cost: 60, apply: { cloneMilitaryPowerPerPopulation: 2 } },
+    { id: 'starCloneOffensive4', name: '克隆人的进攻 IV', desc: '每名族民额外产出再 +3（累计 +7.5 军力/秒）', kind: 'military', layer: 4, nest: 'starCloneOffensive3', n: 1, cost: 80, apply: { cloneMilitaryPowerPerPopulation: 3 } },
 
     /* 先行建造按八个分区独立解锁；星海区保留在商店。 */
     { id: 'earlyAutoBuildCore', name: '礁栖核心·先行建造', desc: '提前开放礁栖核心的自动建造开关（默认关闭）', kind: 'automation', layer: 1, n: 1, cost: 4, apply: { earlyAutoBuildCore: 1 } },

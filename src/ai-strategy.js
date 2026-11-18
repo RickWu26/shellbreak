@@ -624,6 +624,19 @@
     if (s.upgrades && s.upgrades.upg_castle && availableBuilding(s, 'hall')) return 'hall';
     return null;
   }
+  function storageBuildWithinCapacity(s, resource) {
+    var id = storageBuild(s, resource), seen = [];
+    while (id && seen.indexOf(id) < 0) {
+      seen.push(id);
+      var blockedBy = capacityBlockedResource(s, SB.economy.costOf(s, id));
+      if (!blockedBy) return id;
+      /* The storage building can itself exceed another material cap. For example,
+       * a kelpstore may exceed the stone cap while it is meant to unlock a larger
+       * kelp field; step down to the storage line for that blocking material. */
+      id = storageBuild(s, blockedBy);
+    }
+    return null;
+  }
   function storageUpgrade(s, resource) {
     var ids = resource === 'kelp'
       ? ['upg_kelpstore_1', 'upg_kelpstore_2']
@@ -1061,7 +1074,14 @@
         (s.lvl[civicBuildCond.b] || 0) < civicBuildCond.n) {
       var civicRequiredBuilding = SB.habitat.buildingById(civicBuildCond.b);
       if (civicRequiredBuilding && SB.habitat.unlocked(s, civicRequiredBuilding) &&
-          SB.habitat.needMet(s, civicRequiredBuilding)) return civicBuildCond.b;
+          SB.habitat.needMet(s, civicRequiredBuilding)) {
+        if (availableBuilding(s, civicBuildCond.b)) return civicBuildCond.b;
+        /* 王国潮道等级不能超过灯塔。市政仍要求更多潮道时，先补灯塔等级；
+         * 否则直接回传 canal 会被 habitat.build 拒绝，策略循环每轮都原地空转。 */
+        if (civicBuildCond.b === 'canal' &&
+            (s.lvl.canal || 0) >= (s.lvl.lighthouse || 0) &&
+            availableBuilding(s, 'lighthouse')) return 'lighthouse';
+      }
       /* 市政目标要求一座被科技锁住的建筑时，沿建筑 requiredTech 回溯最先可推进的
        * 科技尤里卡。否则会出现「宏观经济学要 3 级银行 → 银行业解锁银行 → 贸易区 35 级」
        * 的间接门槛，但建造器看不到 bank，回退去反复扩仓，市政与后续太空科技一起停住。 */
@@ -2107,7 +2127,7 @@
     else if (buildCapacityBlocked) {
       /* 尤里卡建筑自身也可能贵过当前仓储上限。用扩容建筑解锁下一档造价；若压舱仓
        * 的工艺成本也越过容量，再由已装城堡的议事厅提供一段扩容。 */
-      var storageFallback = storageBuild(s, capacityResource);
+      var storageFallback = storageBuildWithinCapacity(s, capacityResource);
       if (storageFallback) nextBuild = storageFallback;
     }
     var capUpgradeDef = capacityUpgrade ? SB.workshop.upgradeById('upg_castle') : null;
@@ -2828,7 +2848,7 @@
           capacityFallbackFor = nextBuild;
           capacityFallbackCost = loopBuildCost;
         }
-        var loopStorageFallback = storageBuild(s, loopCapacityResource);
+        var loopStorageFallback = storageBuildWithinCapacity(s, loopCapacityResource);
         if (loopStorageFallback) nextBuild = loopStorageFallback;
       }
       /* 主科技建筑有时被指数造价卡住（例如高等级汽轮机的硬化珊瑚）。
@@ -3204,7 +3224,7 @@
       build: nextBuild || null, wonder: nextWonder || null };
   }
 
-  SB.aiStrategy = { version: 115, step: step, researchGoal: researchGoal, firstMissingPrereq: firstMissingPrereq,
+  SB.aiStrategy = { version: 116, step: step, researchGoal: researchGoal, firstMissingPrereq: firstMissingPrereq,
     markVoidEndingRun: markVoidEndingRun,
     isVoidEndingRun: isVoidEndingRun,
     drillStockTarget: drillStockTarget };

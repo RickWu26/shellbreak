@@ -22,7 +22,7 @@
      *   对外文案 / TapTap 版本描述 / README 三处必须同口径。
      * ⚠️ 更新日志系统 2026-10-25 曾被整体删除（CFG.CHANGELOG、自动弹窗、页脚按钮与面板、
      *   meta.seenVersion）；2026-10-27 用户要求恢复，四处一并重建。 */
-    VERSION: 'Ver1.2.4',
+    VERSION: 'Ver1.3.0',
     /* ⚠️ 2026-10-28：Ver1.0.4-test 那三个 TEST_* 开关（静默启动 / 触摸水波纹 / 按下即关）
      *   已按用户拍板**整段摘除**，不再以「置 false」形式留在配置里 —— 留在表里就还有被
      *   误开的风险，也会让 `_repack.py` 的版本名一致性断言失去意义。
@@ -33,6 +33,28 @@
      *   玩家点开面板后才写回 seenVersion 熄灯。
      * 老存档 meta 里没有 seenVersion ⇒ 恢复后第一次进入会亮红点，符合预期。 */
     CHANGELOG: [
+      /* Ver1.3.0（2026-11-17；2026-11-18 定稿）：「帷幕之后」大轮回落地 —— 掀幕开新周目，
+       * 11-18 用户贴回定稿：从 10 条精简为 7 条（删装配台/路径打磨/三级预览/价目/死锁修复，
+       * 改写大轮回与两条性能，新增界面美化与飞升路径状态两条）。按用户裁定：ERA11 科技名
+       * 用「掀起帘幕」（与 techs.js beyond_veil 真名一致）；飞升路名保留用户原文
+       * 「灵能飞升 / 基因飞升」（与游戏内虚境升华/生命织章不同，用户明确保留）。
+       * items 按玩家要求分四组：UI → 飞升系统 → 星屑节点 → 性能修复。
+       * ⚠️ 本次只做「写日志」：VERSION 已是 Ver1.3.0、index.html ?v= 已 bump；
+       *    _repack.py 的版本断言 / 版本清单 / key 条数断言、封包与上传，
+       *    一律留到用户当次明说「发版」时统一做。 */
+      { v: 'Ver1.3.0', date: '2026-11-17', items: [
+        // —— ① UI 更新 ——
+        'changelog.veil.tabs',
+        'changelog.ui.tree_polish',
+        // —— ② 飞升系统 ——
+        'changelog.veil.ascension',
+        'changelog.veil.path_status',
+        // —— ③ 星屑节点 ——
+        'changelog.stardust.new_nodes',
+        // —— ④ 性能修复（离线读取慢 / 长期卡顿）——
+        'changelog.performance.offline_speedup',
+        'changelog.performance.long_session_stutter'
+      ] },
       /* Ver1.2.4（2026-11-16）：随行资源面板 —— 右下角常驻按钮点开三分区，
        * 一处看全部资源与热液能的当前数量，按用户拍板不显示增减速度。
        * ⚠️ 本次升版四步已做 VERSION / CHANGELOG / index.html ?v；封包与上传等用户当次明说「发版」。 */

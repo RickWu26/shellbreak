@@ -20,5 +20,5 @@
 /* 随行资源面板（2026-11-16）：常驻 FAB + 常驻弹窗，放在 onboarding 之前，保持引导层最高。 */
 @import url("./98-walk-panel.css?v=6");
 /* 帷幕之后 · 飞升路径界面（2026-11-17）：外层三路径卡 + 内层操作弹窗 + 硅基装配台。 */
-@import url("./99-veil.css?v=2");
+@import url("./99-veil.css?v=12");
 @import url("./onboarding.css?v=2");

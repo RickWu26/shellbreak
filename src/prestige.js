@@ -336,7 +336,14 @@
    * 2026-11-16 实装 · spec docs/ERA11_VEIL_SPEC_v0.1.md + VEIL_ASCENSION_SPEC_v0.1.md
    * + VEIL_HUB_SPEC_v0.1.md。学完《掀起帘幕》(s.techs.beyond_veil) 后，底栏出现掀幕按钮。 */
 
-  var PATH_IDS = ['si', 'vo', 'gn'];   // 三条飞升路径：硅基承续 / 虚境升华 / 基因飞升
+  var PATH_IDS = ['si', 'vo', 'gn'];   // 三条飞升路径：硅基承续 / 虚境升华 / 生命织章
+
+  /* 可开启路径真源（2026-11-18 用户拍板「玩家自己选，暂时只能选机械飞升」）。
+   * ⚠️ 与「已实装」绑定，不等同于 PATH_IDS：vo/gn 的 WIP 门（veil-hub-ui.js 的 wip）
+   *    只是「开了也进不去」，而这里决定「能不能被选来开」。当前只有 si 做好，
+   *    所以 OPENABLE_IDS 只放 si —— 玩家第一次掀幕看到单选区、也只有它能选。
+   *    等 vo/gn 实装，往这里加 id 即可，解锁机制本身不用再改。 */
+  var OPENABLE_IDS = ['si'];
 
   /* ── 帷幕周期账（唯一真源）────────────────────────────────────────────────
    * 2026-11-17 修「首次掀幕死锁」：`emptyMeta()` 的 `veil` 必须是 null（#4 口径 A 的
@@ -403,6 +410,11 @@
     var opened = (v && v.paths && v.paths.opened) || [];
     var count = ((v && v.count) || 0) + 1;   // 本次掀幕后的重数
     var unopened = PATH_IDS.filter(function (p) { return opened.indexOf(p) < 0; });
+    /* 玩家可选池 = 已实装（OPENABLE_IDS）且尚未开启。2026-11-18 改为玩家自选：
+     * 当前仅 si 在池里 ⇒ 首次掀幕玩家「只能选机械飞升」；第 2 次起 si 已开、
+     * 池空 ⇒ 不开新路径但照常掀幕（用户拍板「没可选就不开」）。选哪条由 doVeil
+     * 的 chooseId 决定，这里只负责把池交给确认面板渲染单选区。 */
+    var selectable = OPENABLE_IDS.filter(function (p) { return opened.indexOf(p) < 0; });
     return {
       points: per.points,
       count: count,
@@ -414,7 +426,8 @@
       pendingStar: per.pending.star,
       pendingActive: per.pending.active,
       hasLedger: per.hasLedger,
-      nextPath: unopened.length ? unopened[0] : null,   // 本次强制开一条（HUB §2 已拍）
+      selectable: selectable,                          // 本次可选路径（新，UI 据此渲染单选区）
+      nextPath: selectable.length ? selectable[0] : null,  // 兼容旧字段：默认/首选项
       allOpen: unopened.length === 0,
       opened: opened.slice()
     };
@@ -422,11 +435,30 @@
 
   /* 掀幕：原子事务。学完《掀起帘幕》且周期星屑 ≥1000 才可调用（门在 UI 侧，这里再兜一层）。
    * 顺序不可换（上位稿 §3.1）：先算点 → 清资产 → 发点建账 → 解锁路径 → startRun 重建本局。
-   * 任何一步失败都抛错、不改状态——但这里全是同步纯内存操作，理论上不会中途失败。 */
-  function doVeil(s, emit) {
+   * 任何一步失败都抛错、不改状态——但这里全是同步纯内存操作，理论上不会中途失败。
+   *
+   * 2026-11-18 改「玩家自选路径」：第 3 参 chooseId 是玩家在确认面板选的 id。
+   *   · 合法（∈ OPENABLE_IDS 且未开启）→ 开启该路径；
+   *   · 省略 / null / 池空 → 不开新路径但照常掀幕（用户拍板「没可选就不开」）；
+   *   · 非法 id（已开 / 未实装 / 不存在的字符串）→ 抛错，绝不悄悄开另一条。
+   * 不传 chooseId 的旧调用（如历史 e2e）行为变为「不开路径」，符合新的默认语义。 */
+  function doVeil(s, emit, chooseId) {
     var meta = SB.game && SB.game.meta && SB.game.meta();
     if (!meta) throw new Error('无法读取跨周目存档');
     if (!s || !s.techs || !s.techs.beyond_veil) throw new Error('尚未学成《掀起帘幕》');
+    /* ⓪ 路径选择校验（Must be before ANY mutation —— 抛错时账本必须一字未动）。
+     * 先看当前 opened：首次掀幕 v 还不存在时视为空数组。 */
+    var openedNow = (meta.veil && meta.veil.paths && meta.veil.paths.opened) || [];
+    var chosenPath = null;
+    if (chooseId !== undefined && chooseId !== null && chooseId !== '') {
+      if (OPENABLE_IDS.indexOf(chooseId) < 0) {
+        throw new Error('路径「' + chooseId + '」尚不可开启');
+      }
+      if (openedNow.indexOf(chooseId) >= 0) {
+        throw new Error('路径「' + chooseId + '」已开启，无需重复开启');
+      }
+      chosenPath = chooseId;
+    }
     /* ① 先算账（Must be before any mutation）：周期账 + 本周目未结算部分。
      * ⚠️ 必须在建 meta.veil 之前算 —— 建账后 veilPeriod 会走「账本已存在」分支，
      *    首次掀幕那笔「存档至今累计」的引导种子就丢了（回归到 0 点）。
@@ -481,9 +513,9 @@
     v.points = gained;
     v.lifetimePoints = (v.lifetimePoints || 0) + gained;
 
-    // ⑤ 解锁一条路径（本次强制开一条，HUB §2）。三条全开之后不再追加，卡保留为永久入口。
-    var nextPath = PATH_IDS.filter(function (p) { return v.paths.opened.indexOf(p) < 0; })[0] || null;
-    if (nextPath) v.paths.opened.push(nextPath);
+    // ⑤ 解锁玩家所选路径（2026-11-18 自选；没选 / 没可选则不开，照常掀幕给点）。
+    //    chosenPath 已在 ⓪ 校验过合法且未开，这里只写入；三条全开后卡保留为永久入口。
+    if (chosenPath) v.paths.opened.push(chosenPath);
 
     // ⑥ 落盘 + 重建本局（走 startRun，它负责 runs+1 与 freshRun）
     SB.state.saveMeta(meta);
@@ -498,7 +530,7 @@
       points: gained, count: v.count,
       opened: v.paths.opened.slice(),
       openedBefore: openedBefore,
-      newPath: nextPath,
+      newPath: chosenPath,                 // 本次实际开启的 id；没选则为 null
       cycleTide: per.tide, cycleStar: per.star,
       pendingTide: per.pending.tide, pendingStar: per.pending.star,
       firstVeil: !per.hasLedger
@@ -605,6 +637,16 @@
     if (SB.challenges && SB.challenges.tierDone('waterpollution', SB.game && SB.game.meta ? SB.game.meta() : null)) mul *= 1.1;
     if (SB.challenges && SB.challenges.stardustRewardMul)
       mul *= SB.challenges.stardustRewardMul(SB.game && SB.game.meta ? SB.game.meta() : null);
+    /* 星屑商店的「星尘回流」每级 +5%，末端无限「星尘共鸣」每级 +1%。
+     * 直接读取跨周目 meta，结算预览与正式发放共用此函数。 */
+    var starMeta = SB.game && SB.game.meta ? SB.game.meta() : null;
+    var starPerks = starMeta && starMeta.starPerks || {};
+    var returnLevels = 0;
+    var returnIds = ['starStardustReturn1', 'starStardustReturn2', 'starStardustReturn3'];
+    for (var si = 0; si < returnIds.length; si++)
+      returnLevels += Math.min(1, Math.max(0, Math.floor(Number(starPerks[returnIds[si]]) || 0)));
+    var resonanceLevels = Math.max(0, Math.floor(Number(starPerks.starStardustResonance) || 0));
+    mul *= 1 + 0.05 * returnLevels + 0.01 * resonanceLevels;
     /* 硅基承续 · 鳞/眼/手 LV3（2026-11-17）：「工坊区每级建筑 +1% 结算星屑」，三处**叠加**成
      * +3%/级（SPEC §0 #1 已拍：不是三选一、不是只算一次）。乘在整条 mul 之后，
      * 与挑战奖励 / 祖先遗产等既有乘区各自独立。 */
@@ -632,7 +674,9 @@
       if (prerequisites[pi] && !(levels[prerequisites[pi]] > 0)) { locked = true; break; }
     }
     if (lv > 0) locked = false; // 已拥有节点的旧档可继续使用；迁移后不强制追溯新前置。
-    var next = p.costs ? p.costs[lv] : (p.cost || 0) + (p.costStep || 0) * lv;
+    var next = p.costs ? p.costs[lv]
+      : p.scale ? Math.floor((p.cost || 0) * Math.pow(p.scale, lv))
+      : (p.cost || 0) + (p.costStep || 0) * lv;
     return { perk: p, lv: lv, max: p.n || 1, next: next,
       prerequisites: prerequisites, locked: locked,
       done: lv >= (p.n || 1), afford: (meta.stardust || 0) >= next };
