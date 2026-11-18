@@ -1441,3 +1441,76 @@ html[data-era] #pane-village .bzone .bzbody > .row.is-maxed .btn.buy:disabled {
 @container hydro-flow (min-width: 700px) {
   html[data-era] #card-env .hydro-routing { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 18px; }
 }
+
+/* ── 桌面巢穴差额行：缺多项时高度恒定（2026-11-18，与手机端同源抖动）──────
+ * 病根：桌面 .bld-shortfalls 是 flex-wrap:wrap；军营(三项)/议事厅(两项)缺多项时，
+ * 1120–1220px 宽度放不下就换行，差额行 23→51px、row 126→133px（抖 7px）。
+ * 修法：桌面也强制单行 nowrap + 超出省略，高度恒 23px。够/不够二元切换本来就不抖，
+ * 这里只消除「缺 1→2→3 项」渐变经过临界宽度时的抖动。≤760px 由下方手机块接管。 */
+@media (min-width: 761px) {
+  html[data-era] #pane-village .bzone .bzbody > .row > .buy-actions > .bld-shortfalls {
+    flex-wrap: nowrap;
+    overflow: hidden;
+    min-width: 0;
+  }
+  html[data-era] #pane-village .bzone .bzbody > .row .bld-shortfall-item,
+  html[data-era] #pane-village .bzone .bzbody > .row .bld-storage-cap-warning {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    overflow-wrap: normal;
+  }
+}
+
+/* ── 手机端巢穴按钮区：够/不够两态同高（C 方案，2026-11-18）────────────────
+ * 病根：≤760px 时 .buy-actions 占满整行且 flex-wrap:wrap；资源不够会同时多出
+ * 差额行 + 追踪按钮，把按钮区从 53px 撑到 100px，攒资源临界点反复横跳。
+ * 修法：① 差额行改单行小字、与按钮同排、可省略；② 追踪按钮图标化（46→30px）；
+ *       ③ 按钮区强制单行 nowrap，两态高度锁定一致。只作用于手机端 + 巢穴，桌面不动。 */
+@media (max-width: 760px) {
+  html[data-era] #pane-village .bzone .bzbody > .row > .buy-actions {
+    flex-wrap: nowrap;
+    gap: 5px;
+    padding-top: 6px;
+  }
+  /* 差额行：不再 flex:1 1 180px 独占一行；单行 + 可收缩省略 */
+  html[data-era] #pane-village .bzone .bzbody > .row > .buy-actions > .bld-shortfalls {
+    flex: 0 1 auto;
+    min-width: 0;
+    margin: 0;
+    flex-wrap: nowrap;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  html[data-era] #pane-village .bzone .bzbody > .row .bld-shortfall-item,
+  html[data-era] #pane-village .bzone .bzbody > .row .bld-storage-cap-warning {
+    flex: 0 0 auto;
+    padding: 2px 5px;
+    font-size: 10px;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow-wrap: normal;
+  }
+  /* 建造按钮：固定最小宽，不 flex:1 占满剩余（给差额文字留位） */
+  html[data-era] #pane-village .bzone .bzbody > .row .buy-actions > .btn.buy {
+    flex: 0 0 auto;
+    min-width: 92px;
+  }
+  /* 追踪按钮图标化：宽 46→30px，文字 font-size:0 隐藏、CSS 画靶心；title/aria 保留 */
+  html[data-era] #pane-village .bzone .bzbody > .row .buy-actions > .track-toggle {
+    flex: 0 0 30px;
+    width: 30px;
+    min-width: 30px;
+    padding: 0;
+    font-size: 0;
+  }
+  html[data-era] #pane-village .bzone .bzbody > .row .buy-actions > .track-toggle::before {
+    content: '';
+    display: inline-block;
+    width: 13px;
+    height: 13px;
+    box-sizing: border-box;
+    border: 2px solid currentColor;
+    border-radius: 50%;
+    background: radial-gradient(circle, currentColor 0 26%, transparent 29%);
+  }
+}

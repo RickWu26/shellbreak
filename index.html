@@ -8,9 +8,9 @@
   try {
     var savedUiTheme = localStorage.getItem('shellbreak.uiTheme');
     if (savedUiTheme === 'day' || savedUiTheme === 'night') document.documentElement.dataset.uiTheme = savedUiTheme;
-  } catch (e) {} document.write('<script src="src/locales/zh-CN.js?v=68"><\/script>' + (window.shellbreakPlatform && window.shellbreakPlatform.runtime === 'electron' && window.shellbreakPlatform.localizationEnabled === true ? '<script src="electron/locales/en-US.js?v=65"><\/script><script src="electron/locales/zh-TW.js?v=14"><\/script>' : '') + '<script src="src/i18n.js?v=4"><\/script>');
+  } catch (e) {} document.write('<script src="src/locales/zh-CN.js?v=70"><\/script>' + (window.shellbreakPlatform && window.shellbreakPlatform.runtime === 'electron' && window.shellbreakPlatform.localizationEnabled === true ? '<script src="electron/locales/en-US.js?v=67"><\/script><script src="electron/locales/zh-TW.js?v=16"><\/script>' : '') + '<script src="src/i18n.js?v=4"><\/script>');
 </script>
-<link rel="stylesheet" href="css/main.css?v=340" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
+<link rel="stylesheet" href="css/main.css?v=342" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
 </head>
 <body data-page-node-id="6EizOSKr1rrrICybgB8xui">
 <div class="atmosphere" id="atmosphere" aria-hidden="true">
@@ -67,6 +67,21 @@
           <label class="ui-setting-row" id="autoClickRow">
             <input type="checkbox" id="autoClickToggle">
             <span><b data-i18n="ui.settings.auto_click.label">自动点击</b><small id="autoClickHint" data-i18n="ui.status.auto_click.loading">读取中…</small></span>
+          </label>
+          <!-- 三类自动化跨周目记忆开关（2026-11-18 用户拍）：默认全开。
+               ⚠️ 结构静态，状态由 game.js 的 syncAutoMemorySetting() 只写 checked —— 不整块重写。
+               关掉后「下个周目」生效：建筑自动开关 / 工坊自动槽清空、自动研究重置为关。 -->
+          <label class="ui-setting-row">
+            <input type="checkbox" id="memAutoUpgToggle" checked>
+            <span><b data-i18n="ui.settings.mem_upg.label">记忆建筑自动开关</b><small data-i18n="ui.settings.mem_upg.hint">轮回后保留各建筑的「自动建造 / 升级」开关</small></span>
+          </label>
+          <label class="ui-setting-row">
+            <input type="checkbox" id="memAutoSlotsToggle" checked>
+            <span><b data-i18n="ui.settings.mem_slots.label">记忆工坊自动槽</b><small data-i18n="ui.settings.mem_slots.hint">轮回后保留工坊自动制作的配方与档位</small></span>
+          </label>
+          <label class="ui-setting-row">
+            <input type="checkbox" id="memAutoResearchToggle" checked>
+            <span><b data-i18n="ui.settings.mem_research.label">记忆自动研究</b><small data-i18n="ui.settings.mem_research.hint">轮回后保留科技 / 市政的自动研究开关</small></span>
           </label>
           <div class="ui-settings-title" data-i18n="ui.settings.tutorial.title">引导</div>
           <label class="ui-setting-row">
@@ -283,6 +298,11 @@
         <span class="ad-remain" id="adRemain" data-page-node-id="AdRemain01" data-i18n="ui.ad.boost.remaining.empty">无加速</span>
         <button class="btn ad-watch ad-rebirth" id="btnAdRebirth" data-page-node-id="AdRebirth01" data-i18n="ui.ad.rebirth.action" data-i18n-title="ui.ad.rebirth.tooltip">看广告 +1 轮回点</button>
         <span class="ad-remain" id="adRebirthRemain" data-page-node-id="AdRebirthRemain01" data-i18n="ui.ad.rebirth.count.initial">今日 0/10</span>
+        <!-- 看广告 +0.1 飞升点（2026-11-18）：文案带 {reward}/{dailyMax} 占位符 ⇒ 不挂 data-i18n
+             （否则翻译器用无参 t(key) 覆盖 renderAd 写入的带参文案，显示成字面 {reward}），
+             由 renderAd 用 tr(key, params) 统一写。显隐也由 renderAd 用 hidden 属性控制（未掀幕隐藏）。 -->
+        <button class="btn ad-watch ad-rebirth" id="btnAdVeil" hidden data-page-node-id="AdVeil01" title="看一次广告：获得 0.1 飞升点（每日最多 10 次；需先掀幕）">看广告 +0.1 飞升点</button>
+        <span class="ad-remain" id="adVeilRemain" hidden data-page-node-id="AdVeilRemain01">今日 0/10</span>
       </span>
       <button class="btn" id="btnRank" data-page-node-id="RankBtn01View" title="查看 TapTap 排行榜（共 9 个榜单：通关用时 / 发展 / 奇观 / 轮回 / 星屑 / 轮回点 / 戴森球 / 虚境）" data-i18n="ui.footer.leaderboard_button">排行榜</button>
       <button class="btn" id="btnChangelog" data-page-node-id="ChgLog01View" title="查看游戏更新日志（本次及历史更新内容）" data-i18n-title="ui.footer.changelog_button.tooltip" data-i18n="ui.footer.changelog_button">更新日志</button>
@@ -362,7 +382,7 @@
      模块初始化期的异常，而初始化失败是最难从玩家截图看出来的那一类。
      错误进内存缓冲，玩家点「存档管理 → 复制诊断信息」时由 save-storage 拼进文本。 -->
 <script src="src/ui/error-log.js?v=1"></script>
-<script src="src/config.js?v=242"></script>
+<script src="src/config.js?v=243"></script>
 <script src="src/config-catalog.js?v=21"></script>
 <script src="src/config-content.js?v=40"></script>
 <script src="src/config-buildings.js?v=50"></script>
@@ -384,15 +404,15 @@
 <!-- 迁移 helper 先注册；state.js 在运行期把 freshRun / emptyPerks 模板注入它。 -->
 <script src="src/save-storage.js?v=11"></script>
 <script src="src/state-migrate.js?v=39"></script>
-<script src="src/state.js?v=192"></script>
+<script src="src/state.js?v=194"></script>
 <!-- 硅基承续 · 十部位效果通道（2026-11-17）：只管跨周目器官等级 → 生产乘区的映射。
      必须排在 state.js（提供 SB.game.meta）之后、economy/workshop/shell/war 之前 ——
      那些文件在 tick 首帧就调 SB.veilFx.*，晚加载会在第一帧抛 undefined。 -->
-<script src="src/veil-effects.js?v=1"></script>
+<script src="src/veil-effects.js?v=2"></script>
 <script src="src/workshop.js?v=132"></script>
 <script src="src/wonder.js?v=116"></script>
 <script src="src/economy-social.js?v=13"></script>
-<script src="src/economy.js?v=223"></script>
+<script src="src/economy.js?v=224"></script>
 <script src="src/faith-text.js?v=2"></script>
 <script src="src/faith.js?v=1"></script>
 <script src="src/economy-rates.js?v=35"></script>
@@ -433,18 +453,18 @@
 <script src="src/ui/render-pane-star-map.js?v=14"></script>
 <script src="src/ui/render-pane-workshop.js?v=25"></script>
 <script src="src/ui/render-environment.js?v=29"></script>
-<script src="src/ui/render.js?v=315"></script>
+<script src="src/ui/render.js?v=316"></script>
 <!-- 帷幕之后 · 飞升路径界面（2026-11-17）：外层三路径卡 + 内层弹窗 + 硅基装配台。
      加载早于 game.js；它对 SB.game 的读取都在运行期（点按钮时），无加载期依赖。 -->
-<script src="src/ui/veil-hub-ui.js?v=13"></script>
+<script src="src/ui/veil-hub-ui.js?v=14"></script>
 <!-- 随行资源面板：常驻骨架 + 惰性建网格；必须在 render.js 之后（renderRes 调它的 paint）。 -->
 <script src="src/ui/walk-panel.js?v=6"></script>
 <script src="src/ui/track-dock.js?v=12"></script>
 <script src="src/onboarding.js?v=2"></script>
-<script src="src/game.js?v=207"></script>
+<script src="src/game.js?v=209"></script>
 <script src="src/save-transfer.js?v=20"></script>
 <script src="src/redeem.js?v=6"></script>
-<script src="src/ui/input.js?v=196"></script>
+<script src="src/ui/input.js?v=197"></script>
 <script src="src/ai-strategy.js?v=96"></script>
 <script src="src/ui/theme.js?v=8"></script>
 <script src="src/ui/background.js?v=3"></script>

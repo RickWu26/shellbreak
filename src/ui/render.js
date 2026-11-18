@@ -2196,6 +2196,29 @@
         max: max
       }, atLimit ? '今日已满 {count}/{max}' : '今日 {count}/{max}');
     }
+    /* 「看广告 +0.1 飞升点」（2026-11-18）：未掀幕（无 meta.veil 账本）⇒ 整组隐藏，不留死按钮。
+     * 掀幕后与 rebirth 广告各自独立计数；满额禁用、副文本显示当日 x/max。 */
+    var vb = el('btnAdVeil'), vbRem = el('adVeilRemain');
+    var hasVeil = !!(m.veil && typeof m.veil === 'object');
+    /* 用 hidden 属性控制显隐（与 index.html 初值一致）：style.display='' 会清空内联样式、
+     * 反而让 hidden 的 UA display:none 重新生效 ⇒ 掀幕后按钮仍不显示（2026-11-18 实测踩坑）。 */
+    if (vb) vb.hidden = !hasVeil;
+    if (vbRem) vbRem.hidden = !hasVeil;
+    if (vb && hasVeil) {
+      var vmax = (SB.CFG.AD ? SB.CFG.AD.VEIL_DAILY_MAX : 10) || 10;
+      var vreward = (SB.CFG.AD && typeof SB.CFG.AD.VEIL_REWARD === 'number') ? SB.CFG.AD.VEIL_REWARD : 0.1;
+      var vst = (SB.game && SB.game.adVeilState) ? SB.game.adVeilState(m) : { count: 0 };
+      vb.disabled = vst.count >= vmax;
+      vb.textContent = tr('ui.ad.veil.action', { reward: vreward }, '看广告 +{reward} 飞升点');
+      vb.title = tr('ui.ad.veil.tooltip', { reward: vreward, dailyMax: vmax },
+        '看一次广告：获得 {reward} 飞升点（每日最多 {dailyMax} 次）');
+      if (vbRem) {
+        var vAtLimit = vst.count >= vmax;
+        vbRem.textContent = tr(vAtLimit ? 'ui.ad.veil.count.limit' : 'ui.ad.veil.count.today', {
+          count: vst.count, max: vmax
+        }, vAtLimit ? '今日已满 {count}/{max}' : '今日 {count}/{max}');
+      }
+    }
   }
   /* 排行榜入口按钮的可见性（2026-10-10）：榜不可用（无 SDK / 无榜 ID）⇒ 隐藏，不留死按钮。 */
   function renderRank() {

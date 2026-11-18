@@ -11,6 +11,7 @@ import { loadAll, loadNoDom, ROOT, mulberry32 } from './load-sb.mjs';
 import { run as runClickEvents } from './e2e-suites/click-events.mjs';
 import { run as runAutoPlay } from './e2e-suites/autoplay.mjs';
 import { run as runAutoResearch } from './e2e-suites/auto-research.mjs';
+import { run as runAutoMemory } from './e2e-suites/auto-memory.mjs';
 import { run as runTechShape } from './e2e-suites/tech-shape.mjs';
 import { run as runTechMigrate } from './e2e-suites/tech-migrate.mjs';
 import { run as runEra3Content } from './e2e-suites/era3-content.mjs';
@@ -3020,6 +3021,7 @@ runTrackUpgrade({ SB, check, sandbox });    // 2026-11-14：工坊升级项追�
 await runRedeem({ SB, check, sandbox, doc, g });
 runAutoPlay({ SB, check });
 runAutoResearch({ SB, check });
+runAutoMemory({ SB, check });   // 2026-11-18：三类自动化记忆上周目
 runChallenges({ SB, check, noop });
 /* 2026-11-03：设置栏「通关演出回看」（用户要求「放到设置里，想再看可以反复播放」）。
  * 两件事必须钉死：① 入口只在真的通关过《流浪泰拉》之后出现（不剧透、不留死按钮）；

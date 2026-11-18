@@ -339,8 +339,12 @@
      * **不碰任何游戏状态**，所以不 markDirty、也不补跑科技泵。
      * ⚠️ 走 document 级委托是必须的：卡片标题会随 pane 每 2 秒的重画被换掉，
      *    挂在标题节点上的监听随第一次重画一起失效（不报错、只是点不动了）。 */
-    if (d.fold !== undefined && d.fold !== null && d.fold !== '') {
-      SB.ui.render.toggleCardFold(d.fold);
+    /* 点标题里的 ▾ 箭头 / 文字时 target 是 <span>，d.fold 取不到 ⇒ 往上 closest 兜底
+     * （2026-11-18：玩家报「各区没法折叠」，真实浏览器复现箭头点击丢事件）。 */
+    var foldBtn = d.fold !== undefined ? t : (t.closest && t.closest('[data-fold]'));
+    var foldKey = foldBtn && foldBtn.dataset ? foldBtn.dataset.fold : undefined;
+    if (foldKey !== undefined && foldKey !== null && foldKey !== '') {
+      SB.ui.render.toggleCardFold(foldKey);
       return;
     }
     /* 巢穴页内「建筑分区」折叠（2026-09-30 晚，用户：「各个分区的折叠呢，没做啊」）：
@@ -348,16 +352,20 @@
      * **不碰游戏状态**，所以不 markDirty、也不补跑科技泵。
      * ⚠️ 与卡片折叠的差别：页内区标题所在的 HTML 每 2 秒被整块重画，状态由
      *    render.js 在重画时从 ZONE_FOLDED 重新拼出（落类会被冲掉）。 */
-    if (d.zfold !== undefined && d.zfold !== null && d.zfold !== '') {
-      SB.ui.render.toggleZoneFold(d.zfold);
+    var zfoldBtn = d.zfold !== undefined ? t : (t.closest && t.closest('[data-zfold]'));
+    var zfoldKey = zfoldBtn && zfoldBtn.dataset ? zfoldBtn.dataset.zfold : undefined;
+    if (zfoldKey !== undefined && zfoldKey !== null && zfoldKey !== '') {
+      SB.ui.render.toggleZoneFold(zfoldKey);
       return;
     }
     /* 成就墙「轻车熟路」分区折叠（2026-10-24 · docs/ACHV_DESIGN_v0.3.md）：
      * 与上面两个折叠分支同族——纯视图动作，状态在 render-pane-challenges 模块里
      * （ACHV_FOLD + 持久化），**不碰游戏状态**。但分区内容是否铺开是渲染时决定的
      * （与 hidedone 同款），所以必须补一次 renderPanes 才能立刻看到效果。 */
-    if (d.achvFold !== undefined && d.achvFold !== null && d.achvFold !== '') {
-      if (SB.ui.renderParts && SB.ui.renderParts.toggleAchvFold) SB.ui.renderParts.toggleAchvFold(d.achvFold);
+    var achvFoldBtn = d.achvFold !== undefined ? t : (t.closest && t.closest('[data-achv-fold]'));
+    var achvFoldKey = achvFoldBtn && achvFoldBtn.dataset ? achvFoldBtn.dataset.achvFold : undefined;
+    if (achvFoldKey !== undefined && achvFoldKey !== null && achvFoldKey !== '') {
+      if (SB.ui.renderParts && SB.ui.renderParts.toggleAchvFold) SB.ui.renderParts.toggleAchvFold(achvFoldKey);
       SB.ui.render.renderPanes();
       return;
     }

@@ -58,6 +58,13 @@
        * 设置开关（localStorage shellbreak.onboarding）是另一回事：玩家偏好，不进周目存档。 */
       onboardSeen: false,
       autoResearch: { tech: false, civic: false },
+      /* 三类自动化「是否记忆上周目」偏好（2026-11-18 用户拍）：默认全开 = 轮回后把状态带进新周目。
+       *   upg      → s.autoUpg（区域建筑逐建筑「自动建造/升级」开关，当局字段，startRun 播种）
+       *   slots    → s.autoSlots（工坊自动制作槽，当局字段，startRun 播种，按新局 slotCap 截断）
+       *   research → m.autoResearch（自动研究开关，本身就在 meta；关 = 轮回时重置为「关」）
+       * 与 autoResearch 同属「玩家拨过的机器设置」，住 meta 跨周目永久；缺字段一律按开 ⇒ 老存档零迁移，
+       * 行为与改动前不同（这是本次新增能力），但玩家没有可感知的「被重置」。 */
+      memAuto: { upg: true, slots: true, research: true },
       /* 天元突破：天穹钻机的钻头倍率档（1 或 2），跨周目保留，默认 1×。
        * 与 autoResearch 同属「玩家拨过的机器设置」，不是周目内状态，故住 meta 不进 freshRun。
        * 没买天赋时 SB.shell.skydrillMul 会把它整档忽略（恒 1×），所以这里存 2 也不生效。 */
@@ -75,6 +82,10 @@
        * date 为本地日期串（YYYY-M-D），与 todayKey() 同源；跨天或旧档无此键 ⇒ 视为重置。
        * count 为当日已看次数，达 AD.REBIRTH_DAILY_MAX（10）即封顶。 */
       adRebirth: { date: '', count: 0 },
+      /* 「看广告 +0.1 飞升点」每日次数计数（2026-11-18，与 adRebirth 各自独立）。
+       * 同样跨周目保留、按本地日期重置；脏值由 game.adVeilState() 运行时兜底。
+       * ⚠️ 飞升点本身存在 meta.veil.points（未掀幕为 null），这里只存「今天看了几次」。 */
+      adVeil: { date: '', count: 0 },
       /* 更新日志（2026-10-27 恢复）：上次看过弹窗的版本号。空串 / 缺键 = 从未看过 ⇒ 首次进入会弹。
        * 存 meta（跨周目保留），软重置不触发重复弹；清空存档会归零 ⇒ 重装后还会弹一次。
        * ⚠️ 老存档无此键 ⇒ normalizeMeta 的 Object.assign(emptyMeta(), parsed) 补成 ''，
@@ -886,6 +897,14 @@
     }
     if (!m.autoResearch || typeof m.autoResearch !== 'object' || Array.isArray(m.autoResearch)) m.autoResearch = {};
     m.autoResearch = { tech: m.autoResearch.tech === true, civic: m.autoResearch.civic === true };
+    /* 三类自动化记忆偏好（2026-11-18）：缺字段 / 脏值一律按「开」⇒ 老存档零迁移即获新能力。
+     * 只认严格 true 为关（`x !== false`），与 game.js 的 autoMemoryPref 同一口径。 */
+    if (!m.memAuto || typeof m.memAuto !== 'object' || Array.isArray(m.memAuto)) m.memAuto = {};
+    m.memAuto = {
+      upg: m.memAuto.upg !== false,
+      slots: m.memAuto.slots !== false,
+      research: m.memAuto.research !== false
+    };
     if (!m.challenges || typeof m.challenges !== 'object' || Array.isArray(m.challenges)) m.challenges = { completed: {} };
     if (!m.challenges.completed || typeof m.challenges.completed !== 'object' || Array.isArray(m.challenges.completed)) m.challenges.completed = {};
     /* ⚠️ 挑战 id 白名单：**新增挑战必须同时加进这里**，否则读档后 `completed` 里那一项被

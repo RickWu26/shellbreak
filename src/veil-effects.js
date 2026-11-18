@@ -51,15 +51,13 @@
   VF.nestCapBonus = function () { return lv('gill') >= 3 ? 1 : 0; };
 
   /* ── 心 · 潮循环泵 ─────────────────────────────────────────────────── */
-  /* 工艺效率 ×1.5 额外乘区（SPEC §7-2：与 craftRatio 加法轴**相乘**，不并入）。 */
-  VF.craftExtraMul = function () { return lv('heart') >= 1 ? 1.5 : 1; };
-  /* 矿工 / 采石工岗位产出（SPEC §7-3）：+200% / +300%（替换型）。 */
-  VF.jobOutMul = function (jobId) {
-    if (jobId !== 'miner' && jobId !== 'quarrier') return 1;
-    var n = lv('heart');
-    return n >= 3 ? 4 : (n >= 2 ? 3 : 1);
-  };
-  /* 星球改造「速度 +100%」按**时间 −50%**（SPEC §0 #3 已拍）。 */
+  /* 工艺效率额外乘区（SPEC §7-2：与 craftRatio 加法轴**相乘**，不并入）。
+   * 2026-11-18 用户拍板：三级统一工艺主题 ×1.5 / ×2 / ×2.5（替换型取当前级），
+   * 原 LV2/LV3「矿工 / 采石工产出 +200/+300%」作废，不再按岗位加成。 */
+  VF.craftExtraMul = function () { return pick([1, 1.5, 2, 2.5], lv('heart')); };
+  /* 矿工 / 采石工岗位产出：随 LV2/LV3 改为工艺乘区后**停用**，恒等 1（保留函数避免调用点报错）。 */
+  VF.jobOutMul = function () { return 1; };
+  /* 星球改造「速度 +100%」按**时间 −50%**（SPEC §0 #3 已拍，LV3 附加项保留）。 */
   VF.terraformTimeMul = function () { return lv('heart') >= 3 ? 0.5 : 1; };
 
   /* ── 胃 · 藻解釜 ───────────────────────────────────────────────────── */

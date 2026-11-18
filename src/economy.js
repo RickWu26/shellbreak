@@ -1050,8 +1050,9 @@
    *   · minerPact（矿工系：金属 silt + 暖石 warmstone，+10%/级）
    *   · quarryPact（采石系：石头 stone，+10%/级）
    *   ERA6 平等主义（每名鲛人 +0.1% 矿井产出）两条轴都叠加。tick / rates 共享本批函数 ⇒ 面板===结算。 */
-  /* 硅基承续 · 心 LV2/LV3（2026-11-17）：矿工 / 采石工产出 +200% / +300%。
-   * SPEC §7-3 原缺「按岗位」的独占通道，这里新造——只乘这两个岗位，不碰 scholar/scribe。 */
+  /* 硅基承续 · 心 LV2/LV3：原为矿工 / 采石工产出 +200/+300%（2026-11-17）。
+   * 2026-11-18 用户拍板改为工艺乘区 ×2 / ×2.5，veilFx.jobOutMul 已停用（恒 1），
+   * 故这两行只保留 perk / 政体项，veil 乘子恒等不再影响岗位产出（调用点留着避免动结算链）。 */
   function minerPactMul(s) { return (1 + 0.10 * (s.perk.minerPact || 0))
     * (SB.civic ? SB.civic.govMinePerPop(s) : 1)
     * (SB.veilFx ? SB.veilFx.jobOutMul('miner') : 1); }

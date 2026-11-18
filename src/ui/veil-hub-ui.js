@@ -62,8 +62,8 @@
     { id: 'heart', no: '02', name: '心', full: '心 · 潮循环泵', part: '循环系统', x: 50, y: 38, img: 'assets/veil/si-organ/organ-02-heart.webp',
       lv: [
         { d: '通过生物电刺激加速泵血功能，使其更适应危险环境；工艺效率 ×1.5（额外乘区）', hook: 'craftExtraMul（独立乘区）' },
-        { d: '矿工、采石工产出 +200%', hook: 'minerPactMul / quarryPactMul（按岗位）' },
-        { d: '矿工、采石工产出 +300%，星球改造速度 +100%', hook: 'jobOutMul + terraformTimeMul（时间−50%）' }
+        { d: '工艺效率 ×2（额外乘区）', hook: 'craftExtraMul（独立乘区）' },
+        { d: '工艺效率 ×2.5（额外乘区），星球改造速度 +100%', hook: 'craftExtraMul + terraformTimeMul（时间−50%）' }
       ], red: '但我们希望您能看到这句话。' },
     { id: 'stomach', no: '03', name: '胃', full: '胃 · 藻解釜', part: '消化', x: 50, y: 48, img: 'assets/veil/si-organ/organ-03-stomach.webp',
       lv: [

@@ -167,6 +167,50 @@
     return true;
   }
 
+  /* 「看广告 +0.1 飞升点」（2026-11-18）：与 rebirth 广告平行、各自独立计数的每日限次。
+   * 取当日已看次数（跨天 / 旧档无键 ⇒ 重置）。meta.adVeil 跨周目保留，只按日期归零。 */
+  function adVeilState(m) {
+    var st = (m && m.adVeil) || {};
+    if (!st || typeof st !== 'object' || st.date !== todayKey()) st = { date: todayKey(), count: 0 };
+    if (typeof st.count !== 'number' || st.count < 0) st.count = 0;
+    return st;
+  }
+  /* 看完「+0.1 飞升点」广告发奖：meta.veil.points += VEIL_REWARD，当日次数 +1 落盘；满额拒发。
+   * ⚠️ 门控：飞升点存在 meta.veil.points，未掀幕（veil===null）时**没有账本**，这里直接拒发。
+   *    UI 侧 renderAd 也会隐藏按钮，但这是运行时兜底——防绕过 UI 直接调函数。
+   * 与 grantRebirthAd 同口径：只有 SB.ad.show 判定「看完」才调用；不看白送。 */
+  function grantVeilAd() {
+    if (!S) return false;
+    var m = state();
+    if (!m) return false;
+    var C = (SB.CFG && SB.CFG.AD) || {};
+    var reward = (typeof C.VEIL_REWARD === 'number' && C.VEIL_REWARD > 0) ? C.VEIL_REWARD : 0.1;
+    var max = C.VEIL_DAILY_MAX || 10;
+    /* 未掀幕 ⇒ 无飞升点账本 ⇒ 拒发（不建账：veil===null 是首次掀幕的判据）。 */
+    if (!m.veil || typeof m.veil !== 'object') return false;
+    var st = adVeilState(m);
+    if (st.count >= max) {
+      log(gameText('game.ad_veil.limit_reached.log', { dailyMax: max }, '今日「看广告 +0.1 飞升点」已看满 {dailyMax} 次，明天再来。'));
+      return false;
+    }
+    st.count += 1;
+    st.date = todayKey();
+    m.adVeil = st;
+    /* 两位小数取整：0.1 连加 10 次在 IEEE754 下 = 0.9999999999999999，
+     * 玩家攒满 10 次想买 1 点器官会被 points>=cost 判失败。与 doVeil「不取整但留两位」口径一致。 */
+    m.veil.points = Math.round(((m.veil.points || 0) + reward) * 100) / 100;
+    m.veil.lifetimePoints = Math.round(((m.veil.lifetimePoints || 0) + reward) * 100) / 100;  // 历史累计同口径
+    SB.state.saveMeta(m);
+    dirty = true; renderAll();
+    log(gameText('game.ad_veil.reward.log', {
+      claimCount: st.count,
+      dailyMax: max,
+      reward: reward,
+      totalPoints: m.veil.points
+    }, '看广告获得 {reward} 飞升点（今日第 {claimCount}/{dailyMax} 次，累计 {totalPoints}）。'));
+    return true;
+  }
+
   function log(msg) {
     logLines.push('· ' + msg);
     if (logLines.length > LOG_MAX) logLines.splice(0, logLines.length - LOG_MAX);
@@ -207,6 +251,13 @@
       if (prev.gov) SB.civic.recordGovAdoption(prev.gov, meta);
     }
     S = SB.state.freshRun(true);
+    /* 三类自动化「记忆上周目」播种（2026-11-18 用户拍，默认全开）：
+     *   upg      → 上一局的 s.autoUpg 逐建筑开关搬进新局（freshRun 给空表，这里按需覆盖）；
+     *   slots    → 上一局的 s.autoSlots 自动制作槽搬进新局，按新局 slotCap 截断；
+     *   research → m.autoResearch 本就在 meta；「关」= 这次开新局把它重置为「关」。
+     * 权限不变：autoUpg 搬过来后，autoTick 仍按 autoZoneUnlocked 判权限（新周目科技树重置
+     * ⇒ 没解锁的区域即便开关在也不会自动建，重新解锁即生效 —— 状态不丢、又不会越权）。 */
+    applyAutoMemory(S, prev);
     /* 看广告的时间银行跨周目继承（2026-11-06 用户拍板 A 方案）：
      * `s.ad.ms` 是玩家花真实时间看激励视频换来的余额，换局（轮回 / 重开本周目 / 开挑战）
      * 不该把它抹掉 —— 此前 freshRun 硬编码 `ad:{ms:0}` 且 startRun 无任何搬运，等于每次都作废，
@@ -514,6 +565,7 @@
     SB.ui.render.renderAll();
     if (SB.audio && SB.audio.sync) SB.audio.sync();
     syncAutoClickSetting();
+    syncAutoMemorySetting();
     syncAudioSetting();
   }
   function markDirty() { dirty = true; }
@@ -549,6 +601,62 @@
     if (!meta) return;
     meta.autoClickOn = !!on;
     SB.state.saveMeta(meta);
+  }
+
+  /* ══ 三类自动化「记忆上周目」（2026-11-18 用户拍）════════════════════════════
+   * 【要解决的问题】区域建筑自动开关 s.autoUpg、工坊自动槽 s.autoSlots 都是**当局字段**，
+   *   freshRun 每次给空 ⇒ 玩家每轮回都要重新拨一遍；自动研究 m.autoResearch 虽在 meta，
+   *   但也缺一个「要不要带过去」的开关。三个偏好住 meta.memAuto，默认全开（缺字段 = 开）。
+   * 【两层：s.<状态> + meta.memAuto.<kind>】
+   *   s.autoUpg / s.autoSlots    = 当局真值（autoTick / workshop.autoTick 只认这个）；
+   *   meta.memAuto.upg / slots   = 跨周目偏好（startRun 播种进新局）；
+   *   meta.memAuto.research      = 控制 m.autoResearch 在开新局时是否被重置。
+   * 【为什么 research 特殊】它本身就是跨周目状态（在 meta），不是当局字段。所以没有
+   *   「播种进 s」这一步——「关」的语义是开新局时把 m.autoResearch 清零（用户拍板）。 */
+  function autoMemoryPref(kind) {
+    var mm = (meta && meta.memAuto) || {};
+    return mm[kind] !== false;   // 缺字段 / 脏值一律按开，与 state.normalizeMeta 同口径
+  }
+  function setAutoMemoryPref(kind, on) {
+    if (!meta) return;
+    if (!meta.memAuto || typeof meta.memAuto !== 'object' || Array.isArray(meta.memAuto)) meta.memAuto = {};
+    meta.memAuto[kind] = !!on;
+    SB.state.saveMeta(meta);
+  }
+  /* 在 startRun 的 freshRun 之后调。prev 是上一局的 S（可能是 undefined：全新档首局）。 */
+  function applyAutoMemory(s, prev) {
+    if (!s) return s;
+    /* ① 区域建筑自动开关：逐项拷布尔，防引用串局。 */
+    if (autoMemoryPref('upg')) {
+      if (prev && prev.autoUpg && typeof prev.autoUpg === 'object' && !Array.isArray(prev.autoUpg)) {
+        var upg = {};
+        for (var k in prev.autoUpg) if (prev.autoUpg[k] === true) upg[k] = true;
+        s.autoUpg = upg;
+      }
+    } // 关 ⇒ 保持 freshRun 给的 {}
+    /* ② 工坊自动制作槽：新周目科技/升级树重置 ⇒ 按新局 slotCap 截断，空槽 / 脏项丢弃。
+     *   逐项浅拷，防两局共用同一个槽对象引用（否则改动会串到上一局的存档快照）。 */
+    if (autoMemoryPref('slots')) {
+      if (prev && Array.isArray(prev.autoSlots) && prev.autoSlots.length) {
+        var cap = (SB.workshop && SB.workshop.slotCap) ? SB.workshop.slotCap(s) : 0;
+        var slots = [];
+        for (var i = 0; i < prev.autoSlots.length && slots.length < cap; i++) {
+          var sl = prev.autoSlots[i];
+          if (!sl || typeof sl !== 'object' || typeof sl.id !== 'string') continue;
+          var copy = { id: sl.id };
+          if (typeof sl.pct === 'number' && isFinite(sl.pct)) copy.pct = sl.pct;
+          else if (sl.batch && typeof sl.batch === 'number' && isFinite(sl.batch)) copy.batch = sl.batch;
+          else continue;   // 既无 pct 又无 batch = 无效槽，不带过去
+          slots.push(copy);
+        }
+        s.autoSlots = slots;
+      }
+    } // 关 ⇒ 保持 freshRun 给的 []
+    /* ③ 自动研究：状态在 meta，「关」= 开新局时重置为关（不清日志/其他 meta）。 */
+    if (!autoMemoryPref('research') && meta && meta.autoResearch) {
+      meta.autoResearch = { tech: false, civic: false };
+    }
+    return s;
   }
   /* 轮回商店开没开 —— 与 setTab('meta') 那道门同源，否则会出现
    * 「提示点这里去买」但点了没反应（新手期商店还没开放的阶段正是如此）。 */
@@ -609,6 +717,38 @@
       log(gameText('game.autoclick.shop_open.navigate.log', { perkBranch: branch, perkName: perk },
         '已跳到轮回商店：在「{perkBranch}」里购买「{perkName}」即可自动点击。'));
     });
+  }
+
+  /* ── 三类自动化记忆开关：设置面板绑定 + 增量同步（照抄自动点击的静态结构纪律）──
+   * ⚠️ 只写 checked，从不重建节点 —— 否则玩家正在点的那一下会被换掉。
+   * 这三个是「跨周目偏好」，直接读写 meta.memAuto，不牵涉当局状态 s（所以无需 disabled）。 */
+  var AUTO_MEMORY_KINDS = [
+    { key: 'upg', box: 'memAutoUpgToggle', label: 'ui.settings.mem_upg.label', labelZh: '记忆建筑自动开关' },
+    { key: 'slots', box: 'memAutoSlotsToggle', label: 'ui.settings.mem_slots.label', labelZh: '记忆工坊自动槽' },
+    { key: 'research', box: 'memAutoResearchToggle', label: 'ui.settings.mem_research.label', labelZh: '记忆自动研究' }
+  ];
+  function syncAutoMemorySetting() {
+    if (!document) return;
+    for (var i = 0; i < AUTO_MEMORY_KINDS.length; i++) {
+      var box = document.getElementById(AUTO_MEMORY_KINDS[i].box);
+      if (box) box.checked = autoMemoryPref(AUTO_MEMORY_KINDS[i].key);
+    }
+  }
+  function bindAutoMemorySetting() {
+    if (!document) return;
+    for (var i = 0; i < AUTO_MEMORY_KINDS.length; i++) {
+      (function (def) {
+        var box = document.getElementById(def.box);
+        if (!box) return;
+        box.onchange = function () {
+          setAutoMemoryPref(def.key, !!box.checked);
+          log(gameText(box.checked ? 'game.automemory.enabled.log' : 'game.automemory.disabled.log',
+            { automationName: gameText(def.label, null, def.labelZh) },
+            box.checked ? '已开启「{automationName}」跨周目记忆，下个周目生效。'
+                        : '已关闭「{automationName}」跨周目记忆，下个周目生效。'));
+        };
+      })(AUTO_MEMORY_KINDS[i]);
+    }
   }
 
   /* ══ 设置栏「音乐」段（2026-10-31 新增）：静音 + BGM 音量 + 当前曲目显示 ════════════
@@ -2936,6 +3076,20 @@
         }
       );
     };
+    var btnAdVeil = document.getElementById('btnAdVeil');
+    if (btnAdVeil) btnAdVeil.onclick = function () {
+      if (!SB.ad || !SB.ad.available || !SB.ad.available()) {
+        log(gameText('game.ad.error.unavailable.log', null, '广告暂不可用。'));
+        return;
+      }
+      SB.ad.show(
+        function () { grantVeilAd(); },
+        function (why) {
+          log(gameText(why === 'unavailable' ? 'game.ad.error.unavailable.log' : 'game.ad.error.incomplete.veil.log', null,
+            why === 'unavailable' ? '广告暂不可用。' : '广告未看完，未发放飞升点。'));
+        }
+      );
+    };
     var btnRank = document.getElementById('btnRank');
     if (btnRank) btnRank.onclick = function () {
       if (SB.ui && SB.ui.render && SB.ui.render.openRankChooser) SB.ui.render.openRankChooser();
@@ -2953,6 +3107,9 @@
      * 那个 disabled 的 checkbox 就是这么自动解禁的，不需要买家自己去通知 UI。 */
     bindAutoClickSetting();
     syncAutoClickSetting();
+    /* ⚙ 设置 → 三类自动化跨周目记忆开关（2026-11-18）：绑定 + 首帧同步。 */
+    bindAutoMemorySetting();
+    syncAutoMemorySetting();
     /* ⚙ 设置 → 音乐段（2026-10-31）：绑定 + 首帧同步 + 启动 BGM 引擎。
      * init() 会挂一次性手势监听，首次交互后才真正出声（浏览器自动播放策略）。 */
     bindAudioSetting();
@@ -3157,7 +3314,9 @@
       };
     },
     adMul: adMul, grantAdBoost: grantAdBoost, toggleAdBoost: toggleAdBoost,
-    grantRebirthAd: grantRebirthAd, adRebirthState: adRebirthState, todayKey: todayKey,
+    grantRebirthAd: grantRebirthAd, adRebirthState: adRebirthState,
+    grantVeilAd: grantVeilAd, adVeilState: adVeilState, todayKey: todayKey,
+    autoMemoryPref: autoMemoryPref, setAutoMemoryPref: setAutoMemoryPref, applyAutoMemory: applyAutoMemory,
     startRun: startRun, nextCycle: nextCycle, recordLaunch: recordLaunch,
     syncSpacecraft: syncSpacecraft,
     resetRun: resetRun, routeReset: routeReset, wipeSave: wipeSave, settleBreak: settleBreak,
