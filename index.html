@@ -10,7 +10,7 @@
     if (savedUiTheme === 'day' || savedUiTheme === 'night') document.documentElement.dataset.uiTheme = savedUiTheme;
   } catch (e) {} document.write('<script src="src/locales/zh-CN.js?v=70"><\/script>' + (window.shellbreakPlatform && window.shellbreakPlatform.runtime === 'electron' && window.shellbreakPlatform.localizationEnabled === true ? '<script src="electron/locales/en-US.js?v=67"><\/script><script src="electron/locales/zh-TW.js?v=16"><\/script>' : '') + '<script src="src/i18n.js?v=4"><\/script>');
 </script>
-<link rel="stylesheet" href="css/main.css?v=342" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
+<link rel="stylesheet" href="css/main.css?v=344" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
 </head>
 <body data-page-node-id="6EizOSKr1rrrICybgB8xui">
 <div class="atmosphere" id="atmosphere" aria-hidden="true">
@@ -436,7 +436,7 @@
 <script src="src/ui/render-common.js?v=10"></script>
 <script src="src/ui/render-info.js?v=56"></script>
 <script src="src/ui/render-pane-research.js?v=53"></script>
-<script src="src/ui/render-pane-village.js?v=48"></script>
+<script src="src/ui/render-pane-village.js?v=49"></script>
 <script src="src/ui/render-pane-folk.js?v=8"></script>
 <script src="src/ui/render-talent-tree.js?v=6"></script>
 <script src="src/ui/render-pane-meta.js?v=22"></script>
@@ -449,9 +449,9 @@
 <!-- 战争结果轻量提示（2026-11-11）：纯 UI 组件，只被结算点在运行期调用，
      不依赖加载顺序；放在战争面板之后便于对照。无 DOM 环境自动 no-op。 -->
 <script src="src/ui/war-toast.js?v=3"></script>
-<script src="src/ui/render-pane-wonder.js?v=13"></script>
+<script src="src/ui/render-pane-wonder.js?v=14"></script>
 <script src="src/ui/render-pane-star-map.js?v=14"></script>
-<script src="src/ui/render-pane-workshop.js?v=25"></script>
+<script src="src/ui/render-pane-workshop.js?v=26"></script>
 <script src="src/ui/render-environment.js?v=29"></script>
 <script src="src/ui/render.js?v=316"></script>
 <!-- 帷幕之后 · 飞升路径界面（2026-11-17）：外层三路径卡 + 内层弹窗 + 硅基装配台。
@@ -459,12 +459,12 @@
 <script src="src/ui/veil-hub-ui.js?v=14"></script>
 <!-- 随行资源面板：常驻骨架 + 惰性建网格；必须在 render.js 之后（renderRes 调它的 paint）。 -->
 <script src="src/ui/walk-panel.js?v=6"></script>
-<script src="src/ui/track-dock.js?v=12"></script>
+<script src="src/ui/track-dock.js?v=13"></script>
 <script src="src/onboarding.js?v=2"></script>
 <script src="src/game.js?v=209"></script>
 <script src="src/save-transfer.js?v=20"></script>
 <script src="src/redeem.js?v=6"></script>
-<script src="src/ui/input.js?v=197"></script>
+<script src="src/ui/input.js?v=198"></script>
 <script src="src/ai-strategy.js?v=96"></script>
 <script src="src/ui/theme.js?v=8"></script>
 <script src="src/ui/background.js?v=3"></script>

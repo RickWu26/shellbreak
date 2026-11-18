@@ -456,8 +456,17 @@
     if (buildId) {
       if (SB.habitat.build(s, buildId, emit)) {
         /* 追踪目标一旦建成/升级就立刻解绑（不必等 track-dock 那一帧的 @lv 自动判定，
-         * 否则小框会有最多 200ms 还在显示上一级的数字）。 */
-        if (SB.ui.track && s.track && s.track.indexOf('bld:' + buildId + '@') === 0) SB.ui.track.clear();
+         * 否则小框会有最多 200ms 还在显示上一级的数字）。
+         * ⚠️ 2026-11-18：`s.track` 是**多目标串**，旧写法两处都不成立：
+         *   ① `indexOf(...) === 0` 只认第一项 ⇒ 第二个目标建成时不会被解绑；
+         *   ② `clear()` 清的是全部 ⇒ 建成一个建筑，其它三个追踪一并被清掉。
+         * 改成按 key 逐项摘除，只摘这个建筑自己那条。 */
+        if (SB.ui.track && s.track) {
+          var _bkeys = SB.ui.track.keys(s);
+          for (var _bk = 0; _bk < _bkeys.length; _bk++) {
+            if (_bkeys[_bk].indexOf('bld:' + buildId + '@') === 0) SB.ui.track.untrack(_bkeys[_bk]);
+          }
+        }
         SB.game.markDirty(); SB.game.renderAll();
       }
       SB.game.pumpTech(s, emit);
@@ -747,8 +756,9 @@
     if (wonderBuildId) {
       var wonderModal = wonderBuildButton.closest && wonderBuildButton.closest('.tree-modal');
       if (SB.workshop.build(s, wonderBuildId, emit)) {
-        /* 奇观建成即解绑（与建筑同口径；奇观没有等级概念，所以判据是前缀相等） */
-        if (SB.ui.track && s.track === 'wonder:' + wonderBuildId) SB.ui.track.clear();
+        /* 奇观建成即解绑（与建筑同口径）。⚠️ 2026-11-18：多目标串下不能用 `===` 判
+         * 也不用 `clear()`（那是清空全部）—— 按 key 精确摘除这一条。 */
+        if (SB.ui.track && s.track) SB.ui.track.untrack('wonder:' + wonderBuildId);
         if (wonderModal) SB.ui.render.hideModal();
         SB.game.markDirty(); SB.game.renderAll();
       }

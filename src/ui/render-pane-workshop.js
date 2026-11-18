@@ -301,7 +301,9 @@
        * ⚠️ 必须拼进 `.craftbtns` 内部（四颗数量钮那一组）：本行是两列 grid，
        *    往外插一个节点会掉进隐式列、把卡片挤变形。 */
       if (why) {
-        var _cton = s.track === 'craft:' + c.id;
+        /* 多目标串（`a|b`）不能全等比较，见 render-pane-village.js 同处注释（2026-11-18）。 */
+        var _cton = (SB.ui.track && SB.ui.track.isTracked) ? SB.ui.track.isTracked('craft', c.id, s)
+          : (s.track === 'craft:' + c.id);
         h += '<button type="button" class="btn track-toggle' + (_cton ? ' on' : '') + '"' +
           ' data-track="craft:' + c.id + '" aria-pressed="' + (_cton ? 'true' : 'false') + '"' +
           ' title="' + (_cton

@@ -232,7 +232,12 @@
         var trackBtn = '';
         if (!ok && !blocked && !canalCap && !maxReached) {
           var _tkey = 'bld:' + b.id + '@' + lv;
-          var _ton = s.track === _tkey;
+          /* ⚠️ 2026-11-18（玩家报「同时追踪两个时按键又不变色」）：`s.track` 是**多目标串**
+           * （`a|b|c`，见 track-dock.js 头注），`===` 只在「只追一个」时成立 ⇒ 追第二个的
+           * 瞬间两颗按钮同时回落到未选中态。判定一律走 track.isTracked（自带 `@lv` 前缀匹配），
+           * 与工坊升级项那颗（render-pane-workshop.js）同源，才不会三处各写一套。 */
+          var _ton = (SB.ui.track && SB.ui.track.isTracked) ? SB.ui.track.isTracked('bld', b.id, s)
+            : (s.track === _tkey);
           trackBtn = '<button type="button" class="btn track-toggle' + (_ton ? ' on' : '') + '"' +
             ' data-track="bld:' + b.id + '" aria-pressed="' + (_ton ? 'true' : 'false') + '"' +
             ' title="' + htmlText(tr(_ton ? 'village.building.track.tracked.tooltip' : 'village.building.track.action.tooltip', null,

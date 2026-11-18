@@ -1199,6 +1199,13 @@ html[data-era] #pane-village .bzone .bzbody {
   width: 100%;
   box-sizing: border-box;
 }
+/* 2026-11-18：分区折叠真正生效。00-core 的 `.bzone.folded > .bzbody{display:none}`
+ * 特异性只有 (0-2-1)，被本文件上面这条 (1-3-1) 以及 30-visual 里的 (1-2-0) 断点规则
+ * 碾压 —— 点击委托、状态翻转、folded 类名全部正常，唯独内容不隐藏，表现成「折叠按钮无效」。
+ * 这里加 .folded 把特异性提到 (1-4-1)，并保证排在展开规则之后；后一条给无 data-era 的
+ * 开局/世界树态兜底（此时上面那条带 data-era 的展开规则不生效，但 30-visual 的仍生效）。 */
+html[data-era] #pane-village .bzone.folded > .bzbody{display:none}
+#pane-village .bzone.folded > .bzbody{display:none}
 html[data-era] #pane-village .bzone .bzbody > .row {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -1335,16 +1342,19 @@ html[data-era] #pane-village .bzone .bzbody > .row .bld-ops {
   padding-top: 8px;
   border-top: 1px solid color-mix(in srgb, var(--pilot-edge) 48%, transparent);
 }
+/* ⚠️ 2026-11-18：原先这里 `display:-webkit-box` + `-webkit-line-clamp:2` 把说明硬裁 2 行
+ * （玩家报「卡片说明显示不全」：城堡三行文案停在「+50 容…」、廉租社区停在「居民奢侈…」）。
+ * 说明文案是**静态**的（等级加成在括号里、不随库存变），所以放开行数**不会**重新引入
+ * 「够/不够两态高度抖动」——那次抖动来自差额行与追踪按钮的增删，不是这里。
+ * 实测（真实存档 · 390 宽）：36 行卡片总高 4967 → 5075px（+2.2%），最长一条 4 行。 */
 html[data-era] #pane-village .bzone .bzbody > .row .ds {
-  display: -webkit-box;
+  display: block;
   min-width: 0;
   margin-top: 0;
   color: var(--pilot-copy);
   font-size: 12px;
   line-height: 1.5;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
+  overflow: visible;
 }
 html[data-era] #pane-village .bzone .bzbody > .row .bld-shortfalls {
   display: flex;
@@ -1490,10 +1500,18 @@ html[data-era] #pane-village .bzone .bzbody > .row.is-maxed .btn.buy:disabled {
     white-space: nowrap;
     overflow-wrap: normal;
   }
-  /* 建造按钮：固定最小宽，不 flex:1 占满剩余（给差额文字留位） */
+  /* 建造按钮：可增长、可收缩
+   * ⚠️ 2026-11-18（玩家报「文本显示超出卡片」）：原 `flex:0 0 auto` 让按钮按 max-content
+   * 定宽、且不收缩 —— 军营那种三项资源（藻食/金属/石头）的成本串宽 346px > 行内宽 342px，
+   * 而 `.buy-actions` 是 `justify-content:flex-end` ⇒ 溢出全推到**左边**，被 `.row` 的
+   * overflow 裁掉，玩家看到「升级」的「升」字没了、文字从卡片外开始。
+   * 改 `flex:1 1 auto` 后按钮吃满剩余宽度，内部文字走 50-module-polish.css 里已有的
+   * `.bld-action-label{white-space:normal;overflow-wrap:anywhere}` 折行。
+   * 实测：390 宽下 36 行卡片零溢出，总高不变（4967px）。 */
   html[data-era] #pane-village .bzone .bzbody > .row .buy-actions > .btn.buy {
-    flex: 0 0 auto;
+    flex: 1 1 auto;
     min-width: 92px;
+    max-width: 100%;
   }
   /* 追踪按钮图标化：宽 46→30px，文字 font-size:0 隐藏、CSS 画靶心；title/aria 保留 */
   html[data-era] #pane-village .bzone .bzbody > .row .buy-actions > .track-toggle {

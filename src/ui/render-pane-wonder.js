@@ -131,7 +131,9 @@
          * ⚠️ 外面必须包一层 .wonder-actions：本行是 grid-template-areas 布局，
          *    直接多插一个节点会掉到隐式行里、把卡片撑成一列。 */
         ((why && !done) ? (function () {
-          var on = s.track === 'wonder:' + w.id;
+          /* 多目标串（`a|b`）不能全等比较，见 render-pane-village.js 同处注释（2026-11-18）。 */
+          var on = (SB.ui.track && SB.ui.track.isTracked) ? SB.ui.track.isTracked('wonder', w.id, s)
+            : (s.track === 'wonder:' + w.id);
           return '<button type="button" class="btn track-toggle' + (on ? ' on' : '') +
             '" data-track="wonder:' + w.id + '" aria-pressed="' + (on ? 'true' : 'false') + '"' +
             ' title="' + (on ? tr('wonder.track.tracked.title', null, '已追踪：材料够了会在屏幕角落提示')

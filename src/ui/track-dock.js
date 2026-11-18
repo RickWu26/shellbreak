@@ -591,7 +591,13 @@
       if (SB.game && SB.game.setTab) SB.game.setTab('village');
       raf(function () {
         var sel = '#pane-village [data-build="' + info.id + '"]';
-        var node = d.querySelector(sel);
+        /* ⚠️ 2026-11-18：这里原写 `var node = d.querySelector(sel)` —— 本函数里**没有** `d`
+         * （同文件 syncFlash / scrollTo / syncButtons 都是先 `var d = doc()`，这一支漏了）。
+         * 后果不是「找不到节点」，而是抛 ReferenceError：rAF 回调里抛 ⇒ 控制台一条红字、
+         * 界面毫无反应 ⇒ 表现为「点追踪框里的建筑行跳不过去」，而且永远不会被 e2e 抓到
+         * （无 DOM 沙箱里 el() 直接返回 null，这条分支根本走不到）。 */
+        var dd = doc();
+        var node = dd ? dd.querySelector(sel) : null;
         var zone = node && node.closest ? node.closest('.bzone') : null;
         var zid = zone && zone.dataset ? zone.dataset.zone : '';
         if (zid && SB.ui.render && SB.ui.render.isZoneFolded && SB.ui.render.isZoneFolded(zid)) {
