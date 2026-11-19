@@ -382,6 +382,10 @@
      * 不会与购买时即时到账那份叠加 ⇒ 读档即修正，不必等下一个周目。
      * 同步落盘：不写回去的话，玩家下次进游戏还会看到同一份旧值。 */
     if (SB.state.syncDerivedPerks && SB.state.syncDerivedPerks(S, meta)) SB.state.saveRun(snapshot(S));
+    /* 政策卡归位兜底（2026-11-19）：老档可能在换政体/加槽后的旧逻辑下留下错配卡
+     * （sci 卡落在 grow 槽、逐槽提示「不对口」）。读档时按最终槽配方归位一次，
+     * reseatCards 幂等——卡已在最优槽就不动，不会每次读档反复搬家。 */
+    if (SB.civic && SB.civic.reseatCards) SB.civic.reseatCards(S, null);
     /* 自动点击开关跨周目继承（2026-10-28）：
      *   ① 一次性认领 —— meta 里**没有**这个键（= 玩家从未拨过开关，属于「先装开关、后装继承」
      *      的档）而本局存档里有布尔值 ⇒ 认领存档里的值。不认领就会把玩家已设的「暂停」抹成开。

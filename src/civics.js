@@ -1176,6 +1176,9 @@
       /* ⚠️ 仅第 0 号槽镜像，**勿读**（读→ cardSlotted / cardCraftRatio），2026-10-14 钉 */
       s.card = s.cards[0] || null;
     }
+    /* 市政完成可能加政策槽 / 自动采用政体（见上）⇒ 槽配方变了，旧卡按 index 留在原位会错配。
+     * 排在退役卡清理之后：退役卡已确实拔掉，归位只用剩下的活卡。 */
+    reseatCards(s, null);
     if (SB.faith && SB.faith.awardOnCivic) SB.faith.awardOnCivic(s);
     return true;
   }
@@ -1339,6 +1342,61 @@
     s.cards = out;
     /* ⚠️ 仅第 0 号槽镜像，**勿读**（读→ cardSlotted / cardCraftRatio），2026-10-14 钉 */
     s.card = out[0] || null;
+  }
+  /* ── 换政体 / 新卡槽后政策卡自动归位（2026-11-19 用户拍板 A）──
+   * 背景：s.cards[i] 按 index 存卡，槽类型由 slotList(s) 现算。换政体会把前半段槽的
+   *   类型配方整个换掉，卡却按 index 留在原位 ⇒ sci 卡落进 grow 槽 ⇒ 逐槽 cardFits
+   *   判 false、红字「与这个槽不对口」，玩家得一张张手动挪。
+   * 行为：按卡 type 重新分配到对口空槽——优先同类型槽、再万能槽（与 firstFitSlot
+   *   1424 同 tier 优先级）；彻底没有对口槽的卡**免费卸回卡池**（所有权由
+   *   s.civics[p.civic] 决定，不写在 s.cards 里，故回池不丢卡、重装仍免费）。
+   * 约束：
+   *   · locked 卡（轮回之终末「永恒锚定不可卸下」）原位不动、也不被覆盖；
+   *   · 多卡争同类槽时按原槽 index 顺序先到先得（稳定、可预测）；
+   *   · 幂等：已在最优槽的卡不搬家 ⇒ 读档反复触发也不抖动。
+   * ⚠️ 只搬 s.cards，不碰 s.civics（所有权）/ s.cardEver（收费标记）/ 点数——
+   *    归位是制度行为（跟换政体/建成奇观一样），既不该收卸下费也不该扣令牌。 */
+  function reseatCards(s, emit) {
+    ensureCards(s);                       // 先按新槽数截断/补 null（超出槽位的卡=回池，既有语义）
+    var L = slotList(s), n = L.length;
+    var old = s.cards.slice(), out = [], loose = [], i, j, id, p;
+    /* ① 分类：locked 卡 + 已对口卡留原位；只有错配卡才摘下待归位。
+     *    「已对口」含玩家刻意把卡放进万能槽的情形（cardFits(wild 槽)=true），
+     *    一律不动——归位只为消除红字，不替玩家重排本来合法的布局。 */
+    for (i = 0; i < n; i++) {
+      id = old[i];
+      if (!id) { out[i] = null; continue; }
+      p = policyById(id);
+      if (!p || p.locked || cardFits(p, L[i].type)) { out[i] = id; continue; }
+      out[i] = null; loose.push({ id: id, p: p, from: i });
+    }
+    if (!loose.length) return { moved: 0, dropped: [] };   // 全对口 ⇒ 幂等，零改动
+    /* ② 错配卡按原槽顺序逐张放回最优空槽：同类型(0) > 万能(1) > 其它对口(2)。
+     *    先全部摘下再放回，两张卡互换类型槽也能就位；tier 与 firstFitSlot 1424 同口径。 */
+    var moved = 0, dropped = [];
+    for (i = 0; i < loose.length; i++) {
+      id = loose[i].id; p = loose[i].p;
+      var best = -1, bestTier = 99, tier;
+      for (j = 0; j < n; j++) {
+        if (out[j] || !cardFits(p, L[j].type)) continue;
+        tier = (p.type && L[j].type === p.type) ? 0 : (L[j].type === 'wild' ? 1 : 2);
+        if (tier < bestTier) { bestTier = tier; best = j; }
+      }
+      if (best < 0) {                     // 无任何对口空槽 ⇒ 免费卸回卡池（所有权不丢）
+        dropped.push(p.name || id); continue;
+      }
+      out[best] = id;
+      if (best !== loose[i].from) moved++;
+    }
+    s.cards = out;
+    s.card = out[0] || null;              // 仅第 0 号槽镜像，勿读（2026-10-14 钉）
+    if (emit && (moved || dropped.length)) {
+      emit(tr('civic.policy.reseat.log', {
+        movedCount: moved, droppedCount: dropped.length, droppedNames: dropped.join('、')
+      }, '政策卡已按新槽位自动归位' + (moved ? '（调整 ' + moved + ' 张）' : '') +
+        (dropped.length ? '；' + dropped.join('、') + ' 无对口槽，已免费卸回卡池' : '') + '。'));
+    }
+    return { moved: moved, dropped: dropped };
   }
   function inSlot(s, id) { return !!(s.cards && s.cards.indexOf(id) >= 0); }
   function firstFilled(s) {
@@ -1563,6 +1621,10 @@
       if (equipped && equipped.govPassive === id) { s.cards[gci] = null; removedGovCard = true; }
     }
     if (removedGovCard) s.card = s.cards[0] || null;
+    /* 换政体 ⇒ 前半段槽的类型配方整个换掉，旧卡按 index 留在原位会错配（红字「不对口」）。
+     * 排在卸同名被动卡之后：被动卡空出的槽也要让给归位卡。emit 传 null，避免与下面的
+     * 换政体日志重复刷屏——归位本身不扣点、不动所有权，是静默的制度行为。 */
+    reseatCards(s, null);
     if (emit) {
       if (s.gov === null) emit(tr('civic.government.withdrawn', null, '政体已撤回。'));
       else {
@@ -1740,7 +1802,7 @@
     /* 2026-11-09：效果层与 UI 共用的「此刻是否生效 / 是否已退役」两个权威判据。 */
     cardEffective: cardEffective, cardRetired: cardRetired,
     cardBlocked: cardBlocked, canSetCard: canSetCard, setCard: setCard, setCardAt: setCardAt,
-    removeCard: removeCard,
+    removeCard: removeCard, ensureCards: ensureCards, reseatCards: reseatCards,
     govFirstAdoptionFree: govFirstAdoptionFree,
     govBlocked: govBlocked, canSetGov: canSetGov, setGov: setGov,
     slots: slots, slotList: slotList, cardFits: cardFits, slotTypeName: slotTypeName,
