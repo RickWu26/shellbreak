@@ -3172,7 +3172,8 @@
         var WL = SB.wonder.list(), wi;
         for (wi = 0; wi < WL.length; wi++) {
           var wid = WL[wi].id;
-          if (s2.wonders && s2.wonders[wid]) continue;        // 已建成
+          if ((s2.wonders && s2.wonders[wid])
+            || (SB.voidFx && SB.voidFx.wonderOwned && SB.voidFx.wonderOwned(wid))) continue; // 已建成
           if (SB.workshop.wonderBlocked(s2, wid)) continue;   // 未解锁 / 材料不足
           wonderOn = true; break;
         }

@@ -1999,8 +1999,9 @@ console.log('\n=== 市政 ===');
     oldGuildCard.res.culture = SB.civic.byId('ideology').cost;
     oldGuildCard.cards = ['card_guild', null]; oldGuildCard.card = 'card_guild';
     const researchIdeology = SB.civic.research(oldGuildCard, 'ideology');
-    check('意识形态完成后自动退役并卸下职业行会卡',
-      researchIdeology && oldGuildCard.cards[0] === null && oldGuildCard.card === null &&
+    check('意识形态完成后职业行会卡退役，由国家凝聚力接替同一格（2026-11-20 退役即接替）',
+      researchIdeology && oldGuildCard.cards[0] === 'card_national_solidarity' &&
+      oldGuildCard.card === 'card_national_solidarity' &&
       !SB.civic.cardOwned(oldGuildCard, 'card_guild'),
       'research=' + researchIdeology + ' cards=' + JSON.stringify(oldGuildCard.cards));
 

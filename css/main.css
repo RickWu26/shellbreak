@@ -8,7 +8,7 @@
 @import url("./20-panels.css?v=141");
 @import url("./30-visual-polish.css?v=171");
 @import url("./40-atmosphere-theme.css?v=146");
-@import url("./50-module-polish.css?v=239");
+@import url("./50-module-polish.css?v=241");
 @import url("./60-star-map.css?v=1");
 @import url("./70-era-skins.css?v=19");
 @import url("./80-save-manager.css?v=8");
@@ -18,7 +18,7 @@
 @import url("./96-heritage.css?v=3");
 @import url("./97-faith-parchment.css?v=13");
 /* 随行资源面板（2026-11-16）：常驻 FAB + 常驻弹窗，放在 onboarding 之前，保持引导层最高。 */
-@import url("./98-walk-panel.css?v=6");
+@import url("./98-walk-panel.css?v=7");
 /* 帷幕之后 · 飞升路径界面（2026-11-17）：外层三路径卡 + 内层操作弹窗 + 硅基装配台。 */
-@import url("./99-veil.css?v=12");
+@import url("./99-veil.css?v=17");
 @import url("./onboarding.css?v=2");

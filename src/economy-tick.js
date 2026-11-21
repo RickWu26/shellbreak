@@ -22,8 +22,12 @@
   var launchProcOf = P.launchProcOf;
   var setLaunchProc = P.setLaunchProc, launchNodeMode = P.launchNodeMode, launchMaterialPer = P.launchMaterialPer;
   var launchCycleOf = P.launchCycleOf, launchHydroPer = P.launchHydroPer;
+  /* 2026-11-21 竣工自动停机：dysonFull = 双达标（pct>=1）⇒ 发射场全停的唯一判据；
+   * dysonPct 供 2g 竣工/半程判定用。两者都从 internals 取（不在本文件重算公式）。 */
+  var dysonFull = P.dysonFull, dysonPct = P.dysonPct;
   var ironFlow = P.ironFlow, isCold = P.isCold, isFull = P.isFull;
   var libraryLevel = P.libraryLevel, luxuryPactMul = P.luxuryPactMul;
+  var metalCraftEfficiencyMul = P.metalCraftEfficiencyMul;
   var minerPactMul = P.minerPactMul, quarryPactMul = P.quarryPactMul, furnaceEffMul = P.furnaceEffMul, scholarPactMul = P.scholarPactMul, obsSciMul = P.obsSciMul, resUnlocked = P.resUnlocked;
   var seasonTurn = P.seasonTurn, steelFlow = P.steelFlow, toolMul = P.toolMul;
   var upgSum = P.upgSum, warmCap = P.warmCap, warmEff = P.warmEff, warmRelief = P.warmRelief;
@@ -218,6 +222,7 @@
       /* ⚠️ 暖石实扣乘 warmEff（refine/specfuel 降耗），与 ironFlow 门控同乘子 ⇒ 面板===结算。 */
       s.res.warmstone -= fc * _e * warmEff(s);
       addRes(s, 'iron', fc * _gmx * (1 + upgSum(s, 'ironBonus')) * _fb * _fe * SB.economy.smeltingOutMul(s)
+        * metalCraftEfficiencyMul('craft_iron')
         * (1 + (SB.wonder && SB.wonder.nationalLogisticsMul ? SB.wonder.nationalLogisticsMul(s) : 0))
         * (SB.faith && SB.faith.furnaceIronOutputMul ? SB.faith.furnaceIronOutputMul(s) : 1));
     }
@@ -296,7 +301,13 @@
      * ③ **节律可被科技压**：_cyc = max(1, CFG.LAUNCH_CYCLE + T.launchCycle)，
      *    《空间矢量控制》−2s ⇒ 10s→8s；帆/节点同吃。钳下限 1 防 0/负节律。 */
     var _el = launchRunLvl(s);
-    if (_el > 0) {
+    /* 竣工自动停机（2026-11-21 · 玩家反馈 A「达标自动全停」）：双达标后整段跳过 ——
+     * 不扣料、不占热液能流、不推进周期余数。判据走 economy.dysonFull（与
+     * rates / hydroAlloc / launchStatus / UI 同源，五处只此一份公式）。
+     * ⚠️ 竣工判定**不留在**这个块里（见下面 2g）：pct 已满时本段进不来，
+     *   判定留在块内会让「pct 满、旗未置」的档永久卡在「已停机、未竣工」。 */
+    var _dysonFull = dysonFull(s);
+    if (_el > 0 && !_dysonFull) {
       var _elHydroNeed = _el * launchHydroPer(s);
       /* 满供判据：hydroAlloc 给到足额 europaRate（最低优先级，剩流够才满）。与 hydroAlloc 同源 ⇒ 面板===结算。 */
       var _elRunning = (s._hydroFlow && s._hydroFlow.europaRate >= _elHydroNeed - 1e-6);
@@ -327,55 +338,61 @@
           }
           setLaunchProc(s, _lid, _nodeMode, _padProc);
         }
-        /* ERA10 通关判定：dysonPct（双达标取小）达 1 ⇒ 置 dysonDone（只一次）+ 播通关弹窗。
-         * 弹窗走 SB.ui.render.showDysonComplete（镜像星空槽满槽 showStarComplete 先例，
-         * shell.js:175 同款调用路径）；dysonPopupSeen 防重播——玩家选「继续游玩」后不再弹。 */
-        if (!s.dysonDone && SB.economy && SB.economy.dysonPct && SB.economy.dysonPct(s) >= 1) {
-          s.dysonDone = true;
-          s.dysonLaunchSitesReady = ((s.lvl && s.lvl.europa_launch) || 0) >= 11
-            && ((s.lvl && s.lvl.terra_launch) || 0) >= 11
-            && ((s.lvl && s.lvl.enceladus_launch) || 0) >= 11;
-          /* 2026-10-26 排行榜「最快建立戴森球」：dysonDone 一次性守卫天然只报一次。
-           * 离线挂起 / 弹窗已看不影响上榜（与 dysonEnd 成就同落点）。 */
-          if (SB.rank) SB.rank.submitRun([{ key: 'dyson', value: s.wallT }]);
-          /* 2026-10-24 双结局成就（docs/ACHV_DESIGN_v0.3.md §四·3）：与本块两个互斥弹窗
-           * 同判据——已掌握《飞升虚境》⇒「虚境飞升」（乱码结局线），否则 ⇒「控星之人」。
-           * 判据读 s.civics（永久掌握），不是 s.cards。同一玩家可两周目各拿一条
-           * （各周目重新学该市政即可）。解锁挂在 dysonDone 置位处而非弹窗处：
-           * 离线挂起 / 弹窗已看过都不影响成就到账。 */
-          if (SB.achv && SB.achv.unlockOnce && SB.game && SB.game.meta) {
-            if (s.civics && s.civics.ascend_void) SB.achv.unlockOnce('voidEnd', SB.game.meta());
-            else SB.achv.unlockOnce('dysonEnd', SB.game.meta());
-          }
-          if (!s.dysonPopupSeen) {
-            /* ERA10 市政《飞升虚境》（2026-10-20 用户表）：已掌握该市政 ⇒ 走**乱码结局**弹窗，
-             * 否则走普通竣工弹窗。两个弹窗互斥（同一次竣工只该弹一个）。
-             * ⚠️ 判据读 s.civics（已完成市政），不是 s.cards —— 飞升是永久掌握的。
-             * ⚠️ e2e / headless 无 DOM 时 SB.ui.render 不存在，必须走存在判（原代码就是
-             *    `SB.ui && SB.ui.render &&` 三重短路，别在这一行丢掉保护）。 */
-            var _R = (SB.ui && SB.ui.render) ? SB.ui.render : null;
-            if (opts && opts.deferBreakUI) {
-              /* 离线补算内联弹窗会被紧接着的「离线结算」窗（共用 #modal）覆盖，
-               * 且 dysonPopupSeen 一旦置位就永不重播 ⇒ 离线时只挂 pending 旗，
-               * 结算窗关闭后再播（game.js fireDysonPending），与破壳 UI 同款延迟处理。 */
-              s.dysonPopupPending = true;
-            } else if (_R) {
-              s.dysonPopupSeen = true;
-              if (s.civics && s.civics.ascend_void && _R.showAscendVoid) _R.showAscendVoid(s);
-              else if (_R.showDysonComplete) _R.showDysonComplete(s);
-            }
-          }
-        }
-        /* 2026-10-24 成就「半程星环」（docs/ACHV_DESIGN_v0.3.md §四·7）：进度 50% 即发，
-         * 不等竣工。seen 旗让重复 tick 零成本（进度只涨不跌，旗只是省得每拍重算）。
-         * ⚠️ 位置在本 running 块内：sunSails/dysonNodes 全库只有上面发射循环一个增长点
-         *   （economy.js:939 dysonPct 只读这两个量），进度暂停时不会跨过阈值而不被发现。 */
-        if (!s.halfDysonSeen && SB.economy && SB.economy.dysonPct && SB.economy.dysonPct(s) >= 0.5) {
-          s.halfDysonSeen = true;
-          if (SB.achv && SB.achv.unlockOnce && SB.game && SB.game.meta)
-            SB.achv.unlockOnce('halfDyson', SB.game.meta());
+      }
+    }
+
+    /* ── 2g) 戴森竣工 / 半程判定（2026-11-21 从 2f 的 running 块移出）────────────
+     * 【为什么必须独立】A 方案「达标自动全停」生效后，2f 在 pct>=1 时整段被跳过；
+     *   判定若仍挂在里面就再也进不来 ⇒ 老档 / 崩溃中断档「帆与节点都满了、dysonDone
+     *   却为 false」会卡死在「已停机、未竣工」，挑战 goal{dyson} 永不成立。
+     * 【口径没变】仍是「pct>=1 置一次 dysonDone + 三条结局记账 + 通关弹窗」，
+     *   只是从「发出最后一轮帆的那一拍」改成「每拍都查、看到就置」。
+     *   dysonDone 自守卫 ⇒ 排行榜 / 成就天然只报一次。
+     * 【弹窗】仍受 dysonPopupSeen 与 opts.deferBreakUI 两条既有门控（离线补算只挂 pending）。 */
+    if (!s.dysonDone && dysonPct(s) >= 1) {
+      s.dysonDone = true;
+      s.dysonLaunchSitesReady = ((s.lvl && s.lvl.europa_launch) || 0) >= 11
+        && ((s.lvl && s.lvl.terra_launch) || 0) >= 11
+        && ((s.lvl && s.lvl.enceladus_launch) || 0) >= 11;
+      /* 2026-10-26 排行榜「最快建立戴森球」：dysonDone 一次性守卫天然只报一次。
+       * 离线挂起 / 弹窗已看不影响上榜（与 dysonEnd 成就同落点）。 */
+      if (SB.rank) SB.rank.submitRun([{ key: 'dyson', value: s.wallT }]);
+      /* 2026-10-24 双结局成就（docs/ACHV_DESIGN_v0.3.md §四·3）：与本块两个互斥弹窗
+       * 同判据——已掌握《飞升虚境》⇒「虚境飞升」（乱码结局线），否则 ⇒「控星之人」。
+       * 判据读 s.civics（永久掌握），不是 s.cards。同一玩家可两周目各拿一条
+       * （各周目重新学该市政即可）。解锁挂在 dysonDone 置位处而非弹窗处：
+       * 离线挂起 / 弹窗已看过都不影响成就到账。 */
+      if (SB.achv && SB.achv.unlockOnce && SB.game && SB.game.meta) {
+        if (s.civics && s.civics.ascend_void) SB.achv.unlockOnce('voidEnd', SB.game.meta());
+        else SB.achv.unlockOnce('dysonEnd', SB.game.meta());
+      }
+      if (!s.dysonPopupSeen) {
+        /* ERA10 市政《飞升虚境》（2026-10-20 用户表）：已掌握该市政 ⇒ 走**乱码结局**弹窗，
+         * 否则走普通竣工弹窗。两个弹窗互斥（同一次竣工只该弹一个）。
+         * ⚠️ 判据读 s.civics（已完成市政），不是 s.cards —— 飞升是永久掌握的。
+         * ⚠️ e2e / headless 无 DOM 时 SB.ui.render 不存在，必须走存在判（原代码就是
+         *    `SB.ui && SB.ui.render &&` 三重短路，别在这一行丢掉保护）。 */
+        var _R = (SB.ui && SB.ui.render) ? SB.ui.render : null;
+        if (opts && opts.deferBreakUI) {
+          /* 离线补算内联弹窗会被紧接着的「离线结算」窗（共用 #modal）覆盖，
+           * 且 dysonPopupSeen 一旦置位就永不重播 ⇒ 离线时只挂 pending 旗，
+           * 结算窗关闭后再播（game.js fireDysonPending），与破壳 UI 同款延迟处理。 */
+          s.dysonPopupPending = true;
+        } else if (_R) {
+          s.dysonPopupSeen = true;
+          if (s.civics && s.civics.ascend_void && _R.showAscendVoid) _R.showAscendVoid(s);
+          else if (_R.showDysonComplete) _R.showDysonComplete(s);
         }
       }
+    }
+    /* 2026-10-24 成就「半程星环」（docs/ACHV_DESIGN_v0.3.md §四·7）：进度 50% 即发，
+     * 不等竣工。seen 旗让重复 tick 零成本（进度只涨不跌，旗只是省得每拍重算）。
+     * ⚠️ 2026-11-21 一并移出 running 块（与竣工判定同理由）；检查范围反而变大：
+     *   原来只有「这一拍真发射了」才查，现在每拍都查，停机/暂停都不会漏阈值。 */
+    if (!s.halfDysonSeen && dysonPct(s) >= 0.5) {
+      s.halfDysonSeen = true;
+      if (SB.achv && SB.achv.unlockOnce && SB.game && SB.game.meta)
+        SB.achv.unlockOnce('halfDyson', SB.game.meta());
     }
 
     // 4) 科技
@@ -605,7 +622,8 @@
     // 7) 冻伤（仅冰封期）
     if (cold < 1) {
       s.coldTicks += dt;
-      var perStepRisk = SB.CFG.FREEZE_CHANCE * (1 - warmCap(s) * 2) * 0.1;
+      var perStepRisk = SB.CFG.FREEZE_CHANCE * (1 - warmCap(s) * 2) * 0.1
+        * (1 - (SB.veilFx && SB.veilFx.geneFreezeCut ? SB.veilFx.geneFreezeCut() : 0));
       var risk = perStepRisk > 0 ? 1 - Math.pow(1 - perStepRisk, dt / 0.1) : 0;
       /* ⚠️ 2026-09-28：这里原本**裸调 Math.random**，于是每次跑 e2e 的整局时长都在抖
        *    （实测 7.79h / 8.22h 交替出现）—— 时长不可复现就没法拿来标定。

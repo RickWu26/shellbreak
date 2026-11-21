@@ -44,6 +44,10 @@
 .vh-card.wip{cursor:not-allowed;filter:saturate(.55)}
 .vh-card.wip .vh-card-img{opacity:.82}
 .vh-card-state.wip{color:#c9a6ff;font-weight:700}
+.vh-card.wip.preview{cursor:pointer;filter:saturate(.78)}
+.vh-card.wip.preview:hover,.vh-card.wip.preview:focus-visible{border-color:#b9a0de;box-shadow:0 8px 24px rgba(120,70,190,.2)}
+.vh-card.wip.preview:focus-visible{outline:2px solid #fff1c4;outline-offset:3px}
+.vh-card-action{display:inline-flex;margin-top:11px;padding:7px 10px;border:1px solid rgba(199,164,232,.36);border-radius:7px;color:#ead8fa;background:rgba(128,79,150,.18);font-size:12px;font-weight:700}
 
 /* ── 内层：飞升操作弹窗 ── */
 .vm-box{width:100%;
@@ -135,4 +139,174 @@ html[data-ui-theme="day"] .vo-pt{background:rgba(255,255,255,.9)}
 }
 @media(prefers-reduced-motion:reduce){
   .vh-card,.vo-pt{transition:none}
+}
+
+/* ── 虚境升华：五域地图、单次随机探索与 NPC 剧情 ── */
+.void-path-box{position:relative}
+.void-path-body{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(300px,.85fr);gap:16px;align-items:start}
+.void-path-body.is-preview{grid-template-columns:minmax(0,1fr)}
+.void-path-body.is-preview .void-aside{display:none}
+.void-map-panel{min-width:0;margin:0}
+.void-map-canvas{position:relative;width:100%;aspect-ratio:1671/941;overflow:hidden;border:1px solid rgba(105,142,165,.24);border-radius:12px;
+  background:radial-gradient(ellipse at 50% 48%,#0c1823 0%,#050a11 56%,#010308 100%);isolation:isolate;box-shadow:inset 0 0 48px rgba(0,0,0,.8),0 16px 34px rgba(0,0,0,.24)}
+.void-map-art,.void-map-lights,.void-map-light,.void-space-grain,.void-map-regions{position:absolute;inset:0;width:100%;height:100%}
+.void-map-art{object-fit:cover;filter:brightness(.34) saturate(.68) blur(.75px);transform:scale(1.008);opacity:.96}
+.void-map-lights{pointer-events:none}
+.void-map-light{object-fit:fill;opacity:0;mix-blend-mode:screen;filter:saturate(1.08) brightness(1.04);transition:opacity .7s ease}
+.void-map-light.is-lit{opacity:.94}
+.void-map-light.is-preview{opacity:.08}
+.void-map-light.is-preview.is-lit{opacity:.34}
+.void-space-grain{pointer-events:none;background-image:radial-gradient(circle at 17% 23%,rgba(173,209,230,.45) 0 1px,transparent 1.5px),
+  radial-gradient(circle at 73% 18%,rgba(166,191,213,.38) 0 1px,transparent 1.7px),radial-gradient(circle at 82% 78%,rgba(185,156,216,.34) 0 1px,transparent 1.7px),
+  radial-gradient(circle at 44% 54%,rgba(112,150,174,.25) 0 1px,transparent 1.7px),radial-gradient(ellipse at 52% 51%,transparent 20%,rgba(0,0,0,.32) 100%);opacity:.52}
+.void-map-regions{overflow:visible}
+.void-map-region{fill:rgba(1,4,8,.16);stroke:rgba(177,199,212,.10);stroke-width:3;vector-effect:non-scaling-stroke;pointer-events:none;transition:fill .18s ease,stroke .18s ease,filter .18s ease}
+.void-map-region.lv1,.void-map-region.lv2,.void-map-region.lv3{fill:rgba(70,117,139,.055);stroke:rgba(167,201,215,.28);pointer-events:fill;cursor:pointer}
+.void-map-region.is-selected{fill:rgba(181,151,218,.14);stroke:rgba(220,198,244,.82);stroke-width:4;filter:drop-shadow(0 0 7px rgba(162,132,210,.48))}
+.void-map-region:focus{outline:none;stroke:#fff1c4;stroke-width:5;filter:drop-shadow(0 0 9px rgba(255,232,185,.72))}
+.void-map-label{fill:rgba(244,235,219,.9);font-family:inherit;font-size:25px;font-weight:700;text-anchor:middle;paint-order:stroke;stroke:rgba(4,8,13,.88);stroke-width:7px;stroke-linejoin:round;pointer-events:none}
+.void-map-label.is-selected{fill:#fff1ce}
+.void-map-region.preview{fill:rgba(70,117,139,.025);stroke:rgba(167,201,215,.18);pointer-events:fill;cursor:pointer}
+.void-map-region.preview:hover{fill:rgba(136,164,184,.09);stroke:rgba(201,219,228,.58)}
+.void-map-region.preview.is-selected{fill:rgba(181,151,218,.13);stroke:rgba(220,198,244,.82);filter:drop-shadow(0 0 7px rgba(162,132,210,.42))}
+.void-map-region.preview:focus-visible{outline:none;stroke:#fff1c4;stroke-width:5;filter:drop-shadow(0 0 9px rgba(255,232,185,.72))}
+.void-map-caption{display:flex;justify-content:space-between;gap:12px;margin-top:9px;color:var(--dim,#8fa9bd);font-size:12px}
+.void-map-caption-points b,.void-cost-balance b{color:#f4cf89;font-variant-numeric:tabular-nums}
+.void-aside{display:grid;gap:12px;min-width:0}
+.void-aside:empty{display:none}
+.void-explore-panel{min-width:0;border:1px solid var(--line,#20344a);border-radius:12px;background:linear-gradient(145deg,rgba(16,28,41,.97),rgba(7,14,23,.97));box-shadow:0 8px 25px rgba(0,0,0,.17)}
+.void-explore-panel{padding:13px 14px}
+.void-explore-panel p{margin:0 0 11px;color:var(--dim,#8fa9bd);font-size:12px;line-height:1.55}
+.void-explore-button,.void-level-button,.void-dialog-continue{border:1px solid rgba(199,164,232,.4);border-radius:8px;color:#fff;background:linear-gradient(105deg,#573a7e,#8d4f81);font:inherit;font-size:13px;font-weight:700;padding:10px 14px;cursor:pointer;transition:filter .16s ease,transform .16s ease,border-color .16s ease}
+.void-explore-button{width:100%}
+.void-explore-button:hover:not(:disabled),.void-level-button:hover:not(:disabled),.void-dialog-continue:hover{filter:brightness(1.13);transform:translateY(-1px)}
+.void-explore-button:focus-visible,.void-level-button:focus-visible,.void-dialog-continue:focus-visible{outline:2px solid #fff1c4;outline-offset:3px}
+.void-explore-button:disabled,.void-level-button:disabled{background:#202c38;border-color:#344451;color:#8293a1;cursor:default}
+.void-insufficient{margin-top:8px;color:#e5a7a8;font-size:12px}
+.void-preview-banner{margin:-4px 0 14px;padding:10px 13px;border:1px solid rgba(199,164,232,.24);border-radius:9px;background:linear-gradient(90deg,rgba(128,79,150,.13),rgba(62,93,112,.1));color:#d8c4ec;font-size:12px;font-weight:700;letter-spacing:.04em}
+.void-eyebrow{color:#b9a4d7;font-size:11px;letter-spacing:.09em}
+.void-creed-note{margin-top:10px;padding:9px 10px;border-left:2px solid #c59bdf;background:rgba(128,79,150,.12);color:#e1c9ef;font-size:12px;line-height:1.5}
+.void-cost-balance,.void-max-level{color:var(--dim,#8fa9bd);font-size:12px}
+.void-level-button{padding:8px 11px}
+.void-dialog-scrim{position:fixed;z-index:10030;inset:0;display:grid;place-items:center;padding:24px;background:rgba(1,4,8,.78);backdrop-filter:blur(8px)}
+.void-dialog-card{display:grid;grid-template-columns:minmax(190px,.72fr) minmax(0,1.28fr);width:min(880px,94vw);height:min(680px,82vh);min-height:420px;overflow:hidden;border:1px solid rgba(170,147,198,.46);border-radius:16px;background:radial-gradient(ellipse at 14% 16%,rgba(87,117,134,.18),transparent 35%),linear-gradient(135deg,#101b25,#070c13 74%);box-shadow:0 25px 90px rgba(0,0,0,.58)}
+.void-dialog-portrait{width:100%;height:100%;min-height:0;object-fit:contain;object-position:center bottom;mix-blend-mode:screen;filter:drop-shadow(0 4px 17px rgba(106,159,183,.22))}
+.void-dialog-copy{display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;min-width:0;min-height:0;padding:25px 28px 22px 12px}
+.void-dialog-heading{padding-bottom:13px;border-bottom:1px solid rgba(140,166,184,.18)}
+.void-dialog-heading h3{margin:5px 0 0;color:#f3e8d7;font-size:18px;line-height:1.35;letter-spacing:.02em}
+.void-dialog-tiers{display:flex;gap:7px;padding:12px 0}
+.void-dialog-tier{flex:1;min-width:0;padding:8px 6px;border:1px solid rgba(123,154,176,.24);border-radius:7px;background:rgba(4,10,17,.55);color:#aebfca;font:inherit;font-size:12px;cursor:pointer;transition:background .16s ease,border-color .16s ease,color .16s ease}
+.void-dialog-tier:hover{border-color:rgba(199,164,232,.56);color:#f1e7f6}
+.void-dialog-tier.is-active{border-color:rgba(211,177,241,.72);background:rgba(128,79,150,.24);color:#e4c5f3;box-shadow:inset 0 0 0 1px rgba(186,152,218,.12)}
+.void-dialog-tier:focus-visible{outline:2px solid #fff1c4;outline-offset:2px}
+.void-dialog-detail{min-height:0;overflow:auto;overscroll-behavior:contain;padding:0 6px 12px 0;scrollbar-color:#566174 transparent}
+.void-dialog-text{margin:0;white-space:pre-line;color:#d8e0e4;font-size:13px;line-height:1.72}
+.void-dialog-text.is-meta-locked{color:#a7b2bb;font-style:italic}
+.void-dialog-text.is-meta-copy{padding:10px 12px;border-left:3px solid #e34b55;background:rgba(144,24,35,.13);color:#ff737b;font-weight:700;text-shadow:0 0 14px rgba(227,75,85,.18)}
+.void-dialog-effect{margin-top:14px;padding:11px 12px;border-left:2px solid #c7a4e2;background:rgba(141,86,156,.12);color:#efdfc5;font-size:13px;line-height:1.6}
+.void-dialog-copy .void-creed-note{margin-top:9px}
+.void-dialog-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:9px;padding-top:13px;border-top:1px solid rgba(140,166,184,.18)}
+.void-dialog-actions .void-cost-balance{margin-right:auto}
+.void-dialog-actions .void-dialog-continue{min-width:100px}
+html[data-ui-theme="day"] .void-explore-panel{background:rgba(242,247,249,.96);border-color:#c9d7df}
+html[data-ui-theme="day"] .void-preview-banner{color:#563b6f;background:rgba(128,79,150,.08)}
+html[data-ui-theme="day"] .void-dialog-text{color:#293b47}
+html[data-ui-theme="day"] .void-dialog-text.is-meta-locked{color:#657581}
+html[data-ui-theme="day"] .void-dialog-text.is-meta-copy{color:#b4232f;background:rgba(180,35,47,.09);border-color:#c52c39}
+@media(max-width:920px){.void-path-body{grid-template-columns:1fr}.void-map-canvas{min-height:260px}.void-aside{grid-template-columns:1fr 1fr;align-items:start}}
+@media(max-width:640px){.void-aside{grid-template-columns:1fr}.void-map-label{font-size:31px}.void-dialog-scrim{padding:12px}.void-dialog-card{grid-template-columns:1fr;grid-template-rows:150px minmax(0,1fr);width:min(560px,96vw);height:min(880px,92vh);min-height:0}.void-dialog-portrait{height:150px;min-height:150px;object-position:center 28%}.void-dialog-copy{padding:14px 17px 16px}.void-dialog-heading h3{font-size:15px}.void-dialog-text{font-size:12px;line-height:1.62}.void-dialog-effect{font-size:12px}.void-dialog-tiers{padding:9px 0}.void-dialog-actions{gap:7px}.void-dialog-actions .void-dialog-continue{padding:8px 10px}}
+@media(prefers-reduced-motion:reduce){.void-map-light,.void-explore-button,.void-level-button,.void-dialog-continue,.void-dialog-tier{transition:none}}
+
+/* ── 生命织章：基因序列界面 ── */
+.gene-path-box{--gene-accent:#d99389;--gene-accent-alt:#d6ae73;--gene-soft:rgba(217,147,137,.12);--gene-border:rgba(217,147,137,.4)}
+.gene-path-box.gene-pure{--gene-accent:#79c8bf;--gene-accent-alt:#aacfd5;--gene-soft:rgba(121,200,191,.12);--gene-border:rgba(121,200,191,.4)}
+.gene-demo-banner{display:flex;align-items:center;gap:10px;min-width:0;margin:-3px 0 14px;padding:10px 12px;
+  border:1px solid rgba(127,165,181,.22);border-radius:9px;background:linear-gradient(100deg,rgba(16,33,44,.92),rgba(11,20,29,.88))}
+.gene-preview-mark{position:relative;width:15px;height:15px;flex:none;border:1px solid var(--gene-accent);border-radius:50%}
+.gene-preview-mark:before,.gene-preview-mark:after{content:"";position:absolute;left:3px;width:7px;height:3px;border-radius:4px;background:var(--gene-accent)}
+.gene-preview-mark:before{top:3px;transform:rotate(28deg)}
+.gene-preview-mark:after{bottom:3px;transform:rotate(-28deg);background:var(--gene-accent-alt)}
+.gene-demo-banner p{flex:1;min-width:0;margin:0;color:var(--dim,#8fa9bd);font-size:12px;line-height:1.45}
+.gene-points-banner{justify-content:space-between}
+.gene-points-banner .gene-demo-balance{margin-left:auto;padding-left:0;border-left:0}
+.gene-resonance-summary{flex:1;min-width:0}
+.gene-demo-banner .gene-resonance-summary p{flex:none;margin:0;color:var(--txt,#e6f2f8)}
+.gene-resonance-status{font-size:12px;font-weight:700;font-variant-numeric:tabular-nums}
+.gene-demo-banner .gene-resonance-summary .gene-resonance-rule{margin-top:4px;font-size:11px;line-height:1.45}
+.gene-demo-balance{flex:none;padding-left:14px;border-left:1px solid rgba(127,165,181,.2);text-align:right}
+.gene-demo-balance span{display:block;color:var(--dim2,#64809a);font-size:10px}
+.gene-demo-balance b{color:var(--gene-accent-alt);font-size:16px;font-variant-numeric:tabular-nums}
+.gene-demo-layout{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(265px,.8fr);gap:14px;align-items:stretch}
+.gene-sequence-panel,.gene-inspector{min-width:0;border:1px solid var(--line,#20344a);border-radius:12px;background:linear-gradient(145deg,rgba(16,28,41,.96),rgba(7,14,23,.97))}
+.gene-sequence-panel{overflow:hidden}
+.gene-branch-tabs{display:flex;gap:6px;padding:9px;border-bottom:1px solid rgba(127,165,181,.17)}
+.gene-branch-tab{display:flex;align-items:center;gap:8px;min-height:38px;padding:7px 12px;border:1px solid transparent;border-radius:7px;
+  background:transparent;color:var(--dim,#8fa9bd);font:inherit;font-size:13px;cursor:pointer;transition:background .18s ease,border-color .18s ease,color .18s ease}
+.gene-tab-mark{position:relative;width:13px;height:13px;flex:none;border:1px solid currentColor;border-radius:50%;opacity:.82}
+.gene-tab-mark:before,.gene-tab-mark:after{content:"";position:absolute;left:2px;width:7px;height:2px;border-radius:2px;background:currentColor}
+.gene-tab-mark:before{top:3px;transform:rotate(25deg)}
+.gene-tab-mark:after{bottom:3px;transform:rotate(-25deg)}
+.gene-branch-tab.is-active{border-color:var(--gene-border);background:var(--gene-soft);color:var(--gene-accent)}
+.gene-branch-tab:focus-visible,.gene-locus:focus-visible,.gene-demo-upgrade:focus-visible{outline:2px solid #fff1c4;outline-offset:3px}
+.gene-sequence{position:relative;width:100%;aspect-ratio:1672 / 941;overflow:hidden;isolation:isolate;background:#04121d}
+.gene-sequence-art{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:contain;object-position:center;pointer-events:none;user-select:none}
+.gene-loci{position:absolute;inset:0;overflow:hidden}
+.gene-locus{position:absolute;left:var(--gene-x);top:var(--gene-y);z-index:1;display:flex;flex-direction:column;align-items:center;width:22%;max-width:140px;
+  min-width:56px;min-height:44px;padding:0 2px;border:0;background:transparent;color:var(--txt,#e6f2f8);font:inherit;text-align:center;cursor:pointer;transform:translate(-50%,-50%);touch-action:manipulation}
+.gene-locus-stem{display:none}
+.gene-locus-core{position:relative;z-index:1;display:grid;place-content:center;gap:5px;width:42px;height:42px;box-sizing:border-box;
+  border:1px solid var(--gene-border);border-radius:50%;background:rgba(7,15,23,.68);box-shadow:0 0 14px rgba(8,21,31,.65);
+  transition:transform .18s ease,background .18s ease,border-color .18s ease}
+.gene-locus-core i{display:block;width:17px;height:3px;border-radius:3px;background:var(--gene-accent);transform:translateX(-2px) rotate(18deg)}
+.gene-locus-core i+i{background:var(--gene-accent-alt);transform:translateX(2px) rotate(18deg)}
+.gene-locus-name{display:block;max-width:100%;margin-top:6px;overflow:hidden;color:#effcff;font-size:12px;font-weight:700;text-overflow:ellipsis;white-space:nowrap;text-shadow:0 1px 5px #00101b,0 1px 2px #00101b}
+.gene-locus-ranks{display:flex;gap:3px;margin-top:6px}
+.gene-locus-ranks i{display:block;width:11px;height:3px;border-radius:3px;background:rgba(133,157,171,.24)}
+.gene-locus-ranks i.is-filled{background:var(--gene-accent)}
+.gene-locus-state{min-height:15px;margin-top:4px;color:var(--dim2,#64809a);font-size:10px;line-height:1.3}
+.gene-locus:hover .gene-locus-core{transform:translateY(-2px)}
+.gene-locus.is-selected .gene-locus-core{border-color:var(--gene-accent);background:var(--gene-soft);box-shadow:0 0 0 3px rgba(224,220,201,.08)}
+.gene-locus.is-selected .gene-locus-name{color:var(--gene-accent)}
+.gene-inspector{display:flex;flex-direction:column;gap:10px;padding:14px}
+.gene-inspector-head{display:flex;align-items:center;gap:10px;padding-bottom:10px;border-bottom:1px solid rgba(127,165,181,.17)}
+.gene-inspector-mark{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;width:34px;height:34px;flex:none;
+  border:1px solid var(--gene-border);border-radius:50%;background:var(--gene-soft)}
+.gene-inspector-mark i{width:14px;height:3px;border-radius:3px;background:var(--gene-accent)}
+.gene-inspector-mark i+i{background:var(--gene-accent-alt);transform:translateX(3px)}
+.gene-inspector-head h3{margin:0;color:var(--txt,#e6f2f8);font-size:16px}
+.gene-inspector-level{color:var(--dim2,#64809a);font-size:11px}
+.gene-effect-block{padding:9px 10px;border:1px solid rgba(127,165,181,.17);border-radius:8px;background:rgba(4,10,17,.36)}
+.gene-effect-block.is-next{border-style:dashed;border-color:var(--gene-border)}
+.gene-effect-heading{display:block;margin-bottom:6px;color:var(--dim2,#64809a);font-size:10px;letter-spacing:.04em}
+.gene-effect-row{display:flex;align-items:flex-start;gap:9px}
+.gene-effect-rank{flex:none;padding:2px 5px;border-radius:4px;background:var(--gene-soft);color:var(--gene-accent);font-size:10px;font-variant-numeric:tabular-nums}
+.gene-effect-row p{margin:0;color:var(--txt,#e6f2f8);font-size:12px;line-height:1.55}
+.gene-effect-row .gene-effect-note{margin-top:4px;color:var(--gene-accent);font-size:10px;line-height:1.45}
+.gene-demo-upgrade{width:100%;min-height:40px;margin-top:auto;padding:9px 12px;border:1px solid var(--gene-border);
+  border-radius:8px;background:var(--gene-soft);color:var(--gene-accent);font:inherit;font-size:13px;font-weight:700;cursor:pointer;
+  transition:filter .18s ease,transform .18s ease}
+.gene-demo-upgrade:hover:not(:disabled){filter:brightness(1.12);transform:translateY(-1px)}
+.gene-demo-upgrade:disabled{border-color:var(--line,#20344a);background:rgba(89,107,121,.1);color:var(--dim2,#64809a);cursor:default}
+.gene-max-state{margin-top:auto;padding:10px;color:var(--dim,#8fa9bd);font-size:12px;text-align:center}
+html[data-ui-theme="day"] .gene-sequence-panel,html[data-ui-theme="day"] .gene-inspector{background:rgba(242,247,249,.96);border-color:#c9d7df}
+html[data-ui-theme="day"] .gene-demo-banner{background:rgba(229,239,242,.9)}
+html[data-ui-theme="day"] .gene-locus-core{background:rgba(247,250,251,.96)}
+html[data-ui-theme="day"] .gene-effect-block{background:rgba(255,255,255,.72)}
+html[data-ui-theme="day"] .gene-effect-row p{color:#293b47}
+@media(max-width:760px){
+  .gene-demo-layout{grid-template-columns:1fr}
+  .gene-locus{width:22%;min-width:56px}
+}
+@media(max-width:430px){
+  .gene-demo-banner{align-items:flex-start}
+  .gene-demo-balance{padding-left:9px}
+  .gene-demo-balance b{font-size:14px}
+  .gene-branch-tabs{padding:7px}
+  .gene-locus{padding:0 1px}
+  .gene-locus-core{width:34px;height:34px}
+  .gene-locus-name{font-size:11px}
+  .gene-locus-state{min-height:0;margin-top:2px;font-size:9px}
+}
+@media(prefers-reduced-motion:reduce){
+  .gene-branch-tab,.gene-locus-core,.gene-demo-upgrade{transition:none}
 }

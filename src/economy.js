@@ -316,6 +316,25 @@
    *    当时的注释还写着「明写 0 与表外等价，且更清楚」——两者恰恰相反：
    *      明写 0 = 基础容量 0，但仍吃全局增量；缺键 = 永远 Infinity。
    *    「把自己说服了的注释」比没有注释更危险：它让一个 bug 看起来像设计决定。 */
+  /* 繁盛市场今在此（veil_cramped，2026-11-20）：仓储上限的本局限制 × 永久奖励。
+   * ⚠️ 排除 starExplore —— 它是结局阈值，恒等于 CFG.STAR_CAP（e2e 钉死），乘进去等于改通关条件。
+   * 限制读 activeTier(s).cap（本局档位，研成后 active 返回 null 自动解除）；
+   * 奖励读 tierDone(meta)（跨局永久，各读各的档）。两条返回路径（kelp/mat）都乘本函数。 */
+  function veilCrampedCapMul(s, k) {
+    if (k === 'starExplore') return 1;
+    var m = 1;
+    if (s && SB.challenges && SB.challenges.active && SB.challenges.activeTier) {
+      var a = SB.challenges.active(s);
+      if (a && a.id === 'veil_cramped') {
+        var tier = SB.challenges.activeTier(s);
+        if (tier) m *= Math.max(0, 1 - tier.cap);
+      }
+    }
+    var meta = (SB.game && SB.game.meta) ? SB.game.meta() : null;
+    var done = (SB.challenges && SB.challenges.tierDone) ? SB.challenges.tierDone('veil_cramped', meta) : 0;
+    if (done) m *= 1 + [0, 0.3, 0.5, 0.7][done];
+    return m;
+  }
   function capOf(s, k) {
     var base = SB.CFG.CAP_BASE[k];
     if (base === undefined) return Infinity;
@@ -363,7 +382,8 @@
         * capUpgradeMul(s, 'upg_kelpstore_1', k)
         * capUpgradeMul(s, 'upg_kelpstore_2', k)   /* 2026-10-01 II 级扩容：与压舱库 II 同构，补上这条乘法轴（漏接 = 死升级） */
         * matMul
-        * _stor;                                   /* 2026-10-31 仓储公司容量乘区 */
+        * _stor                                    /* 2026-10-31 仓储公司容量乘区 */
+        * veilCrampedCapMul(s, k);                 /* 繁盛市场今在此：本局限制 × 永久奖励 */
     }
     /* 其余有上限资源：基础 + 压舱仓 + 通用扩容；表外资源已在上方直接返回 Infinity。 */
     /* ⚠️ **2026-09-28：这里少一对括号，把整条资源线的容量打成了 0。**
@@ -422,7 +442,8 @@
     if (!(typeof matCastle === 'number' && isFinite(matCastle) && matCastle >= 0)) matCastle = 0;
     var cap = (matCap + matCastle) * capUpgradeMul(s, 'upg_ballast_1', k)
       * capUpgradeMul(s, 'upg_ballast_2', k) * capUpgradeMul(s, 'upg_alloy_warehouse', k) * matMul
-      * _stor;                                 /* 2026-10-31 仓储公司容量乘区（starExplore 已在上方排除） */
+      * _stor                                  /* 2026-10-31 仓储公司容量乘区（starExplore 已在上方排除） */
+      * veilCrampedCapMul(s, k);               /* 繁盛市场今在此：本局限制 × 永久奖励 */
     return (typeof cap === 'number' && isFinite(cap) && cap >= 0) ? cap : base;
   }
 
@@ -752,9 +773,12 @@
      *      「这一级本该花哪些资源」，也让 costOwnedTxt 的跳过逻辑与平常一致。 */
     var _freeMul = (b && n === 0 && SB.habitat && SB.habitat.freeFirstBuild &&
       SB.habitat.freeFirstBuild(s, b.id)) ? 0 : 1;
+    var _geneGrowthCut = (SB.veilFx && SB.veilFx.geneBuildingGrowthCut) ? SB.veilFx.geneBuildingGrowthCut() : 0;
+    var _geneRatio = 1 + (b.ratio - 1) * (1 - _geneGrowthCut);
+    if (!isFinite(_geneRatio) || _geneRatio <= 0) _geneRatio = b.ratio;
     for (var k in b.cost) {
       if (k === 'pop') continue;
-      o[k] = b.cost[k] * Math.pow(b.ratio, _effN) * hm * gm * wm * isb * hsb * bsb
+      o[k] = b.cost[k] * Math.pow(_geneRatio, _effN) * hm * gm * wm * isb * hsb * bsb
         * scm * (SB.faith && SB.faith.buildingCostMul ? SB.faith.buildingCostMul(s) : 1)
         * (k === 'scaffold' ? sc : 1) * _freeMul;
     }
@@ -938,7 +962,8 @@
     if (!s) return 0;
     var coef = (SB.shell && SB.shell.breakCoef) ? SB.shell.breakCoef(s) : 0;
     var r = SB.CFG.WARM_COEF_RATE * coef
-      * (SB.faith && SB.faith.warmstoneUseMul ? SB.faith.warmstoneUseMul(s) : 1);
+      * (SB.faith && SB.faith.warmstoneUseMul ? SB.faith.warmstoneUseMul(s) : 1)
+      * (SB.veilFx && SB.veilFx.geneWarmCut ? 1 - SB.veilFx.geneWarmCut() : 1);
     return (isFinite(r) && r > 0) ? r : 0;
   }
 
@@ -1041,8 +1066,18 @@
    * 【系数全是提议值】标定只动这里的 0.xx 与 config 的 costs，不动结构。 */
   /* 珊瑚礁契：珊瑚产出 +10%/级（2026-10-05 拍板，不设上限）。落点 = rates.coral + tick 珊瑚匠行。 */
   function smeltingOutMul(s) { return 1 + ((s.perk && s.perk.starSmelt) || 0); }
+  /* 精铁、钢、θ 的硅基器官 / 生体锻炉配方加成共用一个加法轴；不增加原料消耗。 */
+  function metalCraftEfficiencyMul(recipeId) {
+    var add = SB.veilFx && SB.veilFx.metalRecipeAdd ? SB.veilFx.metalRecipeAdd(recipeId) : 0;
+    return 1 + (isFinite(add) ? add : 0);
+  }
   function folkOutputMul(s) { return 1 + ((s.perk && s.perk.starFolk) || 0); }
-  function coralPactMul(s) { return 1 + 0.10 * (s.perk.coralPact || 0); }
+  function geneMul(name) {
+    var fn = SB.veilFx && SB.veilFx[name];
+    return typeof fn === 'function' ? fn() : 1;
+  }
+  function coralPactMul(s) { return (1 + 0.10 * (s.perk.coralPact || 0))
+    * geneMul('geneAgilityMul') * geneMul('geneFastmatMul'); }
   /* 矿脉税契：石头 + 金属 + 暖石各 +10%/级（2026-10-05 拍板，不设上限）。落点 = rates.silt/stone/warmstone + tick 对应三行。
    * ⚠️ 一项管三线（与砂矿坑 siltBonus 同样形状），但**不碰钛**：钛是 2026-09-30 才开的新线，
    *    塞进「矿脉税契」会让老玩家以为买了就该涨钛，实际口径要等标定再说。 */
@@ -1055,10 +1090,12 @@
    * 故这两行只保留 perk / 政体项，veil 乘子恒等不再影响岗位产出（调用点留着避免动结算链）。 */
   function minerPactMul(s) { return (1 + 0.10 * (s.perk.minerPact || 0))
     * (SB.civic ? SB.civic.govMinePerPop(s) : 1)
-    * (SB.veilFx ? SB.veilFx.jobOutMul('miner') : 1); }
+    * (SB.veilFx ? SB.veilFx.jobOutMul('miner') : 1)
+    * geneMul('geneValorMul'); }
   function quarryPactMul(s) { return (1 + 0.10 * (s.perk.quarryPact || 0))
     * (SB.civic ? SB.civic.govMinePerPop(s) : 1)
-    * (SB.veilFx ? SB.veilFx.jobOutMul('quarrier') : 1); }
+    * (SB.veilFx ? SB.veilFx.jobOutMul('quarrier') : 1)
+    * geneMul('geneValorMul'); }
   /* 热泉炉（精铁）效率 / 热液工坊（钢）效率：+20%/级（系数 0.20）。
    * 落点 = ironFlow 的产出段（tick/rates 同式）× furnaceEffMul；钢产线（steelFlow/steelRate）× hydroshopEffMul。 */
   /* 轮回炉火（2026-11-01 · perk.furnaceLoop / perk.hydroLoop，潮汐之树 15 点，dyn:'loop5'）：+5%×轮回次数。
@@ -1070,8 +1107,8 @@
   /* 热液工坊（钢）产出：+10%/级（与 furnaceBoost 同系数）。落点 = steelFlow/steelRate 产出段。 */
   function hydroshopBoostMul(s) { return 1 + 0.10 * (s.perk.hydroshopBoost || 0); }
   /* 学者系 / 书手系产出：+10%/级。落点 = 学者行（tick/rates 同式）× scholarPactMul；书手行（cultureRate）× scribePactMul。 */
-  function scholarPactMul(s) { return 1 + 0.10 * (s.perk.scholarPact || 0); }
-  function scribePactMul(s) { return 1 + 0.10 * (s.perk.scribePact || 0); }
+  function scholarPactMul(s) { return (1 + 0.10 * (s.perk.scholarPact || 0)) * geneMul('geneScholarMul'); }
+  function scribePactMul(s) { return (1 + 0.10 * (s.perk.scribePact || 0)) * geneMul('geneScribeMul'); }
   /* 潮田轮作：采集者藻食 +10%/级（2026-10-05 拍板，不设上限）。落点 = rates.kelp 的**职业侧**（farmMul 之后）。
    * ⚠️ 藻场（建筑侧）**不吃**这一条：farmMul 本来就只放大职业侧，注释已写明
    *    「只放大采集者（职业侧），不碰建筑侧的藻场」—— 本 perk 与它同定义域。 */
@@ -1085,6 +1122,7 @@
    *    乘净速率会让「供给涨了但需求也涨」时面板与结算再次打架。
    * ⚠️ 仍走 baseMul（不吃 happyMul），保持反自指纪律不变。 */
   function luxuryPactMul(s) { return 1 + 0.10 * (s.perk.luxuryPact || 0); }
+  function merchantGeneMul(s) { return geneMul('geneMerchantMul'); }
   function bankMul(s)      { return (1 + (s.lvl.bank || 0) * SB.BLD.bankLux) * SB.civic.bankMerchantMul(s); }
 
   /* 【天壳观测站】学者科技产出随本局削壳进度提高，最高 +20%。
@@ -1201,7 +1239,8 @@
     var lg = SB.prestige ? SB.prestige.legacy() : null;
     /* ERA8 市政《信仰回响》（2026-10-18 用户拍 Q3）：本轮回旧日信仰全产加成档位 ×2
      *   （0.5%/档 → 1%/档；仅本轮回，轮回清掉 s.civics 后自动失效）。 */
-    if (lg) m *= 1 + lg.oldFaithAllProductionBonus * ((s.civics && s.civics.faith_echo) ? 2 : 1);
+    /* 无神论挑战：跨局旧日信仰全产档在本挑战局失效（只钳本局生效值，不动 prestige 账本）。 */
+    if (lg && !noFaithActive(s)) m *= 1 + lg.oldFaithAllProductionBonus * ((s.civics && s.civics.faith_echo) ? 2 : 1);
     /* ERA9 寰宇教会政体（oldFaithMul=1.5）：旧日信仰全产档 ×1.5。
      * 轮回之终末卡（faithAllProdDouble）：信仰全产加成翻倍（装卡才 ×2）。
      * 两者都只放大于「旧日信仰全产档」这一项，不动 lighthouse/奇观/挑战乘区。 */
@@ -1262,6 +1301,18 @@
     var _node = Math.max(0, s.dysonNodes || 0) / _nodeCap;
     return Math.min(1, Math.min(_sail, _node));
   }
+  /* 戴森竣工自动停机（2026-11-21 · TapTap 玩家反馈 A「达标自动全停」）：
+   * 【要解决什么】dysonPct 到 1 以后发射场还在按节律吃铀/引擎/薄膜/钛板与热液能，
+   *   帆与节点继续累加（帆 10000→20000、节点 1000→2000）—— 原料白烧，玩家也停不下来
+   *   （逐场按 − 要按十几次，还容易忘一座）。
+   * 【判据】只读 dysonPct>=1（纯函数、无副作用），**不读 s.dysonDone**：
+   *   dysonDone 是 tick 内一次性置位的持久旗，离线补算/老档/崩溃中断都可能出现
+   *   「pct 已满但旗未置」的中间态；读 pct 才能让停机与竣工判定同源。
+   * 【停机停什么】只停「发射」这一个动作：不扣料、不占热液能流、不推进周期余数。
+   *   **已在轨的帆/节点一律不动**（sunSails 仍是热液能供给源，回收/清零都不做）。
+   * 【谁必须读它】tick 2f（结算）/ rates（面板）/ hydroAlloc（europaL 分配）/
+   *   launchStatus（缺料徽标）/ UI 发射场行（停机徽标）—— 五处同源，漏一处就是面板撒谎。 */
+  function dysonFull(s) { return dysonPct(s) >= 1; }
 
   /* ── 发射场共享成本/节律与独立进度的单一读数落点 ──
    * 【为什么必须是一个函数】发射场的三个量各有 2~3 处读取：
@@ -1461,14 +1512,14 @@
      *       必须运行期取值并带守卫；万一 folk 未就绪，回落到旧式算式（行为与改前逐位相同）。 */
     var _ejF = (SB.folk && SB.folk.effJobs) ? SB.folk.effJobs(s) : null;
     var byJob = (_ejF ? (_ejF.gather || 0) : (s.jobs.gather * folkOutputMul(s)))
-      * SB.UNIT.kelp * farmMul(s) * algaeCropMul(s);  // 职业侧：不吃季节；farm 乘区 + 潮田轮作 perk
+      * SB.UNIT.kelp * farmMul(s) * algaeCropMul(s) * geneMul('geneAgilityMul');  // 职业侧：不吃季节；farm 乘区 + 基因敏捷
     /* 只放大食物，别把 gatherMul（礁石平台/深潜/洋流增益）乘进来——
      * 那些倍率是「采集产出」的，礁石平台不该让藻场增产。
      * 之前错乘进来，食物产出虚高到 38/秒而消耗只有 2.6/秒，
      * 藻食全都撞在仓储上限上白流，生育却仍被住房那道墙卡死。
      * 【2026-09-26】住房墙已按用户要求**恢复**（软容量那版实测几乎没有约束力），
      * 现在生育受「口粮 + 住满」两道门管，见第 6 步与 economy.isFull。 */
-    return (byBuild + byJob) * SOCIAL.companyMul(s, 'kelp') * (cold || 1)
+    return (byBuild + byJob) * geneMul('geneFastmatMul') * SOCIAL.companyMul(s, 'kelp') * (cold || 1)
       * (1 + (s.lvl.weir || 0) * SB.BLD.foodWeir)                // 增旋钮：两条来源一起放大
       * globalMulX(s)                                          // 全资源乘区（灯塔/信仰/奇观/政体/大统一方程；与 rates 同式）
       * ((SB.civic && SB.civic.cardFoodOutMul) ? SB.civic.cardFoodOutMul(s) : 1)  // ERA2-7：庄园制卡 ×1.20（乘区，tick/rates 同源）
@@ -1501,6 +1552,8 @@
       * ((SB.wonder) ? SB.wonder.voyagerScholarMul(s) : 1)
       * ((SB.wonder && SB.wonder.khalifaScholarMul) ? SB.wonder.khalifaScholarMul(s) : 1)
       * ((SB.wonder) ? SB.wonder.throneSciMul(s) : 1)
+      * ((SB.voidFx && SB.voidFx.domainScholarMul) ? SB.voidFx.domainScholarMul() : 1)
+      * ((SB.faith && SB.faith.creedScholarSciMul) ? SB.faith.creedScholarSciMul(s) : 1)
       * (Tr ? Tr.sci : 1)
       + (cv ? (cv.science || 0) : 0)
       + ((s.civics && s.civics.market) ? (j.merchant || 0) * (SB.BLD.marketJobSci || 0) : 0)
@@ -1511,7 +1564,8 @@
       * ((SB.companyMul) ? SB.companyMul(s, 'sci') : 1)   // 与 tick 4a 同源（科技公司的科技加成）
       * globalMul(s)
       * lgMul;
-    return withMul + (lg ? lg.oldTideSteleScienceRate : 0);
+    return (withMul + (lg ? lg.oldTideSteleScienceRate : 0))
+      * ((SB.voidFx && SB.voidFx.scienceWonderMul) ? SB.voidFx.scienceWonderMul() : 1);
   }
   /* 地热产出：热泉井 × 匠人 × 环境系数 × 点火术， **再减去全城维护**。
    *
@@ -1787,6 +1841,9 @@
     var lv = Math.max(0, Math.floor((s.lvl && s.lvl[id]) || 0));
     if (lv <= 0) return null;                     // 未建成
     if (launchActiveLvl(s, id) <= 0) return null;  // 本场被玩家停用
+    /* 2026-11-21 竣工自动停机：这不是「缺料」，返回 null 免得 UI 弹出「断流」红字。
+     * 停机态由 UI 另读 dysonFull 出独立的「已竣工 · 自动停机」徽标。 */
+    if (dysonFull(s)) return null;
     var runLvl = launchRunLvl(s);
     if (runLvl <= 0) return null;                 // 全场都停
     var HF = hydroAlloc(s, 1);                    // dt=1 ⇒ 各 rate 字段已是每秒口径
@@ -1911,8 +1968,9 @@
          *   最低优先级，断流只停耗（与空间站同口径）。
          * ERA10 市政（2026-10-20）：按**三座发射场启用等级总和**（欧罗巴 + 泰拉 + 恩克拉多斯星轨道发射场），
          *   单位耗流走 launchHydroPer(s)——政策卡《节能减耗》−50% 只在那一个函数里乘一次，
-         *   本处/hydroAlloc 之外的 tick·rates 都不许自己再乘（三处同源铁律）。 */
-        europaL = launchRunLvl(s),
+         *   本处/hydroAlloc 之外的 tick·rates 都不许自己再乘（三处同源铁律）。
+         *   2026-11-21：戴森双达标后发射场自动全停 ⇒ 不再占流（dysonFull 判据与 tick 2f 同源）。 */
+        europaL = dysonFull(s) ? 0 : launchRunLvl(s),
         /* ERA9（2026-10-19）：星球重构机 G.E.E.K 运转耗（每 s 耗 40 热液能流）。
          *   与天穹钻机同纪律——只有「已建成且手动启动」才占流；否则面板会谎报它在吃能。 */
         geekOwned = !!(SB.wonder && SB.wonder.owned(s).wonder_geek),
@@ -2537,7 +2595,8 @@
       * (SB.civic && SB.civic.cardResOutMul ? SB.civic.cardResOutMul(s, 'steel') : 1)
       * (SB.companyMul ? SB.companyMul(s, 'steel') : 1)
       * hydroshopEffMul(s) * hydroshopBoostMul(s) * smeltingOutMul(s)
-      * (SB.faith && SB.faith.steelOutputMul ? SB.faith.steelOutputMul(s) : 1);
+      * (SB.faith && SB.faith.steelOutputMul ? SB.faith.steelOutputMul(s) : 1)
+      * metalCraftEfficiencyMul('craft_steel');
     addRes(s, 'steel', out);
     return out;
   }
@@ -2555,13 +2614,15 @@
     var T = SB.tech ? SB.tech.mul(s) : null;
     var HF = hydroAlloc(s, 1);
     /* 容量口径（砂矿充足假设）：bldEff 不改产能 ⇒ 不动此处；steelMul 放大钢产能（与 steelBonus 独立相乘）。 */
-    var steel = HF.shopDraw * SB.UNIT.steelPerHydro * globalMulX(s) * (1 + upgSum(s, 'steelBonus')) * (T ? T.steelMul : 1)
+    var steelBase = HF.shopDraw * SB.UNIT.steelPerHydro * globalMulX(s) * (1 + upgSum(s, 'steelBonus')) * (T ? T.steelMul : 1)
       * (1 + (SB.wonder && SB.wonder.nationalLogisticsMul ? SB.wonder.nationalLogisticsMul(s) : 0))
       /* ERA9 血肉苦弱卡（resOutMul.steel=1.3）：钢产出 +30%（装卡才生效）。 */
       * (SB.civic && SB.civic.cardResOutMul ? SB.civic.cardResOutMul(s, 'steel') : 1)
       * (SB.companyMul ? SB.companyMul(s, 'steel') : 1)
       * hydroshopEffMul(s) * hydroshopBoostMul(s) * smeltingOutMul(s)
       * (SB.faith && SB.faith.steelOutputMul ? SB.faith.steelOutputMul(s) : 1);
+    var steelCraftMul = metalCraftEfficiencyMul('craft_steel');
+    var steel = steelBase * steelCraftMul;
     /* ERA8：补 labDraw（生物材料研究所）/ robotDraw（工业机器人）/ robotbayDraw（机器人充能站）三个新耗流方——
      *   漏加 = 顶栏热液能净消耗少算几路（面板撒谎家族）。
      *   ERA10（2026-10-20）：再补 jupitorDraw（朱庇特质量加速站 20/s）——同一个坑，第三次踩到：
@@ -2572,7 +2633,8 @@
      *   shell.tickShell ③段直扣，rates 要减掉这四笔必须拿到「热液能是否给满」这一个判据，
      *   否则面板只能二选一：要么假装没耗（珊瑚被抽干还显示 +450/s，用户报的 bug），
      *   要么停摆时也照扣（反向撒谎）。同源取 HF.geekRate，与 tick 的 `_HF2.geekDraw > 0` 等价。 */
-    return { steel: steel, hydro: hydro, hydroSupply: HF.supplyRate, starRate: HF.starRate,
+    return { steel: steel, steelBase: steelBase, steelCraftMul: steelCraftMul,
+      hydro: hydro, hydroSupply: HF.supplyRate, starRate: HF.starRate,
       europaRate: HF.europaRate, geekRate: HF.geekRate,
       fissionStoneRate: HF.fissionStoneRate, vatFlowRate: HF.vatFlowRate,
       coreNetRate: HF.coreNetRate,
@@ -2610,7 +2672,7 @@
     ratio = Math.max(0, Math.min(1, ratio));
     return { ratio: ratio, T: T, lv: lv, nK: nK, nI: nI, nT: nT, nU: nU };
   }
-  function thetaOut(s, lv, ratio, T) {
+  function thetaOutBase(s, lv, ratio, T) {
     return lv * (SB.BLD.biomatlabOutRate || 0) * ratio * globalMulX(s) * smeltingOutMul(s)
       * (T ? (T.biomatlabOut || 1) * (T.biomatlabEff || 1) : 1)
       /* ERA9 血肉苦弱卡（resOutMul.thetaMetal=1.3）：θ金属产出 +30%（装卡才生效）。 */
@@ -2620,6 +2682,9 @@
        * 与纳米技术的 biomatlabOut ×1.10 **独立相乘**（合计 ×2.10）。读数走 wonder.js（纪律③）。 */
       * (SB.wonder && SB.wonder.wonderBiomatlabOut ? SB.wonder.wonderBiomatlabOut(s) : 1)
       * (SB.faith && SB.faith.thetaOutputMul ? SB.faith.thetaOutputMul(s) : 1);
+  }
+  function thetaOut(s, lv, ratio, T) {
+    return thetaOutBase(s, lv, ratio, T) * metalCraftEfficiencyMul('craft_theta');
   }
   /* ERA10（2026-10-20）：太阳星环平产量 —— 每级 +0.05 θ金属/秒（用户 ERA10 表原值）。
    * ⚠️ **平产**：不吃 biomatlab 开工率（无原料需求）、不吃 globalMul（字面「每秒生产」），
@@ -2651,6 +2716,11 @@
     var _ring = solarRingOut(s);
     if (q.lv <= 0) return _ring;
     return thetaOut(s, q.lv, q.ratio, q.T) + _ring;
+  }
+  function thetaRateParts(s) {
+    var q = thetaRatio(s);
+    return { base: q.lv > 0 ? thetaOutBase(s, q.lv, q.ratio, q.T) : 0,
+      craftMul: metalCraftEfficiencyMul('craft_theta'), ring: solarRingOut(s) };
   }
   /* 只读版 θ产线四种原料的实际消耗率；与 thetaFlow 使用同一个库存开工率。 */
   function thetaInputRates(s) {
@@ -2696,6 +2766,8 @@
      *   热能优先卡把市政产出 −50%（cardCivicOutMul，整段乘，含议事厅/奇观的量）。 */
     var sqMulBase = ((s.jobs.scribe || 0) * folkOutputMul(s) * starOrbitalJobMul(s) * SB.UNIT.culture * sqMul
       * (1 + upgSum(s, 'pressCul')) * scribeCiv * scribePactMul(s)
+      * ((SB.voidFx && SB.voidFx.domainScribeMul) ? SB.voidFx.domainScribeMul() : 1)
+      * ((SB.faith && SB.faith.creedScribeCultureMul) ? SB.faith.creedScribeCultureMul(s) : 1)
       + coreLvl(s) * SB.CFG.CIVIC.HALL_RATE
         * (1 + (s.lvl.civichall || 0) * (SB.BLD.civicHallRatio || 0))
       + wonderBonus) * globalMul(s)
@@ -2706,7 +2778,7 @@
     var lgC = SB.prestige ? SB.prestige.legacy() : null;
     var cMul = lgC ? (lgC.relicCultureMul * (1 + lgC.shopCivicBonus)) : 1;
     var cAdd = lgC ? lgC.oldArtworkCultureRate : 0;
-    return (sqMulBase
+    return ((sqMulBase
       * (SB.wonder ? SB.wonder.cutterCivicMul(s) : 1)
       + (SB.civic ? SB.civic.wonderEraCivicBonus(s) : 0)
       + (SB.wonder ? SB.wonder.skydrillCivic(s) : 0)
@@ -2714,7 +2786,8 @@
       + ((s.lvl.school || 0) > 0 ? (s.pop || 0) * (s.lvl.school || 0) * (SB.BLD.schoolMermanCivic || 0) : 0)  // ERA5 学校（2026-10-21 改）：每名鲛人 +0.5 市政点/秒（每级，绝对量，与大众传媒同口径）
       + (SB.civic ? SB.civic.stadiumCivic(s) : 0))   // ERA7 直播竞技卡：人口 × 体育场等级（装卡且建体育场）
       * (SB.civic ? SB.civic.wonderCivicGainMul(s) : 1)   // ERA7 文化遗产：每座奇观 +1% 市政点获取
-      * cMul + cAdd;
+      * cMul + cAdd)
+      * ((SB.voidFx && SB.voidFx.civicWonderMul) ? SB.voidFx.civicWonderMul() : 1);
   }
 
   /* 潮纹馆的**合计级数** = 真实等级 + 大图书馆送的虚级（2026-09-28 用户规格
@@ -2743,7 +2816,15 @@
    * ⚠️【反自指】本函数**只**被 globalMul 调用（作用于珊瑚/石头/…/奢侈品这些 tick 产出），
    *   faithRate 本身不调 globalMul ⇒ 信仰自身产出不被自己的全产加成放大，避免指数自激。
    *   用户说「信仰按指数提供全产产出」= 信仰存量越高、全产加成越高，正是指这条轴。 */
+  /* 无神论挑战（veil_nofaith，2026-11-20）：本挑战局信仰的两条全产加成同时失效。
+   * ① 局内存量档 faithAllMul（本函数）恒 1；② 跨局旧日信仰档（baseMul 的
+   * oldFaithAllProductionBonus 段）跳过。⚠️ 只钳本局生效值，不改 prestige 的跨局账本。 */
+  function noFaithActive(s) {
+    var a = (s && SB.challenges && SB.challenges.active) ? SB.challenges.active(s) : null;
+    return !!(a && a.id === 'veil_nofaith');
+  }
   function faithAllMul(s) {
+    if (noFaithActive(s)) return 1;
     var f = s.res.faith || 0;
     if (f < 10) return 1;
     var mag = Math.floor(Math.log10(f) + 1e-9);   // 10→1, 100→2, 1000→3（浮点边界 +ε）
@@ -2775,7 +2856,8 @@
     /* 璀璨星图卡（popFaithMul）：人口信仰产出乘区（默 1，装卡 = 0.5 ⇒ −50%）。
      * 只作用在「人口基础项」上，不波及神庙/城堡/奇观等结构性乘区。 */
     var base = _faithPop * SB.CFG.FAITH_PER_POP
-      * (SB.civic && SB.civic.cardPopFaithMul ? SB.civic.cardPopFaithMul(s) : 1);
+      * (SB.civic && SB.civic.cardPopFaithMul ? SB.civic.cardPopFaithMul(s) : 1)
+      * geneMul('genePopFaithMul');
     /* 2026-09-30 ERA3 两段新乘区：
      *   · castleFaithMul——政策卡「王权神授」装着时，城堡每级 +10%（没装卡 = 1）；
      *   · abbeyFaithMul——奇观「圣泰坦尼克修道院」建成时，每完成一个市政 +1%。
@@ -2808,6 +2890,11 @@
       + (SB.civic && SB.civic.faithPerBuildingBonus ? SB.civic.faithPerBuildingBonus(s) : 0))
       * (SB.challenges ? SB.challenges.productionMul(s) : 1)
       * (SB.faith && SB.faith.faithOutputMul ? SB.faith.faithOutputMul(s) : 1)
+      /* 无神论通关奖励（2026-11-20）：信仰产出 ×1.5，跨周目永久（tierDone 读 meta）。
+       * ⚠️ 反自指纪律：faithRate 不调 globalMul ⇒ 不吃 faithAllMul ⇒ 本项不受本挑战
+       *    "禁信仰全产" 影响，两条轴互不干扰。 */
+      * ((SB.challenges && SB.challenges.tierDone && (SB.game && SB.game.meta))
+          ? (SB.challenges.tierDone('veil_nofaith', SB.game.meta()) ? 1.5 : 1) : 1)
       * (SB.war && SB.war.conquestProductionMultiplier ? SB.war.conquestProductionMultiplier(s) : 1);   // 本周目征服收益同样作用于信仰产出
   }
 
@@ -2838,7 +2925,9 @@
        * ⚠️ 必须**同时**加进 happyBonusTotal（economy-social.js）与 happyLedger.bonusParts。
        *   只加这里不加 happyBonusTotal ⇒ happyMech 没剥掉这项 ⇒ happyCost 反而变贵，
        *   污染会「让居民变贵」（方向相反的 bug）；不加 bonusParts ⇒ 面板偏移之和 ≠ 机制值。 */
-      + pollutionHappyOffset(s);
+      + pollutionHappyOffset(s)
+      /* 动荡年代通关奖励：永久 +1 幸福度。三处同源，统一调 SB.economySocial.veilHappyBonus。 */
+      + ((SB.economySocial && SB.economySocial.veilHappyBonus) ? SB.economySocial.veilHappyBonus() : 0);
     var _tMer = toolMul(s, 'merchant');
     var _uLux = upgSum(s, 'luxuryMul');
     var _lp = luxuryPactMul(s);
@@ -2852,7 +2941,7 @@
     var _ejM = (SB.folk && SB.folk.effJobs) ? SB.folk.effJobs(s) : null;
     var _S = (_ejM ? (_ejM.merchant || 0) : ((s.jobs.merchant || 0) * folkOutputMul(s)))
       * SB.UNIT.luxury * _tMer * baseMul(s) * unifiedMul(s)
-      * (SB.civic ? SB.civic.govLuxuryMul(s) : 1) * (1 + _uLux) * _lp * _bank
+      * (SB.civic ? SB.civic.govLuxuryMul(s) : 1) * (1 + _uLux) * _lp * merchantGeneMul(s) * _bank
       * (SB.wonder ? SB.wonder.bazaarLuxMul(s) : 1)
       * (SB.civic ? SB.civic.cardJobOutMul(s) : 1);   // ERA7 延长工时卡：商人产出 +30%（与面板 happySupply 同式，面板===结算）
     /* 水体污染通关奖励（2026-11-02）：商人奢侈品产出 ×1.5。与 happySupply / rates 商人明细三处同源。 */
@@ -2925,21 +3014,22 @@
     fuelRate: fuelRate, furnaceBoostMul: furnaceBoostMul, gatherMul: gatherMul,
     smeltingOutMul: smeltingOutMul, folkOutputMul: folkOutputMul,
     globalMul: globalMul, ironFlow: ironFlow, isCold: isCold, isFull: isFull,
-    libraryLevel: libraryLevel, luxuryPactMul: luxuryPactMul,
+    libraryLevel: libraryLevel, luxuryPactMul: luxuryPactMul, merchantGeneMul: merchantGeneMul,
     minerPactMul: minerPactMul, quarryPactMul: quarryPactMul, furnaceEffMul: furnaceEffMul,
     hydroshopEffMul: hydroshopEffMul, hydroshopBoostMul: hydroshopBoostMul,
     scholarPactMul: scholarPactMul, scribePactMul: scribePactMul,
     observatoryBonusPct: observatoryBonusPct, obsSciMul: obsSciMul, resUnlocked: resUnlocked, seasonTurn: seasonTurn,
     steelFlow: steelFlow, steelRate: steelRate, toolMul: toolMul, upgSum: upgSum,
+    metalCraftEfficiencyMul: metalCraftEfficiencyMul,
     warmBurningNow: warmBurningNow, warmCap: warmCap, warmEff: warmEff, warmRelief: warmRelief,
     /* rates / economy-tick 从 P 取读数：暖石行的「保温开关」扣减必须与 warmRelief 同源。 */
     warmRate: warmRate,
     /* ERA8：θ生物金属产线（tick 走 thetaFlow、rates 走 thetaRate，与 steelFlow/steelRate 对同构）。 */
-    thetaFlow: thetaFlow, thetaRate: thetaRate, thetaInputRates: thetaInputRates,
+    thetaFlow: thetaFlow, thetaRate: thetaRate, thetaRateParts: thetaRateParts, thetaInputRates: thetaInputRates,
     /* ERA10（2026-10-20）：unifiedMul / globalMulX / dysonPct / solarRingOut 进 internals——
      * tick/rates 两文件从 P(economyInternals) 取读数，只挂 SB.economy 本体它们拿不到
      * （thetaFlow 首跑 e2e 崩过的同款坑）。 */
-    unifiedMul: unifiedMul, globalMulX: globalMulX, dysonPct: dysonPct, solarRingOut: solarRingOut,
+    unifiedMul: unifiedMul, globalMulX: globalMulX, dysonPct: dysonPct, dysonFull: dysonFull, solarRingOut: solarRingOut,
     /* ERA10 市政（2026-10-20）：三座发射场的单一读数落点——tick 2f 与 rates 都从 P 取，
      * 不在各自文件里重写「求和 / 节律 / 每级耗流」（三处同源铁律）。 */
     launchBids: launchBids, launchLvl: launchLvl, launchActiveLvl: launchActiveLvl,
@@ -2972,7 +3062,7 @@
     pollutionHappyOffset: pollutionHappyOffset, pollutionKelpMul: pollutionKelpMul, pollutionCoralMul: pollutionCoralMul,
     /* 水体污染通关奖励乘区（商人奢侈品 +50%）—— 面板/实账/速率三处同源的唯一入口。 */
     luxuryOutMul: luxuryOutMul,
-    thetaFlow: thetaFlow, thetaRate: thetaRate, thetaInputRates: thetaInputRates,
+    thetaFlow: thetaFlow, thetaRate: thetaRate, thetaRateParts: thetaRateParts, thetaInputRates: thetaInputRates,
     /* 2026-11-06：UI 的「本季冰封」提示要显示全局产出倍率（含 coldPenalty 加成），
      * 必须与 tick / rates 同源。此前它只挂在 economyInternals ⇒ 冰封季 renderShell
      * 调 SB.economy.coldSeasonMul 抛 TypeError，renderAll 中断并连带打断启动流程。 */
@@ -3016,6 +3106,9 @@
      * （非科技/市政/信仰产出行专用）；dysonPct = 戴森进度单一读数源（tick 通关判定 /
      * condMet('dysonPct') / 星图面板三处共用，公式只此一处）。 */
     unifiedMul: unifiedMul, globalMulX: globalMulX, dysonPct: dysonPct,
+    /* 2026-11-21：dysonFull = 双达标（dysonPct>=1）⇒ 发射场自动全停的**唯一判据**。
+     * tick / rates / hydroAlloc / launchStatus / UI 五处共用，UI 靠它出停机徽标。 */
+    dysonFull: dysonFull,
     /* ERA10 市政：发射场读数落到公共 API（UI / e2e 要读——卡片切换钮与断言都调它）。 */
     launchLvl: launchLvl, launchActiveLvl: launchActiveLvl, launchRunLvl: launchRunLvl,
     launchProcOf: launchProcOf, setLaunchProc: setLaunchProc, resetLaunchProcs: resetLaunchProcs,
@@ -3083,7 +3176,9 @@
          *      ⇒ 一直假绿，测不到这个缺口。新断言必须显式设成非零。 */
         { label: '安乐之治', v: (s && s.perk && s.perk.happiness) || 0 },
         /* 水体污染：五阶段压幸福度（负值）。与 happyStep 的 _gb、happyBonusTotal 同源同项数。 */
-        { label: '水体污染', v: pollutionHappyOffset(s) }
+        { label: '水体污染', v: pollutionHappyOffset(s) },
+        /* 动荡年代通关奖励：永久 +1 幸福度。三处同源，统一调 SB.economySocial.veilHappyBonus。 */
+        { label: '飞升·动荡年代', v: (SB.economySocial && SB.economySocial.veilHappyBonus) ? SB.economySocial.veilHappyBonus() : 0 }
       ];
       var bonus = 0, nonzero = [];
       for (var bi = 0; bi < bonusParts.length; bi++) {

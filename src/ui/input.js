@@ -145,6 +145,13 @@
     if (metaTreeJump) {
       if (e.preventDefault) e.preventDefault();
       var treeKey = (metaTreeJump.dataset || {}).metaTreeJump;
+      /* 2026-11-20（玩家反馈⑥）：目标树可能是折叠态（玩家把前面的树都收起来了），
+       * 直接滚过去只会停在标题上、看不到任何节点 ⇒ 先展开再滚。
+       * ⚠️ 必须先 expand + 重画，再重新取元素：renderPanes() 会整块重建 DOM，旧引用已失效。 */
+      if (treeKey && SB.ui.renderParts && SB.ui.renderParts.isTreeFolded && SB.ui.renderParts.isTreeFolded(treeKey)) {
+        SB.ui.renderParts.toggleTreeFold(treeKey);
+        SB.ui.render.renderPanes();
+      }
       var treeTarget = treeKey && root.document && root.document.getElementById('meta-tree-' + treeKey);
       if (treeTarget && treeTarget.scrollIntoView) treeTarget.scrollIntoView({ behavior: 'smooth', block: 'start' });
       return;
@@ -366,6 +373,16 @@
     var achvFoldKey = achvFoldBtn && achvFoldBtn.dataset ? achvFoldBtn.dataset.achvFold : undefined;
     if (achvFoldKey !== undefined && achvFoldKey !== null && achvFoldKey !== '') {
       if (SB.ui.renderParts && SB.ui.renderParts.toggleAchvFold) SB.ui.renderParts.toggleAchvFold(achvFoldKey);
+      SB.ui.render.renderPanes();
+      return;
+    }
+    /* 轮回商店「天赋树」折叠（2026-11-20 玩家反馈⑥「前面几个都点满了，每次要一直翻」）：
+     * 与上一分支同族——纯视图动作，状态在 render-pane-meta 模块里（TREE_FOLD + 持久化），不碰游戏状态。
+     * 折叠与否由渲染时 `is-folded` 类决定 ⇒ 必须补一次 renderPanes，否则下一次 2 秒重画会还原。 */
+    var metaFoldBtn = d.metaFold !== undefined ? t : (t.closest && t.closest('[data-meta-fold]'));
+    var metaFoldKey = metaFoldBtn && metaFoldBtn.dataset ? metaFoldBtn.dataset.metaFold : undefined;
+    if (metaFoldKey !== undefined && metaFoldKey !== null && metaFoldKey !== '') {
+      if (SB.ui.renderParts && SB.ui.renderParts.toggleTreeFold) SB.ui.renderParts.toggleTreeFold(metaFoldKey);
       SB.ui.render.renderPanes();
       return;
     }

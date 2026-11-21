@@ -203,6 +203,80 @@
         { label: '一档', cap: 1.5 },
         { label: '二档', cap: 2 },
         { label: '三档', cap: 3 }
+      ] },
+    /* ── 飞升挑战系列（2026-11-20 实装，docs/CHALLENGE_VEIL_RUSH_DESIGN v0.4 + CHALLENGE_ASCENSION_POOL v0.7）──
+     * 三项共同：终点 = 研成《掀起帘幕》科技（goal {t:'tech',id:'beyond_veil'}），
+     *   由主循环 evaluate() 每帧判定 —— 研成瞬间落账到 meta.challenges，零 doVeil 插桩。
+     *   ❌ 虚境飞升（ascend_void → s.dysonDone）不算；终点只读 s.techs.beyond_veil。
+     *   「飞升后不消失」= 完成记录写在 meta（doVeil 清场不碰 meta.challenges）+ 奖励读 tierDone(meta)，
+     *   玩家之后掀幕重建本局都不掉档位/奖励。
+     *   三项都带 ascension:true，供 ascensionTierCount 计入「每档 +10% 飞升点」通用奖励
+     *   （挂 prestige.veilPeriod().points，绝不碰轮回点的 challengePointMul）。
+     *   平台榜单 / 成就 ID 均暂不建：不填 rankKey（不提交不存在的榜）；achievementKey 只记本地账本。 */
+    { id: 'veil_rush', achievementKey: 'challengeVeilRush', name: '飞升竞速', icon: '⏳', badge: 'assets/challenges/challenge-veil-sprint-illustrated.png', kind: '三档限时挑战',
+      timed: true, ascension: true,
+      summary: '在计时归零前研成《掀起帘幕》；退出游戏后计时仍继续。',
+      rule: '从开始挑战起按现实时间计时，离线时间也计入；超时后本档不能领取竞速奖励。',
+      rewards: ['永久星屑获取 +10%', '永久星屑获取 +20%', '永久星屑获取 +30%'],
+      goal: { t: 'tech', id: 'beyond_veil' }, goalText: '研成《掀起帘幕》科技',
+      tiers: [
+        { label: '32 小时档', cap: 32 * 60 * 60 },
+        { label: '16 小时档', cap: 16 * 60 * 60 },
+        { label: '8 小时档', cap: 8 * 60 * 60 }
+      ] },
+    { id: 'veil_abyss', achievementKey: 'challengeVeilAbyss', name: '飞升苦旅', icon: '⛓', badge: 'assets/challenges/challenge-veil-abyss-illustrated.png', kind: '三档挑战',
+      ascension: true,
+      summary: '全产出被压低，仍需一路研成《掀起帘幕》。',
+      rule: '本轮全产出降低，直至研成《掀起帘幕》。',
+      rewards: ['全产出 +20%', '全产出 +40%', '全产出 +60%'],
+      goal: { t: 'tech', id: 'beyond_veil' }, goalText: '研成《掀起帘幕》科技',
+      tiers: [
+        { label: '第一档', cap: 0.20 },
+        { label: '第二档', cap: 0.40 },
+        { label: '第三档', cap: 0.60 }
+      ] },
+    { id: 'veil_starve', achievementKey: 'challengeVeilStarve', name: '宇宙空洞', icon: '🕳', badge: 'assets/challenges/challenge-veil-starve-illustrated.png', kind: '三档挑战',
+      ascension: true,
+      summary: '星屑结算收益被压低，仍需一路研成《掀起帘幕》。',
+      rule: '本轮破壳星屑结算收益降低，直至研成《掀起帘幕》。',
+      rewards: ['每次飞升初始给 20 星屑', '每次飞升初始给 40 星屑', '每次飞升初始给 60 星屑'],
+      goal: { t: 'tech', id: 'beyond_veil' }, goalText: '研成《掀起帘幕》科技',
+      tiers: [
+        { label: '第一档', cap: 0.20 },
+        { label: '第二档', cap: 0.40 },
+        { label: '第三档', cap: 0.60 }
+      ] },
+    /* ── 飞升挑战第二批（2026-11-20 · docs/CHALLENGE_ASCENSION_TEN_FRESH v0.3）─────────
+     * 用户从十条候选中只选三条实装：#1 无神论 / #5 动荡年代 / #7 繁盛市场今在此。
+     * 共同规则与上一批三项完全一致（goal {t:'tech',id:'beyond_veil'} + ascension:true +
+     *   终点研成《掀起帘幕》+ 飞升后不消失 + 平台榜/成就 ID 暂不建），不重述。
+     * ⚠️ 档数：无神论 / 动荡年代为**单档固定**（tiers 一条 cap:null，各贡献飞升点 +0.1），
+     *    繁盛市场为三档（cap 0.3/0.5/0.7，+0.3）——用户 17:44 拍「1和5哪来的三档」。
+     * ⚠️ badge 暂用已存在的 veil 图标占位（用户将出图）：出图后按文档文件名替换三处 badge。 */
+    { id: 'veil_nofaith', achievementKey: 'challengeVeilNoFaith', name: '无神论', icon: '🚫', badge: 'assets/challenges/challenge-veil-nofaith-illustrated.png', kind: '终局挑战',
+      ascension: true,
+      summary: '弃绝一切信条与信仰之助，以无神之身抵达帘幕之后。',
+      rule: '全程不得装备任何信条；信仰的两条全产加成（局内存量档 + 跨局旧日信仰档）均失效。',
+      reward: '永久信仰产出 +50% · 信条抽选多一个候选（三选一变四选一）',
+      goal: { t: 'tech', id: 'beyond_veil' }, goalText: '研成《掀起帘幕》科技',
+      tiers: [{ label: '完成挑战', cap: null }] },
+    { id: 'veil_turmoil', achievementKey: 'challengeVeilTurmoil', name: '动荡年代', icon: '🌊', badge: 'assets/challenges/challenge-veil-turmoil-illustrated.png', kind: '终局挑战',
+      ascension: true,
+      summary: '在最深的动荡里，依然把文明推向群星。',
+      rule: '幸福度恒为最低档（动荡 ×0.80），奢侈品与奇观均无法抬升；直至研成《掀起帘幕》。',
+      reward: '永久幸福度 +1',
+      goal: { t: 'tech', id: 'beyond_veil' }, goalText: '研成《掀起帘幕》科技',
+      tiers: [{ label: '完成挑战', cap: null }] },
+    { id: 'veil_cramped', achievementKey: 'challengeVeilCramped', name: '繁盛市场今在此', icon: '🏪', badge: 'assets/challenges/challenge-veil-cramped-illustrated.png', kind: '三档挑战',
+      ascension: true,
+      summary: '仓廪逼仄偏要开成繁盛市场，把有限空间用到极致。',
+      rule: '全部有上限资源的仓储上限 −30% / −50% / −70%（科研点等无上限资源不受影响）。',
+      rewards: ['仓储上限 +30%', '仓储上限 +50%', '仓储上限 +70%'],
+      goal: { t: 'tech', id: 'beyond_veil' }, goalText: '研成《掀起帘幕》科技',
+      tiers: [
+        { label: '第一档', cap: 0.30 },
+        { label: '第二档', cap: 0.50 },
+        { label: '第三档', cap: 0.70 }
       ] }
   ];
   var BY_ID = {};
@@ -213,7 +287,9 @@
    *   重打还能再领一次奖（2026-11-02 加 waterpollution 时同步补上）。 */
   function emptyProgress() { return { completed: { cold: false, small: false, science: 0, abyss: 0, speedrun: 0, dyson_rush: 0, drift_terra: false, waterpollution: false,
     anarchy: false, good_old_days: false, three_launch_sites: false, eternity_moment: 0, pacifist: false,
-    weapon_critique: false, totalwar_doctrine: false, raider: false, conqueror: 0 } }; }
+    weapon_critique: false, totalwar_doctrine: false, raider: false, conqueror: 0,
+    veil_rush: 0, veil_abyss: 0, veil_starve: 0,
+    veil_nofaith: false, veil_turmoil: false, veil_cramped: 0 } }; }
   function progress(meta) {
     var c = meta && meta.challenges && meta.challenges.completed;
     return c || emptyProgress().completed;
@@ -226,6 +302,15 @@
   function completedCount(meta) {
     var n = 0;
     for (var j = 0; j < DEFINITIONS.length; j++) n += tierDone(DEFINITIONS[j].id, meta);
+    return n;
+  }
+  /* 飞升挑战专属档位计数（2026-11-20）：只数带 ascension:true 的挑战（飞升竞速 / 飞升苦旅 / 宇宙空洞）。
+   * ⚠️ 不能用 completedCount —— 那会数所有挑战，把飞升点通用奖励误发给非飞升挑战。
+   * 供 prestige.veilPeriod().points 用（ascMul = 1 + 0.1 × 本计数），与轮回点 challengePointMul 是两条账。 */
+  function ascensionTierCount(meta) {
+    var n = 0;
+    for (var j = 0; j < DEFINITIONS.length; j++)
+      if (DEFINITIONS[j].ascension) n += tierDone(DEFINITIONS[j].id, meta);
     return n;
   }
   /* 挑战限制「是否仍生效」。2026-11-03 用户拍板：破壳不再自动解除限制 ——
@@ -429,6 +514,11 @@
      * 不复用 speedDone 那一档账本 —— 两项挑战各有自己的 completed 计数。 */
     var rushDone = tierDone('dyson_rush', meta);
     if (rushDone) m *= 1 + [0, 0.05, 0.10, 0.15][rushDone];
+    /* 飞升苦旅（2026-11-20）：奖励 +20/40/60% 与限制 -20/40/60% 各一行，
+     * 不并进 abyss（一次改一项）。限制由 active() 管：goal 型研成瞬间 challengeDone ⇒ 返回 null ⇒ 限制自动结束。 */
+    var veilAbyssDone = tierDone('veil_abyss', meta);
+    if (veilAbyssDone) m *= 1 + [0, 0.20, 0.40, 0.60][veilAbyssDone];
+    if (a && a.id === 'veil_abyss') m *= 1 - activeTier(s).cap;
     if (a && a.id === 'abyss') m *= 1 - activeTier(s).cap;
     return m;
   }
@@ -489,6 +579,10 @@
       var ow = SB.wonder && SB.wonder.owned ? SB.wonder.owned(s) : {};
       return (goal.ids || []).every(function (id) { return !!ow[id]; });
     }
+    /* 飞升挑战终点（2026-11-20）：读本局科技旗 s.techs[id]，研成瞬间即成立。
+     * ⚠️ 只读 s.techs，不读 s.dysonDone —— 虚境飞升不算本系列终点。
+     * ⚠️ 这是 goal 引擎新增的唯一分支，现有 7 种 goal 求值未变。 */
+    if (goal.t === 'tech') return !!(s.techs && s.techs[goal.id]);
     return false;
   }
   /* ── goal 型挑战的通用结算（2026-11-02 泛化）────────────────────────────────
@@ -871,6 +965,7 @@
   SB.challenges = {
     list: function () { return DEFINITIONS; }, byId: function (id) { return BY_ID[id] || null; },
     progress: progress, tierDone: tierDone, completedCount: completedCount,
+    ascensionTierCount: ascensionTierCount,
     active: active, activeTier: activeTier,     ignorePopulationGates: ignorePopulationGates,
     bypassGovernmentGates: bypassGovernmentGates, governmentLocked: governmentLocked,
     warBlocked: warBlocked, warActionBlockedReason: warActionBlockedReason,

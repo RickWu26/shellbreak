@@ -966,7 +966,22 @@
       cost: { rocketEngine: 200, sealbin: 400 },
       costBuild: { satellite: 10 },
       effect: {},
-      desc: '轨道上的阳伞：每秒净化 15 点污染（永久，不随等级变化）。建造时消耗 10 级轨道卫星。' }
+      desc: '轨道上的阳伞：每秒净化 15 点污染（永久，不随等级变化）。建造时消耗 10 级轨道卫星。' },
+
+    /* 煌皇的三座奇观记录在飞升 meta 中；workshop.js 负责等级门与一次性材料扣除，
+     * voidFx 则以独立乘区提供效果，s.wonders 不承载其跨轮回所有权。 */
+    { id: 'wonder_void_stamp_fortress', name: '掌印者要塞', era: 1,
+      requiresVeilDomain: 'emperor', requiresVeilLevel: 1,
+      cost: { stoneBeam: 1000 }, effect: {},
+      desc: '整个飞升期间持续存在，轮回后不会消失；书手固定改称「掌印者」，市政点产出 +100%。' },
+    { id: 'wonder_void_candle_hall', name: '烛光之厅', era: 1,
+      requiresVeilDomain: 'emperor', requiresVeilLevel: 2,
+      cost: { ironBracket: 1000, steelPart: 1000 }, effect: {},
+      desc: '整个飞升期间持续存在，轮回后不会消失；学者固定改称「持册人」，科技点产出 +100%。' },
+    { id: 'wonder_void_mars_foundry', name: '马尔斯铸造宫', era: 1,
+      requiresVeilDomain: 'emperor', requiresVeilLevel: 3,
+      cost: { thinafilm: 1000 }, effect: {},
+      desc: '整个飞升期间持续存在，轮回后不会消失；工艺效率 +200%。' }
   ];
 
   /* 手动采集：开局唯一的两条进项，点一下拿多少。

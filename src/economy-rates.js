@@ -14,6 +14,7 @@
   var autoDrillOutputMul = P.autoDrillOutputMul;
   var activeSiltpit = P.activeSiltpit;
   var isCold = P.isCold, libraryLevel = P.libraryLevel, luxuryPactMul = P.luxuryPactMul;
+  var merchantGeneMul = P.merchantGeneMul, metalCraftEfficiencyMul = P.metalCraftEfficiencyMul;
   var minerPactMul = P.minerPactMul, quarryPactMul = P.quarryPactMul, furnaceEffMul = P.furnaceEffMul, scholarPactMul = P.scholarPactMul, obsSciMul = P.obsSciMul, steelRate = P.steelRate;
   var toolMul = P.toolMul, upgSum = P.upgSum, warmBurningNow = P.warmBurningNow;
   /* 2026-11-05：费率随破壳系数变化，保温开关这一行必须读 economy.warmRate（与 warmRelief 同源）。 */
@@ -128,22 +129,27 @@
      *   ⚠️ 本段必须与 tick 2f 逐字同构：模式门（科技门）、各类耗料量、满供判据（含 tiplate）、
      *      节律（CFG.LAUNCH_CYCLE + Tr.launchCycle，矢量控制 −2s）。漏一路就是面板撒谎。 */
     var _elR = launchRunLvl(s);
+    /* 2026-11-21 竣工自动停机：pct>=1 后发射场全停 ⇒ 面板的耗料/产出速率必须同步归零，
+     * 否则玩家会看到「停着还在扣铀」。判据与 tick 2f / hydroAlloc 同源（economy.dysonFull）。
+     * ⚠️ 只归零**速率**，不动 _elR 本身：下面 part 的算式说明还要用它写「N 级 ÷ 节律」。 */
+    var _elStopR = (SB.economy && SB.economy.dysonFull) ? SB.economy.dysonFull(s) : false;
+    var _elRunR2 = _elStopR ? 0 : _elR;
     var _nodeR = launchNodeMode(s);
     var _cycR = launchCycleOf(s);
-    var _elHydNeedR = _elR * launchHydroPer(s);
+    var _elHydNeedR = _elRunR2 * launchHydroPer(s);
     var _elCostsR = launchMaterialPer(s);
     var _elUUnitR = _elCostsR.uranium, _elSpUnitR = _elCostsR.strongProp;
     var _elTfUnitR = _elCostsR.thinafilm, _elTpUnitR = _elCostsR.tiplate;
     var _elRunR = (_sr.europaRate >= _elHydNeedR - 1e-6)
-      && (s.res.uranium || 0) >= _elR * _elUUnitR
-      && (s.res.strongProp || 0) >= _elR * _elSpUnitR && (s.res.thinafilm || 0) >= _elR * _elTfUnitR
-      && (!_elTpUnitR || (s.res.tiplate || 0) >= _elR * _elTpUnitR);
-    var _elURate = _elRunR ? _elR * _elUUnitR : 0;
-    var _elSpRate = _elRunR ? _elR * _elSpUnitR : 0;
-    var _elTfRate = _elRunR ? _elR * _elTfUnitR : 0;
-    var _elTpRate = _elRunR ? _elR * _elTpUnitR : 0;
+      && (s.res.uranium || 0) >= _elRunR2 * _elUUnitR
+      && (s.res.strongProp || 0) >= _elRunR2 * _elSpUnitR && (s.res.thinafilm || 0) >= _elRunR2 * _elTfUnitR
+      && (!_elTpUnitR || (s.res.tiplate || 0) >= _elRunR2 * _elTpUnitR);
+    var _elURate = _elRunR ? _elRunR2 * _elUUnitR : 0;
+    var _elSpRate = _elRunR ? _elRunR2 * _elSpUnitR : 0;
+    var _elTfRate = _elRunR ? _elRunR2 * _elTfUnitR : 0;
+    var _elTpRate = _elRunR ? _elRunR2 * _elTpUnitR : 0;
     /* 产出速率（/秒）：满供满料时 = 启用等级总和 ÷ 节律（每场独立累加周期）。 */
-    var _elOutRate = _elRunR ? _elR / _cycR : 0;
+    var _elOutRate = _elRunR ? _elRunR2 / _cycR : 0;
     var _elSailRate = _nodeR ? 0 : _elOutRate;
     var _elNodeRate = _nodeR ? _elOutRate : 0;
     /* ── ERA9-GEEK（2026-10-21 · 用户报 bug）：「珊瑚明明在减少，速率却写 +450/s」。 ──
@@ -277,9 +283,9 @@
       /* 帆/节点两行不是「库存」，而是「本秒发射进度」：按 启用等级总和 ÷ 节律 算。
        * 乘积拆不成 base×乘区（那是除法），所以把算式本身写进 d（只有数字与单位）。 */
       sunSailRate: part('sunSailRate', '太阳帆发射', _elSailRate, null,
-        _elR + ' 级 ÷ ' + _cycR + 's'),
+        _elStopR ? '已竣工停机' : (_elR + ' 级 ÷ ' + _cycR + 's')),
       dysonNodeRate: part('dysonNodeRate', '节点建造', _elNodeRate, null,
-        _elR + ' 级 ÷ ' + _cycR + 's'),
+        _elStopR ? '已竣工停机' : (_elR + ' 级 ÷ ' + _cycR + 's')),
       /* ERA7（2026-10-17 · spec §2）：铀 —— 与 tick 的 uranium 行逐字同构（同一批
        *   mineBonus・gatherMul・toolMul・cold・globalMul），门=科技 autodrill（面板路与结算路同源）。 */
       uranium: ((s.techs && s.techs.autodrill)
@@ -364,13 +370,15 @@
                   ['热泉炉加成', furnaceBoostMul(s)],
                   ['热泉炉效率', furnaceEffMul(s)],
                   ['冶炼', P.smeltingOutMul(s)],
+                  [SB.i18n && SB.i18n.t ? SB.i18n.t('ui.resource.detail.factor.metal_recipe') : '', metalCraftEfficiencyMul('craft_iron')],
                   ['国家物流', (SB.wonder && SB.wonder.nationalLogisticsMul ? SB.wonder.nationalLogisticsMul(s) : 0) + 1],
                   ['炉火礼赞', (SB.faith && SB.faith.furnaceIronOutputMul ? SB.faith.furnaceIronOutputMul(s) : 1)]])
                + part('iron', '研究所原料', -_thetaIn.iron),
       /* ERA3 热液能系统（2026-10-05 flow 模型）：steelRate 非变异版，与 tick 的 steelFlow 同式（dt=1）。
        *   steel = 工坊实际产钢速率；hydro = 本 tick **实际消耗**（工坊吃 + 钻机吃），作顶栏速率行（−M/s）。
        *   ⚠️ 顶栏热液能**主数**是 s.res.hydro（tick 写的供给快照），速率行才是这里的消耗 —— 二者分工见 render.js。 */
-      steel:   part('steel', '热液工坊产钢', _sr.steel),
+      steel:   part('steel', '热液工坊产钢', _sr.steelBase,
+                 [[SB.i18n && SB.i18n.t ? SB.i18n.t('ui.resource.detail.factor.metal_recipe') : '', _sr.steelCraftMul]]),
       hydro:   part('hydro', '工坊与钻机耗流', _sr.hydro),
       /* ⚠️ hydroSupply = 热液能**总生产**（供给侧 /s，恒 ≥0）。与上一行 hydro（净消耗，取负）
        *    是两个不同口径，别合并：顶栏速率行要「这行每秒怎么变」⇒ 读 hydro；
@@ -420,7 +428,12 @@
                    [['星际物流', _planetMulR]])
                + part('rocketFuel', '奇观加成', SB.wonder ? SB.wonder.wonderFuelBonus(s) : 0),
       /* ERA8：θ生物金属产线（thetaRate 与 thetaFlow 同式不扣料，开工率按当前库存现算）。 */
-      thetaMetal: part('thetaMetal', '生物材料研究所', SB.economy.thetaRate(s))
+      thetaMetal: (function () {
+        var thetaParts = SB.economy.thetaRateParts(s);
+        return part('thetaMetal', '生物材料研究所', thetaParts.base,
+                    [[SB.i18n && SB.i18n.t ? SB.i18n.t('ui.resource.detail.factor.metal_recipe') : '', thetaParts.craftMul]])
+          + part('thetaMetal', SB.i18n && SB.i18n.t ? SB.i18n.t('building.solar_ring.name') : '', thetaParts.ring);
+      }())
         + ((s.upgrades && s.upgrades.upg_crustmine)
           ? part('thetaMetal', '地壳钻井伴生', (j.miner || 0) * 0.005,
               [['砂矿坑', mineBonus], ['矿脉升级', 1 + upgSum(s, 'mineSilt')],
@@ -466,6 +479,7 @@
            ['马镫工坊', 1 + upgSum(s, 'luxuryMul')],
            /* 2026-10-05 奢侈品契 +3%/级（与 tick 的 _lp 同一个函数） */
            ['奢侈品契', luxuryPactMul(s)],
+           [SB.i18n && SB.i18n.t ? SB.i18n.t('ui.veil.gene.node.longevity.name') : '', merchantGeneMul(s)],
            /* 2026-09-30 ERA4：银行每级商人产出 +10% */
            ['银行', bankMul(s)],
            /* 大巴扎：每名鲛人 +1% 奢侈品获取 */

@@ -4,6 +4,26 @@ Faith tenet icons use a shared scalloped shell reliquary frame in ivory mother-o
 
 The five military tenets are included in the offer pool. Their effect helpers are ready for the planned war system, which does not yet have action or military-production entry points to consume them.
 
+## Void-domain creeds
+
+Four creeds are unlocked by reaching LV3 in their matching void domain. Each has a dedicated transparent 128×128 icon, using the game's NPC portrait art as a style reference and sharing a scalloped shell reliquary frame.
+
+| Creed | Dedicated icon |
+|---|---|
+| 枯荣 | `assets/faith-tenets/void/creed-wither.png` |
+| 兵夔 | `assets/faith-tenets/void/creed-bingkui.png` |
+| 堕殃 | `assets/faith-tenets/void/creed-duoyang.png` |
+| 异叟 | `assets/faith-tenets/void/creed-yisou.png` |
+
+### Icon prompt set
+
+Shared prompt: “A single centered transparent 128×128 game UI icon, framed by a symmetrical scalloped shell reliquary in ivory mother-of-pearl, antique gold filigree, small pearl accents and midnight teal enamel. Polished painterly dark-fantasy illustration, detailed hand-painted materials, crisp readable silhouette at thumbnail size, restrained glow; no lettering, watermark, or scenery outside the frame.”
+
+- **枯荣:** A weathered round stone divided between a bare winter branch and fresh green leaves, encircled by falling and returning leaves.
+- **兵夔:** A dark iron shield before crossed spears and a worn crimson war banner; no skulls or gore.
+- **堕殃:** A pale ornamental garden gate entwined by a flowering vine, with one violet eye reflected in a pearl; no full portrait.
+- **异叟:** An ancient closed book with a loose page dissolving into tiny stars and abstract code-like marks; no readable text.
+
 ## Profession tenets
 
 | Tenet | Icon |

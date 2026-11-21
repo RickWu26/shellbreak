@@ -76,11 +76,12 @@
     var shown = 0;
     for (i = 0; i < L.length; i++) {
       var w = L[i];
-      var done = !!(s.wonders && s.wonders[w.id]);
+      var done = !!(s.wonders && s.wonders[w.id])
+        || !!(SB.voidFx && SB.voidFx.wonderOwned && SB.voidFx.wonderOwned(w.id));
       var wonderName = wonderNameForPane(s, w.id);
       var wonderDesc = wonderDescription(s, w.id, SB.wonder.displayDesc(s, w.id));
       var why = done ? null : SB.workshop.wonderBlocked(s, w.id);
-      if (!done && why && /^需要先/.test(why)) continue;   // 未解锁 ⇒ 整行不显示
+      if (!done && why && (hasRequirementBlock(s, w) || /^需要先/.test(why))) continue;   // 未解锁 ⇒ 整行不显示
       /* 挑战专属奇观（2026-11-02）：不在本局就整行不显示。
        * ⚠️ 不能靠上面那条 `/^需要先/` 顺带过去 —— challengeOnly 的拒绝文案是
        *   「仅限…期间建造」，不以「需要先」开头 ⇒ 会被当成「已解锁但材料不够」显示出来，

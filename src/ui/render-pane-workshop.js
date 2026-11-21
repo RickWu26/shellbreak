@@ -367,7 +367,7 @@
           h += '<button class="btn tog' + (selectedPct ? ' on' : '') + '" aria-pressed="' + selectedPct + '" data-aslot="' + c.id + '"' +
             ' data-apct="' + p + '" title="' + (englishLocale() ? tr('ui.workshop.automation_slots.percent_tooltip', {
               conversionPercent: p * 100
-            }, '') : '任一有上限原料满仓后，转制当时可造量的 ' + (p * 100) + '%') + '">' +
+            }, '') : '任一有上限原料攒到「上限 × ' + (p * 100) + '%」时自动转制，转制当时可造量的 ' + (p * 100) + '%；转完会跌到该档位以下再重新攒，所以不会保持满仓（100% = 满仓才转）') + '">' +
             (p * 100) + '%</button>';
         }
       }
@@ -391,7 +391,7 @@
       h += '<small class="craftauto-hint" role="note">' + tr('ui.workshop.automation_slots.warmstone_warning', {
         recommendedPercentages: pctLabels.slice(0, pctLabels.length - 1).join(' / '),
         maxPercent: pctLabels[pctLabels.length - 1] || '100%'
-      }, '暖石会被保温法、熔炉和热液汽轮机消耗；自动制造需等暖石满仓。') + '</small>';
+      }, '暖石会被保温法、熔炉和热液汽轮机消耗；自动制造需等暖石攒到所选档位（100% = 满仓）。') + '</small>';
     }
     return h + '</div>';
   }
@@ -410,7 +410,7 @@
     var summary = englishLocale() ? tr('ui.workshop.automation_slots.summary', {
       usedSlots: used, slotCapacity: cap, percentageOptions: percentageOptions
     }, '') : '自动制作槽 <b>' + used + '/' + cap + '</b>：' +
-      '全部原料有上限的配方：任一原料满仓后按 25 / 50 / 75 / 100% 转制；' +
+      '全部原料有上限的配方：任一原料攒到「上限 × 所选档位」时自动转制，转制当时可造量的该档位%（25 / 50 / 75 / 100%），转完跌回档位以下再攒；' +
       '含无上限原料的配方：沿用批次自动制造，库存够造指定数量时造一整批，多出的材料保留。';
     return '<div class="note">' + summary + '</div>';
   }

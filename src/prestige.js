@@ -248,6 +248,7 @@
     /* ERA6 市政《文明构造》：拥有则**本轮回**轮回点 +20%（拥有当轮 tidePoints ×1.2，
      * 不跨周目累积）。在写入 meta.tide 之前乘，与「本局结算」口径一致；未拥有 = 不乘。 */
     if (s.civics && s.civics.civilization) r.tidePoints *= 1.2;
+    if (SB.voidFx && SB.voidFx.tideYieldMul) r.tidePoints *= SB.voidFx.tideYieldMul();
     meta.tide += r.tidePoints;
     meta.tideEarnedTotal = (meta.tideEarnedTotal || 0) + r.tidePoints;
     /* 2026-10-24 成就「十次轮回」（docs/ACHV_DESIGN_v0.3.md §四·4，事项 4 用户拍「只算轮回」）：
@@ -338,11 +339,7 @@
 
   var PATH_IDS = ['si', 'vo', 'gn'];   // 三条飞升路径：硅基承续 / 虚境升华 / 生命织章
 
-  /* 可开启路径真源（2026-11-18 用户拍板「玩家自己选，暂时只能选机械飞升」）。
-   * ⚠️ 与「已实装」绑定，不等同于 PATH_IDS：vo/gn 的 WIP 门（veil-hub-ui.js 的 wip）
-   *    只是「开了也进不去」，而这里决定「能不能被选来开」。当前只有 si 做好，
-   *    所以 OPENABLE_IDS 只放 si —— 玩家第一次掀幕看到单选区、也只有它能选。
-   *    等 vo/gn 实装，往这里加 id 即可，解锁机制本身不用再改。 */
+  /* 可开启路径真源：虚境升华当前仅提供帷幕内只读预览，不能被飞升解锁。 */
   var OPENABLE_IDS = ['si'];
 
   /* ── 帷幕周期账（唯一真源）────────────────────────────────────────────────
@@ -377,18 +374,27 @@
       var rep = breakReport(s);
       /* 与 doBreak 同一个乘子位置（《文明构造》本轮回 +20%），否则「本局预估」与实际
        * 结算值会差 20%，玩家会以为显示错了。 */
-      pending.tide = rep.tidePoints * ((s.civics && s.civics.civilization) ? 1.2 : 1);
+      pending.tide = rep.tidePoints * ((s.civics && s.civics.civilization) ? 1.2 : 1)
+        * ((SB.voidFx && SB.voidFx.tideYieldMul) ? SB.voidFx.tideYieldMul() : 1);
       pending.star = rep.stardust;
       tide += pending.tide;
       star += pending.star;
       pending.active = true;
     }
+    /* 飞升挑战通用奖励（2026-11-20）：每完成一档飞升挑战 +10% 飞升点产出。
+     * 三项挑战（飞升竞速/飞升苦旅/宇宙空洞）各带 ascension:true，各 3 档 ⇒ 全局 9 档 ⇒ ascMul 满值 1.9。
+     * ⚠️ 必须挂在 points 这一处唯一真源：预估 / 确认面板 / 底栏 / doVeil 结算四处都调 veilPeriod，
+     *    分散改必然出现「显示 1.23 实发 1.20」。doVeil 的 gained 直接取 per.points，实发同步生效。
+     * ⚠️ 绝不碰轮回点的 challengePointMul（:193）——飞升点与轮回点是两套货币、两条账。 */
+    var ascMul = 1;
+    if (SB.challenges && SB.challenges.ascensionTierCount)
+      ascMul = 1 + 0.10 * SB.challenges.ascensionTierCount(meta);
     return {
       hasLedger: !!v,
       tide: tide, star: star,
       baseTide: baseTide, baseStar: baseStar,
       pending: pending,
-      points: Math.round((tide / 10000 + star / 1000) * 100) / 100
+      points: Math.round((tide / 10000 + star / 1000) * ascMul * 100) / 100
     };
   }
 
@@ -480,6 +486,9 @@
     var v = meta.veil;
     if (!v.paths) v.paths = { opened: [], organ: {}, void: {}, gene: {} };
     if (!Array.isArray(v.paths.opened)) v.paths.opened = [];
+    if (!v.paths.void || typeof v.paths.void !== 'object' || Array.isArray(v.paths.void)) v.paths.void = {};
+    if (!v.paths.void.domains || typeof v.paths.void.domains !== 'object' || Array.isArray(v.paths.void.domains)) v.paths.void.domains = {};
+    if (!v.paths.void.wonders || typeof v.paths.void.wonders !== 'object' || Array.isArray(v.paths.void.wonders)) v.paths.void.wonders = {};
     var openedBefore = v.paths.opened.slice();
     // ③ 清资产（上位稿 §2「清」列）——只清这些，保留列一字不动
     /* ⚠️ 2026-11-17 修正：此前这里写 `meta.spent = 0` 且把 tideEarnedTotal 也清零，
@@ -502,15 +511,16 @@
     meta.govPassiveCards = {};
     meta.govEverAdopted = {};
     meta.challengePopupPending = null;
-    // veil 自身：余额/本重飞升树重买/周期账归零，count +1 只增不减
-    v.points = 0;
+    // veil 自身：点数余额跨重保留；本重飞升树重买、周期账归零，count +1 只增不减
     v.perks = {};
     v.cycleTide = 0;
     v.cycleStar = 0;
 
-    // ④ 发点建账
+    // ④ 把本周期新得点数加进可用余额；按分取整，兼容广告奖励的 0.1 点增量。
     v.count = (v.count || 0) + 1;
-    v.points = gained;
+    var carriedPoints = Number(v.points);
+    if (!isFinite(carriedPoints) || carriedPoints < 0) carriedPoints = 0;
+    v.points = Math.round((carriedPoints + gained) * 100) / 100;
     v.lifetimePoints = (v.lifetimePoints || 0) + gained;
 
     // ⑤ 解锁玩家所选路径（2026-11-18 自选；没选 / 没可选则不开，照常掀幕给点）。
@@ -520,6 +530,24 @@
     // ⑥ 落盘 + 重建本局（走 startRun，它负责 runs+1 与 freshRun）
     SB.state.saveMeta(meta);
     if (SB.game && SB.game.startRun) SB.game.startRun();
+    /* 枯荣起始奖励只在真实掀幕后发放，不能放进 startRun（那样普通重开也会反复领取）。
+     * 轮回点同时记余额和历史获得量；星屑只增加余额，不计入累计结算/商店台账。 */
+    var startingTide = SB.voidFx && SB.voidFx.startTide ? SB.voidFx.startTide() : 0;
+    var startingStardust = SB.voidFx && SB.voidFx.startStardust ? SB.voidFx.startStardust() : 0;
+    if (startingTide > 0) {
+      meta.tide = (meta.tide || 0) + startingTide;
+      meta.tideEarnedTotal = (meta.tideEarnedTotal || 0) + startingTide;
+    }
+    if (startingStardust > 0) meta.stardust = (meta.stardust || 0) + startingStardust;
+    /* 宇宙空洞奖励（2026-11-20）：每重掀幕给新局初始星屑余额（20/40/60，按跨周目档位）。
+     * ⚠️ 只加 meta.stardust 可消费余额，绝不写 meta.stardustEarned（排行榜「最多星屑」与尤里卡 seed 台账），
+     *    也不写 s.got.stardust。设计意图：防止玩家飞升后一点星屑都没有。
+     * ⚠️ 这是「doVeil 全文逐字未改」原则的唯一例外 —— 只在此加一段读档加余额，
+     *    不碰路径选择 / popup 顺序 / 清场字段 / 那套作废的 t:'veil' 插桩。 */
+    var veilStarveTier = SB.challenges && SB.challenges.tierDone ? SB.challenges.tierDone('veil_starve', meta) : 0;
+    var veilStarveStart = veilStarveTier ? [0, 20, 40, 60][veilStarveTier] : 0;
+    if (veilStarveStart > 0) meta.stardust = (meta.stardust || 0) + veilStarveStart;
+    if ((startingTide > 0 || startingStardust > 0 || veilStarveStart > 0) && SB.state && SB.state.saveMeta) SB.state.saveMeta(meta);
     if (SB.saveTransfer && SB.saveTransfer.backupSoon) SB.saveTransfer.backupSoon();
 
     (emit || function () {})(tr('ui.veil.break_done', {
@@ -635,6 +663,11 @@
      * ⚠️ 读 meta 不在 s 上：这是**跨周目**奖励，必须走 tierDone（老档 completed 里没这个键
      *   就是没通过，不能靠 s.challengeDone 判）。 */
     if (SB.challenges && SB.challenges.tierDone('waterpollution', SB.game && SB.game.meta ? SB.game.meta() : null)) mul *= 1.1;
+    /* 飞升竞速奖励（2026-11-20）：星屑获取 +10/20/30% 独立第三行，档值原属宇宙空洞（15:32 用户转出）。
+     * ⚠️ 不并进 stardustRewardMul（九项终局挑战共享）也不并水体污染那行 —— 一次改一项。
+     * ⚠️ 读 tierDone(meta)，跨掀幕保留（飞升后不消失）。 */
+    var veilRushDone = SB.challenges && SB.challenges.tierDone('veil_rush', SB.game && SB.game.meta ? SB.game.meta() : null);
+    if (veilRushDone) mul *= 1 + [0, 0.10, 0.20, 0.30][veilRushDone];
     if (SB.challenges && SB.challenges.stardustRewardMul)
       mul *= SB.challenges.stardustRewardMul(SB.game && SB.game.meta ? SB.game.meta() : null);
     /* 星屑商店的「星尘回流」每级 +5%，末端无限「星尘共鸣」每级 +1%。
@@ -653,6 +686,18 @@
     if (SB.veilFx) {
       var wLv = (s.lvl && s.lvl.workshop) || 0;
       mul *= SB.veilFx.breakStardustMul(wLv);
+    }
+    if (SB.voidFx && SB.voidFx.starYieldMul) mul *= SB.voidFx.starYieldMul();
+    if (SB.faith && SB.faith.creedStarMul) mul *= SB.faith.creedStarMul(s);
+    /* 宇宙空洞限制（2026-11-20）：星屑结算收益 -20/40/60%，读本局 active()。
+     * ⚠️ 星屑是破壳一次性结算（shell.breakReport → 本函数），不是实时产出轴；
+     *    goal 型挑战破壳时 active() 仍有效（resolveRun 对 goal 返回 null、不置 challengeDone），
+     *    研成《掀起帘幕》那一刻 challengeDone 置位 ⇒ active() 返回 null ⇒ 限制自动结束。
+     * ⚠️ 这条只压结算收益，不写入 meta.stardustEarned / s.got.stardust 台账。 */
+    var veilStarveActive = SB.challenges && SB.challenges.active ? SB.challenges.active(s) : null;
+    if (veilStarveActive && veilStarveActive.id === 'veil_starve') {
+      var vsTier = SB.challenges.activeTier(s);
+      if (vsTier) mul *= 1 - vsTier.cap;
     }
     return Math.floor(levels * 0.1 * mul);
   }

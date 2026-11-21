@@ -202,8 +202,12 @@
      * powerParts() 必须同步这一行，否则「分项之和 ≠ 净值」（见 :206）。 */
     var soldierPactMul = 1 + 0.10 * nonNegative(s && s.perk && s.perk.soldierPact);
     /* 硅基承续 · 鳞/手（2026-11-17）：军人产出军力 +50/100/200%。与军契**相乘**（军契是级数加法轴）。 */
-    if (SB.veilFx) soldierPactMul *= (1 + SB.veilFx.soldierPactPct());
-    soldierOutput *= soldierPactMul;
+    if (SB.veilFx) soldierPactMul *= (1 + SB.veilFx.soldierPactPct())
+      * (SB.veilFx.geneValorMul ? SB.veilFx.geneValorMul() : 1);
+    var domainSoldierMul = SB.voidFx && SB.voidFx.domainSoldierMul ? SB.voidFx.domainSoldierMul() : 1;
+    var domainFortressMul = SB.voidFx && SB.voidFx.domainFortressMul ? SB.voidFx.domainFortressMul(s) : 1;
+    var creedMilitaryMul = SB.faith && SB.faith.creedMilitaryMul ? SB.faith.creedMilitaryMul(s) : 1;
+    soldierOutput *= soldierPactMul * domainSoldierMul * domainFortressMul * creedMilitaryMul;
     var academyOutput = nonNegative(s.pop) * academyLevel * nonNegative(B.militaryAcademyPowerPerPopulationPerLevel);
     var cloneOutput = nonNegative(s.pop) * nonNegative(s.perk && s.perk.cloneMilitaryPowerPerPopulation);
     var total = (soldierOutput + academyOutput + cloneOutput) * conquestProductionMultiplier(s);
@@ -249,8 +253,12 @@
     /* 与 rate() 同一行、同一系数（2026-11-14 军契）：b×m 必须仍等于 v。 */
     var soldierPactMul = 1 + 0.10 * nonNegative(s && s.perk && s.perk.soldierPact);
     /* 与 rate() 同一行、同一系数（硅基承续 · 鳞/手）：b×m 必须仍等于 v，漏这里就是面板撒谎。 */
-    if (SB.veilFx) soldierPactMul *= (1 + SB.veilFx.soldierPactPct());
-    soldierOutput *= soldierPactMul;
+    if (SB.veilFx) soldierPactMul *= (1 + SB.veilFx.soldierPactPct())
+      * (SB.veilFx.geneValorMul ? SB.veilFx.geneValorMul() : 1);
+    var domainSoldierMul = SB.voidFx && SB.voidFx.domainSoldierMul ? SB.voidFx.domainSoldierMul() : 1;
+    var domainFortressMul = SB.voidFx && SB.voidFx.domainFortressMul ? SB.voidFx.domainFortressMul(s) : 1;
+    var creedMilitaryMul = SB.faith && SB.faith.creedMilitaryMul ? SB.faith.creedMilitaryMul(s) : 1;
+    soldierOutput *= soldierPactMul * domainSoldierMul * domainFortressMul * creedMilitaryMul;
     var academyOutput = nonNegative(s.pop) * academyLevel * nonNegative(B.militaryAcademyPowerPerPopulationPerLevel);
     var cloneOutput = nonNegative(s.pop) * nonNegative(s.perk && s.perk.cloneMilitaryPowerPerPopulation);
     var conquestMul = conquestProductionMultiplier(s);
@@ -261,6 +269,9 @@
       if (soldierChallengeMul !== 1) sm.push([tr('challenge.definition.totalwar_doctrine.name'), soldierChallengeMul]);
       if (soldierBonusFactor !== 1) sm.push([tr('ui.resource.detail.power.soldier_bonus'), soldierBonusFactor]);
       if (soldierPactMul !== 1) sm.push([tr('ui.resource.detail.power.soldier_pact', null, '军契'), soldierPactMul]);
+      if (domainSoldierMul !== 1) sm.push([tr('domain.warlord.name'), domainSoldierMul]);
+      if (domainFortressMul !== 1) sm.push([tr('building.fortress.name'), domainFortressMul]);
+      if (creedMilitaryMul !== 1) sm.push([tr('faith.tenet.creed_bingkui.name'), creedMilitaryMul]);
       if (conquestMul !== 1) sm.push([tr('ui.resource.detail.power.conquest'), conquestMul]);
       parts.push({ l: tr('job.soldier.name'), v: soldierOutput * conquestMul, b: soldierBase, m: sm });
     }

@@ -8,7 +8,7 @@
  *
  * 页内两视图：
  *   hub  —— 三张飞升路径卡（名字 + 门徽 + 开启态），无树、无节点、无进度条；
- *   path —— 某条已开启路径的操作界面（硅基 = 十部位装配台），带「← 返回帷幕」。
+ *   path —— 已开启路径的操作界面；虚境升华例外，仅允许从卡片进入只读预览。
  * ⚠️ 视图状态只在模块变量里、不进存档：页签本身才是入口，重开游戏回大厅是对的。
  * ⚠️ 装配台内联（不 iframe）——与主界面共用 meta.veil 存档，强化能存进同一个档。
  *
@@ -25,13 +25,13 @@
   var SB = root.SB || (root.SB = {});
   var UI = SB.ui || (SB.ui = {});
 
-  /* wip = 操作界面尚未实装：卡片常驻锁定态、标「开发中」，即便飞升已开启该路径也不放入。
+  /* wip = 玩家门禁：卡片常驻锁定态，即便飞升已开启该路径也不放入；效果代码仍可预先接好。
    * focus = 卡片上的一句话定位（用户 2026-11-18 指定：工业与制造 / 科技与市政 / 采集与生产）。 */
   var PATHS = [
     { id: 'si', name: '硅基承续', focus: '工业与制造',
       closed: 'assets/veil/veil-gate-si-closed.webp', open: 'assets/veil/veil-gate-si-open.webp',
       seal: '已铆封', desc: '将自己的身体一步步替换为金属。' },
-    { id: 'vo', name: '虚境升华', focus: '科技与市政', wip: true,
+    { id: 'vo', name: '虚境升华', focus: '科技与市政', wip: true, preview: true,
       closed: 'assets/veil/veil-gate-vo-closed.webp', open: 'assets/veil/veil-gate-vo-open.webp',
       seal: '已消散', desc: '您听见的那些低语，是我们发出的。' },
     { id: 'gn', name: '生命织章', focus: '采集与生产', wip: true,
@@ -40,6 +40,25 @@
   ];
 
   var STAGES = ['接枝', '置换', '归一'];   // LV1/2/3 命名（v0.2 §2，用户授权我定）
+  var GENE_BRANCHES = {
+    supreme: [
+      { id: 'lore', pos: 12.1, y: 55, values: [{ value: 20 }, { value: 40 }, { value: 60 }] },
+      { id: 'valor', pos: 31.8, y: 53.5, values: [{ value: 20 }, { value: 40 }, { value: 60 }] },
+      { id: 'agility', pos: 50.4, y: 55, values: [{ value: 20 }, { value: 40 }, { value: 60 }] },
+      { id: 'longevity', pos: 67.5, y: 53.5, values: [
+        { merchant: 40, freeze: 10, warm: 10 },
+        { merchant: 80, freeze: 20, warm: 20 },
+        { merchant: 120, freeze: 40, warm: 40 }
+      ] }
+    ],
+    pure: [
+      { id: 'morph', pos: 12.1, y: 55, values: [{ value: 20 }, { value: 40 }, { value: 60 }] },
+      { id: 'growth', pos: 31.8, y: 53.5, values: [{ value: 10 }, { value: 20 }, { value: 30 }] },
+      { id: 'fastmat', pos: 50.4, y: 55, values: [{ value: 60 }, { value: 120 }, { value: 240 }] },
+      { id: 'forge', pos: 67.5, y: 53.5, values: [{ value: 60 }, { value: 120 }, { value: 240 }] }
+    ]
+  };
+  var geneBranch = 'supreme', geneSelected = 'lore';
 
   /* 飞升点价目表：每一级固定 1 / 2 / 4（2026-11-17 用户拍板）。
    * ⚠️ 唯一真源 —— organState 与 buyOrgan 都走 lvCost()，别再各自写公式。
@@ -115,8 +134,28 @@
       ], red: '谢谢。' }
   ];
 
+  var VOID_DOMAINS = [
+    { id: 'wither', zone: 'death', portrait: 'assets/veil/void-npc/wither.png',
+      light: 'assets/backgrounds/ascension-domains/realm-light-death-and-rebirth.svg', x: 387, y: 198,
+      d: 'M 215,197 C 209,163 222,134 250,116 C 265,91 296,76 327,78 C 354,57 392,62 412,78 C 445,65 485,76 497,102 C 527,105 550,126 554,154 C 577,176 575,208 557,229 C 551,257 523,276 494,280 C 477,304 447,314 419,305 C 392,328 357,326 334,308 C 303,314 275,294 264,270 C 237,255 220,230 224,207 C 218,204 215,201 215,197 Z' },
+    { id: 'warlord', zone: 'war', portrait: 'assets/veil/void-npc/warlord.png',
+      light: 'assets/backgrounds/ascension-domains/realm-light-war-world.svg', x: 1260, y: 198,
+      d: 'M 1043,223 C 1038,194 1054,169 1083,159 C 1114,150 1147,144 1172,128 C 1197,118 1228,121 1249,113 C 1265,88 1293,74 1320,80 C 1348,64 1382,73 1398,96 C 1429,96 1456,112 1461,140 C 1481,160 1485,190 1466,211 C 1454,238 1428,255 1401,263 C 1377,288 1346,304 1317,304 C 1284,319 1248,309 1225,287 C 1194,288 1165,275 1148,259 C 1114,264 1080,250 1064,236 C 1052,235 1044,230 1043,223 Z' },
+    { id: 'lore', zone: 'knowledge', portrait: 'assets/veil/void-npc/lore.png',
+      light: 'assets/backgrounds/ascension-domains/realm-light-knowledge-corridor.svg', x: 838, y: 710,
+      d: 'M 565,722 C 558,690 576,659 607,648 C 630,623 668,610 699,616 C 724,589 762,577 794,590 C 824,568 864,569 887,591 C 919,580 952,596 963,620 C 996,606 1033,622 1043,649 C 1080,652 1107,679 1114,710 C 1126,739 1110,768 1086,784 C 1080,814 1050,836 1019,837 C 997,858 957,862 930,845 C 900,862 861,851 844,834 C 812,850 770,841 748,820 C 717,830 682,814 666,789 C 628,789 598,769 590,742 C 576,740 567,733 565,722 Z' },
+    { id: 'emperor', zone: 'faithless', portrait: 'assets/veil/void-npc/emperor.png',
+      light: 'assets/backgrounds/ascension-domains/realm-light-faithless-court.svg', x: 257, y: 492,
+      d: 'M 69,493 C 74,457 90,425 115,408 C 119,374 143,349 174,341 C 194,319 225,316 247,330 C 274,316 308,323 326,344 C 355,339 384,356 392,379 C 425,391 448,418 444,449 C 467,472 466,509 448,532 C 445,561 424,585 397,595 C 385,625 355,644 325,640 C 300,660 266,659 243,643 C 211,653 178,637 164,614 C 134,611 111,590 108,565 C 82,550 68,520 69,493 Z' },
+    { id: 'pleasure', zone: 'pleasure', portrait: 'assets/veil/void-npc/pleasure.png',
+      light: 'assets/backgrounds/ascension-domains/realm-light-pleasure-court.svg', x: 1390, y: 480,
+      d: 'M 1213,468 C 1207,437 1220,409 1244,395 C 1253,366 1279,344 1310,341 C 1333,321 1366,323 1387,341 C 1414,329 1446,342 1458,364 C 1488,363 1514,383 1517,411 C 1548,426 1566,453 1559,482 C 1572,510 1558,542 1534,557 C 1526,584 1500,604 1472,603 C 1447,620 1412,615 1391,596 C 1361,613 1323,604 1306,580 C 1276,582 1247,565 1240,539 C 1218,524 1208,494 1213,468 Z' }
+  ];
+  var VOID_LEVEL_COST = [0, 3, 5];
+  var VOID_TENETS = { wither: 'creed_wither', warlord: 'creed_bingkui', pleasure: 'creed_duoyang', lore: 'creed_yisou' };
+
   /* view：'hub' = 三张路径卡；其余值为已开启的路径 id = 该路径的操作界面。 */
-  var view = 'hub', selectedOrgan = 'gill';
+  var view = 'hub', selectedOrgan = 'gill', selectedVoidDomain = null, voidDialog = null, voidPreviewMode = false;
 
   function tr(k, fallback) { return SB.i18n && SB.i18n.t ? SB.i18n.t(k, null, fallback) : fallback; }
   /* 带插值的词条（{count}/{opened}）：与 render.js 的 tr(key, params, fallback) 同序。 */
@@ -155,21 +194,28 @@
       /* 页签形态之后不再需要关闭按钮（页签本身就是导航），原位改为飞升点余额。 */
       + '<div class="vh-points"><span>' + esc(tr('ui.veil.hub.points_balance', '飞升点')) + '</span>'
       + '<b>' + points().toFixed(2) + '</b></div></header>';
-    h += '<p class="vh-note">' + esc(tr('ui.veil.hub.note', '每次飞升开启一条路径，第三次飞升全部开启。点已开启的路径进入飞升操作界面。')) + '</p>';
+    h += '<p class="vh-note">' + esc(tr('ui.veil.hub.note', '点击虚境升华卡片，可查看五个领域的赐福与剧情内容。')) + '</p>';
     h += '<div class="vh-cards">';
     PATHS.forEach(function (p) {
       var op = isOpen(p.id);
       var enterable = op && !p.wip;                 // wip 路径即使已开启也不放行
-      var img = op ? p.open : p.closed;             // 门徽仍反映飞升进度（确实开了这条路径）
-      var state = p.wip
+      var previewable = !!p.preview;
+      var img = op && !previewable ? p.open : p.closed; // 预览卡始终保持未开放的门徽状态
+      var previewNoticeKey = 'ui.veil.hub.preview.notice';
+      var previewActionKey = 'ui.veil.hub.preview.action';
+      var state = previewable
+        ? '<p class="vh-card-state wip">' + esc(tr(previewNoticeKey, '')) + '</p>'
+          + '<span class="vh-card-action">' + esc(tr(previewActionKey, '')) + '</span>'
+        : p.wip
         ? '<p class="vh-card-state wip">' + esc(tr('ui.veil.hub.wip', '开发中 · 敬请期待')) + '</p>'
         : (op
             ? '<p class="vh-card-state on">' + esc(tr('ui.veil.hub.entered', '点击进入飞升操作界面')) + '</p>'
-            : '<p class="vh-card-state">' + esc(p.seal) + '</p>');
-      h += '<button type="button" class="vh-card' + (enterable ? ' open' : (p.wip ? ' wip' : ' sealed')) + '"'
-        + ' data-veil-path="' + p.id + '"' + (enterable ? '' : ' disabled') + '>'
+            : '<p class="vh-card-state">' + esc(tr('ui.veil.path.seal.' + p.id, p.seal)) + '</p>');
+      h += '<button type="button" class="vh-card' + (enterable ? ' open' : (p.wip ? ' wip' : ' sealed')) + (previewable ? ' preview' : '') + '"'
+        + (previewable ? ' data-veil-preview="' + p.id + '"' : ' data-veil-path="' + p.id + '"')
+        + (enterable || previewable ? '' : ' disabled') + '>'
         + '<div class="vh-card-img" style="background-image:url(\'' + img + '\')"></div>'
-        + '<div class="vh-card-body"><h3>' + esc(p.name) + '</h3>'
+        + '<div class="vh-card-body"><h3>' + esc(pathName(p)) + '</h3>'
         + '<p class="vh-card-focus">' + esc(tr('ui.veil.hub.focus.' + p.id, p.focus)) + '</p>'
         + state
         + '</div></button>';
@@ -185,6 +231,162 @@
   }
   function byId(id) { for (var i = 0; i < ORGANS.length; i++) if (ORGANS[i].id === id) return ORGANS[i]; return null; }
   function pathById(id) { for (var i = 0; i < PATHS.length; i++) if (PATHS[i].id === id) return PATHS[i]; return null; }
+  function pathName(p) { return p ? tr('ui.veil.path.name.' + p.id, p.name) : ''; }
+  function geneNodeName(node) {
+    return node ? tr('ui.veil.gene.node.' + node.id + '.name', '') : '';
+  }
+  function geneNodes(branch) { return GENE_BRANCHES[branch] || GENE_BRANCHES.supreme; }
+  function geneLevelCost(level) {
+    return SB.veilFx && SB.veilFx.geneLevelCost ? SB.veilFx.geneLevelCost(level) : 0;
+  }
+  function geneNodeById(id, branch) {
+    var nodes = geneNodes(branch || geneBranch);
+    for (var i = 0; i < nodes.length; i++) if (nodes[i].id === id) return nodes[i];
+    return null;
+  }
+  function geneNodeLevel(id, branch) {
+    var b = branch || geneBranch, v = veil();
+    var values = v && v.paths && v.paths.gene && v.paths.gene[b];
+    var level = values && Number(values[id]);
+    return isFinite(level) ? Math.max(0, Math.min(3, Math.floor(level))) : 0;
+  }
+  function geneLevelLabel(level) {
+    return trp('ui.veil.gene.level', { level: level }, '');
+  }
+  function geneEffectText(node, level) {
+    var values = node && node.values && node.values[level - 1];
+    if (!values) return '';
+    var fx = SB.veilFx || {};
+    var bonus = fx.geneResonanceBonusPct ? Number(fx.geneResonanceBonusPct()) || 0 : 0;
+    var mul = 1 + bonus / 100, effective = {};
+    Object.keys(values).forEach(function (key) { effective[key] = Math.round(Number(values[key]) * mul); });
+    return trp('ui.veil.gene.effect.' + node.id, effective, '');
+  }
+  function geneAmpNote(node, level) {
+    if (level < 3 || !isOpen('si') || !node || ['valor', 'agility', 'longevity'].indexOf(node.id) < 0) return '';
+    var bonus = SB.veilFx && SB.veilFx.geneResonanceBonusPct
+      ? Number(SB.veilFx.geneResonanceBonusPct()) || 0 : 0;
+    return trp('ui.veil.gene.effect.si_amplification', { value: Math.round(20 * (1 + bonus / 100)) }, '');
+  }
+  function geneResonanceStateLabel() {
+    var fx = SB.veilFx || {};
+    var bonus = fx.geneResonanceBonusPct ? Number(fx.geneResonanceBonusPct()) || 0 : 0;
+    var state = bonus >= 100 ? 'harmony' : (bonus >= 50 ? 'incomplete' : 'imbalance');
+    return tr('ui.veil.gene.resonance.state.' + state, '');
+  }
+  function geneResonanceStatusText() {
+    var fx = SB.veilFx || {};
+    var supreme = fx.geneInvestmentPoints ? Number(fx.geneInvestmentPoints('supreme')) || 0 : 0;
+    var pure = fx.geneInvestmentPoints ? Number(fx.geneInvestmentPoints('pure')) || 0 : 0;
+    var bonus = fx.geneResonanceBonusPct ? Number(fx.geneResonanceBonusPct()) || 0 : 0;
+    return trp('ui.veil.gene.resonance.status', {
+      state: geneResonanceStateLabel(), supremePoints: supreme, purePoints: pure, bonusPercent: bonus
+    }, '');
+  }
+  function geneNodeMarkup(node) {
+    var level = geneNodeLevel(node.id), selected = geneSelected === node.id;
+    var name = geneNodeName(node), slots = '';
+    for (var i = 1; i <= 3; i++) slots += '<i' + (i <= level ? ' class="is-filled"' : '') + ' aria-hidden="true"></i>';
+    var state = level > 0 ? geneLevelLabel(level) : tr('ui.veil.gene.node.unedited', '');
+    return '<button type="button" class="gene-locus' + (selected ? ' is-selected' : '') + '"'
+      + ' style="--gene-x:' + node.pos + '%;--gene-y:' + node.y + '%" data-gene-node="' + node.id + '" aria-pressed="' + (selected ? 'true' : 'false') + '"'
+      + ' aria-label="' + esc(trp('ui.veil.gene.node.aria', { nodeName: name, level: level }, '')) + '">'
+      + '<span class="gene-locus-core" aria-hidden="true"><i></i><i></i></span>'
+      + '<span class="gene-locus-name">' + esc(name) + '</span>'
+      + '<span class="gene-locus-ranks" aria-hidden="true">' + slots + '</span>'
+      + '<span class="gene-locus-state">' + esc(state) + '</span></button>';
+  }
+  function geneMarkup(p) {
+    var branch = geneBranch === 'pure' ? 'pure' : 'supreme';
+    var nodes = geneNodes(branch), selectedNode = geneNodeById(geneSelected, branch) || nodes[0];
+    var level = geneNodeLevel(selectedNode.id, branch), cost = level < 3 ? geneLevelCost(level) : 0;
+    var currentEffect = level > 0 ? geneEffectText(selectedNode, level) : tr('ui.veil.gene.node.unedited', '');
+    var nextEffect = level < 3 ? geneEffectText(selectedNode, level + 1) : '';
+    var currentAmpNote = geneAmpNote(selectedNode, level);
+    var nextAmpNote = geneAmpNote(selectedNode, level + 1);
+    var loci = '';
+    nodes.forEach(function (node) { loci += geneNodeMarkup(node); });
+    var h = '<div class="vm-box gene-path-box gene-' + branch + '"><div class="vm-hd">'
+      + '<button type="button" class="vm-back" data-veil-action="back">← ' + esc(tr('ui.veil.hub.back', '返回帷幕')) + '</button>'
+      + '<h2>' + esc(pathName(p)) + '</h2></div>'
+      + '<div class="gene-demo-banner gene-points-banner"><div class="gene-resonance-summary">'
+      + '<p class="gene-resonance-status">' + esc(geneResonanceStatusText()) + '</p>'
+      + '<p class="gene-resonance-rule">' + esc(tr('ui.veil.gene.resonance.rule', '')) + '</p></div>'
+      + '<div class="gene-demo-balance">'
+      + '<span>' + esc(tr('ui.veil.hub.points_balance', '')) + '</span><b>' + points().toFixed(2) + '</b></div></div>'
+      + '<div class="gene-demo-layout" id="gene-demo-tabpanel" role="tabpanel" aria-labelledby="gene-tab-' + branch + '"><section class="gene-sequence-panel">'
+      + '<nav class="gene-branch-tabs" role="tablist">'
+      + '<button type="button" id="gene-tab-supreme" role="tab" aria-controls="gene-demo-tabpanel" class="gene-branch-tab' + (branch === 'supreme' ? ' is-active' : '') + '"'
+      + ' aria-selected="' + (branch === 'supreme' ? 'true' : 'false') + '" data-gene-branch="supreme">'
+      + '<span class="gene-tab-mark" aria-hidden="true"></span>' + esc(tr('ui.veil.gene.branch.supreme', '')) + '</button>'
+      + '<button type="button" id="gene-tab-pure" role="tab" aria-controls="gene-demo-tabpanel" class="gene-branch-tab' + (branch === 'pure' ? ' is-active' : '') + '"'
+      + ' aria-selected="' + (branch === 'pure' ? 'true' : 'false') + '" data-gene-branch="pure">'
+      + '<span class="gene-tab-mark" aria-hidden="true"></span>' + esc(tr('ui.veil.gene.branch.pure', '')) + '</button></nav>'
+      + '<div class="gene-sequence" role="group" aria-label="' + esc(trp('ui.veil.gene.track.aria', { count: nodes.length }, '')) + '">'
+      + '<img class="gene-sequence-art" src="assets/veil/gene-ascension-bg-v2.png" alt="" aria-hidden="true" draggable="false">'
+      + '<div class="gene-loci">' + loci + '</div></div></section>'
+      + '<aside class="gene-inspector" aria-live="polite"><div class="gene-inspector-head">'
+      + '<span class="gene-inspector-mark" aria-hidden="true"><i></i><i></i></span><div><h3>'
+      + esc(geneNodeName(selectedNode)) + '</h3><span class="gene-inspector-level">'
+      + esc(level > 0 ? geneLevelLabel(level) : tr('ui.veil.gene.node.unedited', '')) + '</span></div></div>'
+      + '<div class="gene-effect-block is-current"><span class="gene-effect-heading">'
+      + esc(tr('ui.veil.gene.effect.current', '')) + '</span><div class="gene-effect-row">'
+      + '<span class="gene-effect-rank">' + esc(level > 0 ? geneLevelLabel(level) : '—') + '</span>'
+      + '<div class="gene-effect-copy"><p>' + esc(currentEffect) + '</p>'
+      + (currentAmpNote ? '<p class="gene-effect-note">' + esc(currentAmpNote) + '</p>' : '')
+      + '</div></div></div>';
+    if (level < 3) {
+      h += '<div class="gene-effect-block is-next"><span class="gene-effect-heading">'
+        + esc(tr('ui.veil.gene.effect.next', '')) + '</span><div class="gene-effect-row">'
+        + '<span class="gene-effect-rank">' + esc(geneLevelLabel(level + 1)) + '</span>'
+        + '<div class="gene-effect-copy"><p>' + esc(nextEffect) + '</p>'
+        + (nextAmpNote ? '<p class="gene-effect-note">' + esc(nextAmpNote) + '</p>' : '')
+        + '</div></div></div>'
+        + '<button type="button" class="gene-demo-upgrade" data-gene-action="upgrade"'
+        + (points() < cost ? ' disabled' : '') + '>'
+        + esc(trp('ui.veil.gene.action.upgrade', { cost: cost }, '')) + '</button>';
+    } else {
+      h += '<div class="gene-max-state">' + esc(tr('ui.veil.gene.action.max', '')) + '</div>';
+    }
+    h += '</aside></div></div>';
+    return h;
+  }
+  function voidDomainLv(id) {
+    return SB.voidFx && SB.voidFx.domainLv ? SB.voidFx.domainLv(id) : 0;
+  }
+  function voidLitCount() {
+    return VOID_DOMAINS.reduce(function (count, domain) { return count + (voidDomainLv(domain.id) > 0 ? 1 : 0); }, 0);
+  }
+  function voidDomainById(id) {
+    for (var i = 0; i < VOID_DOMAINS.length; i++) if (VOID_DOMAINS[i].id === id) return VOID_DOMAINS[i];
+    return null;
+  }
+  function voidEffectParams(id, level) {
+    var values;
+    if (id === 'wither') {
+      values = [30, 50, 70][level - 1];
+      return { yieldPercent: values, startTide: values, startStardust: [3, 5, 7][level - 1] };
+    }
+    if (id === 'warlord') return { soldierPercent: [50, 100, 200][level - 1], fortressPercent: [20, 25, 30][level - 1] };
+    if (id === 'pleasure') return { scribePercent: [50, 100, 200][level - 1], costSavePercent: [10, 20, 30][level - 1] };
+    if (id === 'lore') return { scholarPercent: [50, 100, 200][level - 1], costSavePercent: [10, 20, 30][level - 1] };
+    if (id === 'emperor' && level === 1) return {
+      wonderName: tr('wonder.void_stamp_fortress.name'), stoneBeamCost: 1000, civicPercent: 100
+    };
+    if (id === 'emperor' && level === 2) return {
+      wonderName: tr('wonder.void_candle_hall.name'), ironBracketCost: 1000, steelPartCost: 1000, sciencePercent: 100
+    };
+    return { wonderName: tr('wonder.void_mars_foundry.name'), thetaFilmCost: 1000, craftPercent: 200 };
+  }
+  function voidEffectText(id, level) {
+    var key = id === 'emperor' ? 'domain.emperor.lv' + level + '.effect' : 'domain.' + id + '.effect';
+    return trp(key, voidEffectParams(id, level), '');
+  }
+  function persistVoidMeta(meta) {
+    if (meta && SB.state && SB.state.saveMeta) SB.state.saveMeta(meta);
+    if (SB.game && SB.game.markDirty) SB.game.markDirty();
+    if (SB.saveTransfer && SB.saveTransfer.backupSoon) SB.saveTransfer.backupSoon();
+  }
 
   function organState(o) {
     var lv = organLevel(o.id);
@@ -251,13 +453,111 @@
     return h;
   }
 
+  function voidMapMarkup() {
+    var preview = voidPreviewMode, lit = voidLitCount(), h = '<section class="void-map-panel' + (preview ? ' preview' : '') + '">'
+      + '<div class="void-map-canvas">'
+      + '<img class="void-map-art" src="assets/backgrounds/ascension-domains/realm-overview-art-v5.webp" alt="" aria-hidden="true" draggable="false">'
+      + '<div class="void-map-lights" aria-hidden="true">';
+    VOID_DOMAINS.forEach(function (domain) {
+      h += '<img class="void-map-light' + (preview ? ' is-preview' : '')
+        + ((preview && selectedVoidDomain === domain.id) || (!preview && voidDomainLv(domain.id) > 0) ? ' is-lit' : '')
+        + '" src="' + domain.light + '" alt="" draggable="false">';
+    });
+    h += '</div><div class="void-space-grain" aria-hidden="true"></div>'
+      + '<svg class="void-map-regions" viewBox="0 0 1671 941" preserveAspectRatio="none" role="group">';
+    VOID_DOMAINS.forEach(function (domain) {
+      var level = voidDomainLv(domain.id), active = preview || level > 0;
+      var domainName = tr('domain.' + domain.id + '.name', '');
+      h += '<path class="void-map-region lv' + level + (preview ? ' preview' : '') + (selectedVoidDomain === domain.id ? ' is-selected' : '') + '" d="' + domain.d + '"'
+        + (active ? ' data-' + (preview ? 'void-preview-domain' : 'void-domain') + '="' + domain.id + '" role="button" tabindex="0" aria-pressed="' + (selectedVoidDomain === domain.id ? 'true' : 'false') + '" aria-label="' + esc(trp('ui.veil.void.domain.region.aria', { domainName: domainName }, '')) + '"' : ' aria-hidden="true"') + '>'
+        + '</path>';
+      if (active) h += '<text class="void-map-label' + (selectedVoidDomain === domain.id ? ' is-selected' : '') + '" x="' + domain.x + '" y="' + domain.y + '" aria-hidden="true">' + esc(domainName) + '</text>';
+    });
+    h += '</svg></div>';
+    if (!preview) h += '<div class="void-map-caption">'
+      + '<span>' + esc(trp('ui.veil.void.explore.progress', { lit: lit, total: VOID_DOMAINS.length }, '')) + '</span>'
+      + '<span class="void-map-caption-points">' + esc(tr('ui.veil.hub.points_balance', '')) + ' <b>' + points().toFixed(2) + '</b></span>'
+      + '</div>';
+    h += '</section>';
+    return h;
+  }
+
+  function voidExploreMarkup() {
+    if (voidPreviewMode) return '';
+    var lit = voidLitCount(), cost = 1;
+    if (lit >= VOID_DOMAINS.length) return '';
+    var afford = points() >= cost;
+    var h = '<section class="void-explore-panel"><p>' + esc(tr('ui.veil.void.explore.hint', '')) + '</p>'
+      + '<button type="button" class="void-explore-button" data-void-action="explore"'
+      + (afford ? '' : ' disabled') + '>'
+      + esc(trp('ui.veil.void.explore.button', { cost: cost }, '')) + '</button>';
+    if (!afford) h += '<div class="void-insufficient">' + esc(trp('ui.veil.void.explore.insufficient', { cost: cost }, '')) + '</div>';
+    return h + '</section>';
+  }
+
+  function voidDialogMarkup() {
+    if (!voidDialog) return '';
+    var domain = voidDomainById(voidDialog.domainId);
+    if (!domain) return '';
+    var id = domain.id, progress = voidDomainLv(id);
+    var level = Math.max(1, Math.min(3, Number(voidDialog.viewLevel || voidDialog.level || 1)));
+    var inspect = voidDialog.type === 'inspect';
+    var metaLocked = level === 3 && progress < 3;
+    var domainName = tr('domain.' + id + '.name', ''), npcName = tr('npc.' + id + '.name', '');
+    var creedId = VOID_TENETS[id];
+    var h = '<div class="void-dialog-scrim"><section class="void-dialog-card" role="dialog" aria-modal="true" aria-labelledby="void-dialog-title">'
+      + '<img class="void-dialog-portrait" src="' + domain.portrait + '" alt="' + esc(trp('ui.veil.void.portrait.aria', { npcName: npcName }, '')) + '">'
+      + '<div class="void-dialog-copy"><header class="void-dialog-heading"><div class="void-eyebrow">' + esc(domainName) + '</div><h3 id="void-dialog-title">'
+      + esc(trp('ui.veil.void.dialog.title', { domainName: domainName, npcName: npcName, level: level }, '')) + '</h3>'
+      + '</header>';
+    if (inspect) {
+      h += '<div class="void-dialog-tiers" role="group" aria-label="' + esc(domainName) + '">';
+      for (var i = 1; i <= 3; i++) h += '<button type="button" class="void-dialog-tier' + (level === i ? ' is-active' : '')
+        + '" data-void-tier="' + i + '" aria-pressed="' + (level === i ? 'true' : 'false') + '">'
+        + esc(trp('ui.veil.void.domain.level', { level: i }, '')) + '</button>';
+      h += '</div>';
+    }
+    h += '<div class="void-dialog-detail"><p class="void-dialog-text' + (metaLocked ? ' is-meta-locked' : (level === 3 ? ' is-meta-copy' : '')) + '">'
+      + esc(metaLocked ? tr('ui.status.not_unlocked', '') : tr('domain.' + id + '.lv' + level + '.text', '')) + '</p>'
+      + '<div class="void-dialog-effect">' + esc(voidEffectText(id, level)) + '</div>'
+      + (level >= 3 && creedId ? '<div class="void-creed-note">' + esc(trp(progress >= 3 ? 'ui.veil.void.tenet.unlocked' : 'ui.veil.void.preview.tenet', {
+        tenetName: tr('faith.tenet.' + creedId + '.name', '')
+      }, '')) + (progress < 3 ? ' ' + esc(tr('faith.tenet.' + creedId + '.effect', '')) : '') + '</div>' : '')
+      + '</div><footer class="void-dialog-actions">';
+    if (!voidPreviewMode && inspect) {
+      h += '<span class="void-cost-balance">' + esc(tr('ui.veil.hub.points_balance', '')) + ' <b>' + points().toFixed(2) + '</b></span>';
+      if (progress >= 3) h += '<span class="void-max-level">' + esc(tr('ui.veil.void.level.max', '')) + '</span>';
+      else {
+        var nextLevel = progress + 1, cost = VOID_LEVEL_COST[progress], afford = points() >= cost;
+        h += '<button type="button" class="void-level-button" data-void-action="upgrade" data-void-domain="' + id + '"' + (afford ? '' : ' disabled') + '>'
+          + esc(trp(afford ? 'ui.veil.void.level.button' : 'ui.veil.void.level.insufficient', { level: nextLevel, cost: cost }, '')) + '</button>';
+      }
+    }
+    h += '<button type="button" class="void-dialog-continue" data-void-action="dialog-continue">'
+      + esc(tr('ui.veil.void.dialog.continue', '')) + '</button></footer></div></section></div>';
+    return h;
+  }
+
+  function voidMarkup(p) {
+    var h = '<div class="vm-box void-path-box"><div class="vm-hd">'
+      + '<button type="button" class="vm-back" data-veil-action="back">← ' + esc(tr('ui.veil.hub.back', '返回帷幕')) + '</button>'
+      + '<h2>' + esc(pathName(p)) + '</h2></div>'
+      + (voidPreviewMode ? '<div class="void-preview-banner">' + esc(tr('ui.veil.hub.preview.notice', '')) + '</div>' : '')
+      + '<div class="void-path-body' + (voidPreviewMode ? ' is-preview' : '') + '">'
+      + voidMapMarkup() + '<aside class="void-aside">' + voidExploreMarkup() + '</aside>'
+      + '</div>' + voidDialogMarkup() + '</div>';
+    return h;
+  }
+
   function pathMarkup(p) {
     var h = '<div class="vm-box"><div class="vm-hd">'
       + '<button type="button" class="vm-back" data-veil-action="back">← ' + esc(tr('ui.veil.hub.back', '返回帷幕')) + '</button>'
-      + '<h2>' + esc(p.name) + '</h2></div>';
+      + '<h2>' + esc(pathName(p)) + '</h2></div>';
     h += '<div class="vm-body">';
     if (p.id === 'si') h += organMarkup();
-    else h += '<div class="vm-placeholder"><h3>' + esc(p.name) + '</h3>'
+    else if (p.id === 'vo') return voidMarkup(p);
+    else if (p.id === 'gn') return geneMarkup(p);
+    else h += '<div class="vm-placeholder"><h3>' + esc(pathName(p)) + '</h3>'
       + '<p>' + esc(p.desc) + '</p><p class="vm-todo">该飞升路径的操作界面尚未实装，敬请期待。</p></div>';
     h += '</div></div>';
     return h;
@@ -267,17 +567,31 @@
   function markup() {
     var p = view !== 'hub' ? pathById(view) : null;
     /* 视图指向的路径若已不存在/未开启（读档、掀幕重置），退回大厅，免得渲染空白。 */
-    if (view !== 'hub' && (!p || !isOpen(p.id) || p.wip)) { view = 'hub'; p = null; }
+    var isReadOnlyPreview = !!(p && p.preview && p.id === 'vo' && voidPreviewMode);
+    if (view !== 'hub' && (!p || (!isReadOnlyPreview && (!isOpen(p.id) || p.wip)))) {
+      view = 'hub'; voidPreviewMode = false; p = null;
+    }
     return p ? pathMarkup(p) : hubMarkup();
   }
 
   /* 重绘：直接走 renderPanes —— 与其它页同一个入口（签名没变时它本身会跳过重写）。 */
   function repaint() { if (SB.ui.render && SB.ui.render.renderPanes) SB.ui.render.renderPanes(); }
+  function focusVoidDialog() {
+    var dialog = root.document && root.document.querySelector('.void-dialog-card');
+    var selectedTier = dialog && dialog.querySelector('.void-dialog-tier.is-active');
+    var target = selectedTier || (dialog && dialog.querySelector('.void-dialog-continue'));
+    if (target && target.focus) target.focus();
+  }
+  function focusVoidDomain(id) {
+    var region = root.document && id
+      ? root.document.querySelector('[data-' + (voidPreviewMode ? 'void-preview-domain' : 'void-domain') + '="' + id + '"]') : null;
+    if (region && region.focus) region.focus();
+  }
 
   /* open() 保留原名（game.js 掀幕成功后调用）：现在等价于「切到帷幕页签」。 */
   function open() {
     if (!available()) return;
-    view = 'hub';
+    view = 'hub'; voidPreviewMode = false; voidDialog = null;
     if (SB.game && SB.game.setTab) SB.game.setTab('veil');
     else repaint();
   }
@@ -285,13 +599,71 @@
     if (!isOpen(id)) return;
     var p = pathById(id);
     if (p && p.wip) return;                  // 开发中的路径禁止进入（卡片也常驻 disabled）
+    voidPreviewMode = false;
     view = id;
-    selectedOrgan = 'gill';
+    voidDialog = null;
+    if (id === 'vo') selectedVoidDomain = firstLitVoidDomain();
+    else if (id === 'si') selectedOrgan = 'gill';
+    else if (id === 'gn' && !geneNodeById(geneSelected, geneBranch)) geneSelected = geneNodes(geneBranch)[0].id;
     repaint();
+    if (id === 'vo' && root.document) {
+      var target = root.document.querySelector('.void-explore-button:not([disabled])')
+        || (selectedVoidDomain && root.document.querySelector('[data-void-domain="' + selectedVoidDomain + '"]'))
+        || root.document.querySelector('.void-path-box .vm-back');
+      if (target && target.focus) target.focus();
+    }
   }
-  function back() { view = 'hub'; repaint(); }
+  function openPreview(id) {
+    var p = pathById(id);
+    if (!p || !p.preview) return;
+    view = id; voidDialog = null;
+    if (id === 'vo') {
+      voidPreviewMode = true;
+      selectedVoidDomain = VOID_DOMAINS[0].id;
+      repaint();
+      focusVoidDomain(selectedVoidDomain);
+    }
+  }
+  function focusGeneNode(id) {
+    var target = root.document && id
+      ? root.document.querySelector('[data-gene-node="' + id + '"]') : null;
+    if (target && target.focus) target.focus();
+  }
+  function selectGeneBranch(branch) {
+    if (view !== 'gn' || (branch !== 'supreme' && branch !== 'pure')) return;
+    geneBranch = branch;
+    geneSelected = geneNodes(branch)[0].id;
+    repaint();
+    var target = root.document && root.document.querySelector('[data-gene-branch="' + branch + '"]');
+    if (target && target.focus) target.focus();
+  }
+  function selectGeneNode(id) {
+    if (view !== 'gn' || !geneNodeById(id, geneBranch)) return;
+    geneSelected = id;
+    repaint();
+    focusGeneNode(id);
+  }
+  function buyGeneLevel() {
+    if (view !== 'gn' || !isOpen('gn')) return false;
+    var node = geneNodeById(geneSelected, geneBranch), v = veil();
+    if (!node || !v) return false;
+    var level = geneNodeLevel(node.id), cost = geneLevelCost(level);
+    if (level >= 3 || points() < cost) return false;
+    if (!v.paths.gene || typeof v.paths.gene !== 'object') v.paths.gene = {};
+    if (!v.paths.gene[geneBranch] || typeof v.paths.gene[geneBranch] !== 'object') v.paths.gene[geneBranch] = {};
+    v.points = Math.max(0, Math.round((Number(v.points) - cost) * 100) / 100);
+    v.paths.gene[geneBranch][node.id] = level + 1;
+    var m = SB.game && SB.game.meta && SB.game.meta();
+    if (m && SB.state && SB.state.saveMeta) SB.state.saveMeta(m);
+    if (SB.game && SB.game.markDirty) SB.game.markDirty();
+    repaint();
+    var action = root.document && root.document.querySelector('[data-gene-action="upgrade"]');
+    if (action && action.focus) action.focus();
+    return true;
+  }
+  function back() { view = 'hub'; voidPreviewMode = false; voidDialog = null; repaint(); }
   /* 切走页签时回大厅：下次点「帷幕」总是先看到三条路径，而不是上次停留的装配台。 */
-  function leave() { if (view !== 'hub') view = 'hub'; }
+  function leave() { if (view !== 'hub') view = 'hub'; voidPreviewMode = false; voidDialog = null; }
 
   function buyOrgan() {
     var o = byId(selectedOrgan); if (!o) return;
@@ -314,6 +686,66 @@
       o.no + ' ' + o.name + ' 已铆接至「' + STAGES[lv] + '」，消耗 ' + cost + ' 飞升点。'));
   }
 
+  function firstLitVoidDomain() {
+    for (var i = 0; i < VOID_DOMAINS.length; i++) if (voidDomainLv(VOID_DOMAINS[i].id) > 0) return VOID_DOMAINS[i].id;
+    return null;
+  }
+  function exploreVoid() {
+    if (!SB.voidFx || !SB.voidFx.playable || !SB.voidFx.playable() || !isOpen('vo') || points() < 1 || voidLitCount() >= VOID_DOMAINS.length) return false;
+    var m = SB.game && SB.game.meta ? SB.game.meta() : null, v = veil();
+    if (!m || !v || !v.paths) return false;
+    if (!v.paths.void || typeof v.paths.void !== 'object' || Array.isArray(v.paths.void)) v.paths.void = {};
+    if (!v.paths.void.domains || typeof v.paths.void.domains !== 'object' || Array.isArray(v.paths.void.domains)) v.paths.void.domains = {};
+    var remaining = VOID_DOMAINS.filter(function (domain) { return voidDomainLv(domain.id) === 0; });
+    if (!remaining.length) return false;
+    var random = SB.rng ? Number(SB.rng()) : Math.random();
+    if (!(random >= 0 && random < 1)) random = 0;
+    var domain = remaining[Math.floor(random * remaining.length)];
+    v.points = points() - 1;
+    v.paths.void.domains[domain.id] = 1;
+    selectedVoidDomain = domain.id;
+    voidDialog = { domainId: domain.id, level: 1, viewLevel: 1, type: 'unlock' };
+    persistVoidMeta(m);
+    repaint();
+    var continueButton = root.document && root.document.querySelector('.void-dialog-continue');
+    if (continueButton && continueButton.focus) continueButton.focus();
+    return true;
+  }
+  function buyVoidLevel(id) {
+    var domain = voidDomainById(id), v = veil(), m = SB.game && SB.game.meta ? SB.game.meta() : null;
+    if (!SB.voidFx || !SB.voidFx.playable || !SB.voidFx.playable() || !domain || !isOpen('vo') || !v || !v.paths || !m) return false;
+    var level = voidDomainLv(id);
+    if (level < 1 || level >= 3) return false;
+    var cost = VOID_LEVEL_COST[level];
+    if (points() < cost) return false;
+    v.points = points() - cost;
+    if (!v.paths.void || typeof v.paths.void !== 'object' || Array.isArray(v.paths.void)) v.paths.void = {};
+    if (!v.paths.void.domains || typeof v.paths.void.domains !== 'object' || Array.isArray(v.paths.void.domains)) v.paths.void.domains = {};
+    v.paths.void.domains[id] = level + 1;
+    selectedVoidDomain = id;
+    voidDialog = { domainId: id, level: level + 1, viewLevel: level + 1, type: 'unlock' };
+    persistVoidMeta(m);
+    repaint();
+    var continueButton = root.document && root.document.querySelector('.void-dialog-continue');
+    if (continueButton && continueButton.focus) continueButton.focus();
+    return true;
+  }
+  function closeVoidDialog() {
+    if (!voidDialog) return;
+    voidDialog = null;
+    repaint();
+    focusVoidDomain(selectedVoidDomain);
+  }
+  function inspectVoidDomain(id) {
+    var domain = voidDomainById(id), level = domain ? voidDomainLv(id) : 0;
+    if (!domain || (!voidPreviewMode && level <= 0)) return false;
+    selectedVoidDomain = id;
+    voidDialog = { domainId: id, level: level, viewLevel: level || 1, type: 'inspect' };
+    repaint();
+    focusVoidDialog();
+    return true;
+  }
+
   /* 事件委托：绑在 document（pane 每 2 秒可能整块重写，直绑 onclick 会失效）。 */
   function onClick(e) {
     var t = e.target && e.target.closest ? e.target : (e.target && e.target.parentElement);
@@ -324,16 +756,94 @@
       if (a === 'back') { back(); e.stopPropagation(); return; }
       if (a === 'organ-buy') { buyOrgan(); e.stopPropagation(); return; }
     }
+    var voidAct = t.closest('[data-void-action]');
+    if (voidAct) {
+      var va = voidAct.getAttribute('data-void-action');
+      if (va === 'explore') exploreVoid();
+      else if (va === 'upgrade') buyVoidLevel(voidAct.getAttribute('data-void-domain'));
+      else if (va === 'dialog-continue') closeVoidDialog();
+      e.stopPropagation();
+      return;
+    }
+    var geneAction = t.closest('[data-gene-action]');
+    if (geneAction && view === 'gn') {
+      if (geneAction.getAttribute('data-gene-action') === 'upgrade') buyGeneLevel();
+      e.stopPropagation();
+      return;
+    }
+    var geneBranch = t.closest('[data-gene-branch]');
+    if (geneBranch && view === 'gn') {
+      selectGeneBranch(geneBranch.getAttribute('data-gene-branch'));
+      e.stopPropagation();
+      return;
+    }
+    var geneNode = t.closest('[data-gene-node]');
+    if (geneNode && view === 'gn') {
+      selectGeneNode(geneNode.getAttribute('data-gene-node'));
+      e.stopPropagation();
+      return;
+    }
+    var tier = t.closest('[data-void-tier]');
+    if (tier && voidDialog) {
+      var selectedLevel = Number(tier.getAttribute('data-void-tier'));
+      if (selectedLevel >= 1 && selectedLevel <= 3) {
+        voidDialog.viewLevel = selectedLevel;
+        repaint();
+        focusVoidDialog();
+      }
+      e.stopPropagation();
+      return;
+    }
+    var previewDomain = t.closest('[data-void-preview-domain]');
+    if (previewDomain && view === 'vo' && voidPreviewMode) {
+      inspectVoidDomain(previewDomain.getAttribute('data-void-preview-domain'));
+      e.stopPropagation(); return;
+    }
+    var voidDomain = t.closest('[data-void-domain]');
+    if (voidDomain && view === 'vo') {
+      var voidId = voidDomain.getAttribute('data-void-domain');
+      if (voidDomainLv(voidId) > 0) inspectVoidDomain(voidId);
+      e.stopPropagation();
+      return;
+    }
     var pt = t.closest('[data-organ]');
     if (pt && view !== 'hub') { selectedOrgan = pt.getAttribute('data-organ'); repaint(); e.stopPropagation(); return; }
+    var previewCard = t.closest('[data-veil-preview]');
+    if (previewCard && view === 'hub') { openPreview(previewCard.getAttribute('data-veil-preview')); e.stopPropagation(); return; }
     var card = t.closest('[data-veil-path]');
     if (card && view === 'hub') { openPath(card.getAttribute('data-veil-path')); e.stopPropagation(); return; }
+  }
+  function onKeydown(e) {
+    if (voidDialog) {
+      if (e.key === 'Escape') { e.preventDefault(); closeVoidDialog(); return; }
+      if (e.key === 'Tab') {
+        var dialog = root.document && root.document.querySelector('.void-dialog-card');
+        var focusable = dialog ? dialog.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])') : [];
+        if (!focusable.length) { e.preventDefault(); return; }
+        var first = focusable[0], last = focusable[focusable.length - 1];
+        if (e.shiftKey && (e.target === first || !dialog.contains(e.target))) {
+          e.preventDefault(); last.focus(); return;
+        }
+        if (!e.shiftKey && (e.target === last || !dialog.contains(e.target))) {
+          e.preventDefault(); first.focus(); return;
+        }
+      }
+    }
+    if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+    var t = e.target && e.target.closest ? e.target.closest('[data-void-domain], [data-void-preview-domain]') : null;
+    if (!t || view !== 'vo') return;
+    e.preventDefault();
+    var id = t.getAttribute('data-void-preview-domain') || t.getAttribute('data-void-domain');
+    if ((voidPreviewMode && t.hasAttribute('data-void-preview-domain')) || (!voidPreviewMode && voidDomainLv(id) > 0)) {
+      inspectVoidDomain(id);
+    }
   }
 
   function install() {
     if (root.__veilHubInstalled) return;
     root.__veilHubInstalled = true;
     document.addEventListener('click', onClick, false);
+    document.addEventListener('keydown', onKeydown, false);
     UI.veilHub = {
       available: available, open: open, openPath: openPath, back: back, leave: leave,
       markup: markup, render: repaint,

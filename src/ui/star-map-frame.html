@@ -1602,8 +1602,10 @@ function _smApplyLocale(strings,locale){
   const foot=document.querySelector("#sm-phase1 .sm-foot");if(foot)foot.textContent=_smT("ui.star_map.saturn.orbit_description");
   const selected=document.querySelector("#star-map-mock .sm-body[aria-pressed=true],#sm-saturn-ring[aria-pressed=true]");
   if(selected&&window._smSelectBody)window._smSelectBody(selected.dataset.id,false);
-  if(window._smSetView)window._smSetView(_smView,false);
-  if(_smView==="phase2"&&_smSelected!=="saturn"&&window._smSelectSystem)window._smSelectSystem(_smSelected);
+  const currentView=window._smGetView?window._smGetView():"phase1";
+  const selectedSystem=window._smGetSelected?window._smGetSelected():"saturn";
+  if(window._smSetView)window._smSetView(currentView,false);
+  if(currentView==="phase2"&&selectedSystem!=="saturn"&&window._smSelectSystem)window._smSelectSystem(selectedSystem);
 }
 (()=>{
 const descriptions={
@@ -1656,6 +1658,7 @@ const _smDefs=[
   {id:"saturn",nameKey:"ui.star_map.system.saturn.name",descriptionKey:"ui.star_map.system.saturn.description",orbitOrdinal:6,distance:9.6,type:"saturn",rx:.86,ry:.65,phase:2.55,speed:.000011,r:10.8}
 ];
 let _smView="phase1",_smGame={era:1,sunSails:0,dysonNodes:0,dysonPct:0,adiabatic:false,solarRingLevel:0,launchMode:"sail",launchCycle:10,launchpads:{europa:0,terra:0,enceladus:0}},_smLastCounts=null,_smDpr=1,_smWidth=0,_smHeight=0,_smHits=[],_smSelected="saturn",_smLaunchQueue=[],_smFlight=null,_smLaunchCursor=0,_smFlightCount=0,_smShellPulseUntil=0;
+window._smGetView=()=>_smView;window._smGetSelected=()=>_smSelected;
 const _smSystemInfo={
   earth:{nameKey:"ui.star_map.system.earth.name",descriptionKey:"ui.star_map.system.earth.description",orbitOrdinal:3,distance:1},
   mars:{nameKey:"ui.star_map.system.mars.name",descriptionKey:"ui.star_map.system.mars.description",orbitOrdinal:4,distance:1.52},

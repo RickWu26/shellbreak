@@ -1265,7 +1265,8 @@
     var level = techLevel(s, t.id);
     var challengeMul = SB.challenges && SB.challenges.researchCostMul ? SB.challenges.researchCostMul(s) : 1;
     return t.cost * Math.pow(t.costRatio || 1, level) * (1 - disc) * challengeMul
-      * (SB.faith && SB.faith.techCostMul ? SB.faith.techCostMul(s) : 1);
+      * (SB.faith && SB.faith.techCostMul ? SB.faith.techCostMul(s) : 1)
+      * (SB.voidFx && SB.voidFx.domainTechCostMul ? SB.voidFx.domainTechCostMul() : 1);
   }
 
   /* 即时扣费研究（用户拍板）。返回 true 表示本次真的掌握。 */

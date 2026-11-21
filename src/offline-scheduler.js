@@ -198,7 +198,8 @@
     s.peak = Math.max(s.peak || 0, s.pop);
     // ---- 冻伤（仅冰封期 cold<1；每 0.1s 微步掷一次，与参考 tick 第 7 步逐位一致）----
     if (cold < 1 && s.pop > 1) {
-      var perStepRisk = CFG.FREEZE_CHANCE * (1 - P.warmCap(s) * 2) * 0.1;
+      var perStepRisk = CFG.FREEZE_CHANCE * (1 - P.warmCap(s) * 2) * 0.1
+        * (1 - (SB.veilFx && SB.veilFx.geneFreezeCut ? SB.veilFx.geneFreezeCut() : 0));
       var risk = perStepRisk > 0 ? 1 - Math.pow(1 - perStepRisk, mdt / STEP) : 0;
       if (risk > 0 && (SB.rng ? SB.rng() : Math.random()) < risk) {
         s.pop--; s.frostDeaths++;

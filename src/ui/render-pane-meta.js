@@ -40,6 +40,28 @@
     { key: 'military', localeKey: 'military', icon: '⚔', iconSrc: TREE_ICON_BY_KEY.military, accent: '#e08a7a', fallbackTitle: '枕戈待旦', fallbackSubtitle: '军人·战果·胜算' }
   ];
 
+  /* 树级折叠（2026-11-20 玩家反馈⑥「前面几个都点满了，每次要一直翻」）。
+   * 纯视图状态：模块变量 + localStorage，**不碰任何游戏状态**（同 ACHV_FOLD 先例）。
+   * ⚠️ pane 每 2 秒整块重画 ⇒ 类会被冲掉，必须每次渲染时从 TREE_FOLD 重新拼出 `is-folded`；
+   *    只翻一次 DOM 类的话，下一秒就被重画抹掉（表现为「点了没反应」）。 */
+  var TREE_FOLD = {};
+  var TREE_FOLD_SAVE = 'sb.metafold.v1';
+  function loadTreeFold() {
+    try {
+      var raw = root.localStorage && root.localStorage.getItem(TREE_FOLD_SAVE);
+      if (raw) { var o = JSON.parse(raw); if (o && typeof o === 'object') TREE_FOLD = o; }
+    } catch (e) { TREE_FOLD = {}; }
+  }
+  function saveTreeFold() {
+    try { if (root.localStorage) root.localStorage.setItem(TREE_FOLD_SAVE, JSON.stringify(TREE_FOLD)); } catch (e) {}
+  }
+  function toggleTreeFold(key) {
+    TREE_FOLD[key] = !TREE_FOLD[key];
+    saveTreeFold();
+    return TREE_FOLD[key];
+  }
+  loadTreeFold();
+
   function formatFallback(value, params) {
     return String(value == null ? '' : value).replace(/\{([A-Za-z0-9_]+)\}/g, function (match, name) {
       return params && Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : match;
@@ -176,7 +198,17 @@
       if (ownedState.lv > 0) ownedNodes++;
       totalLevels += ownedState.lv;
     }
-    var h = '<section class="meta-overview"><div class="meta-balance"><span>' + tr('ui.prestige.balance.label', null, '轮回点余额') + '</span>' +
+    /* 顶部吸附余额条（2026-11-20 玩家反馈⑥「翻到下面以后也不知道还剩多少点了」）：
+     * 轮回商店有 9 棵树、单页很长，原先余额只在页首出现一次，滚下去就看不见，买东西全靠猜。
+     * ⚠️ 与下面 .meta-overview 里的余额**同源**（都读 m.tide），不另写算式 ⇒ 面板===数据。
+     * ⚠️ sticky 的滚动祖先是整页（.card 没有 overflow）⇒ top:0 直接贴视口顶；
+     *    本项目没有固定顶栏，不需要给 header 留避让高度。 */
+    var h = '<div class="meta-tide-bar"><span>' + tr('ui.prestige.balance.label', null, '轮回点余额') + '</span>' +
+      '<b>' + m.tide.toFixed(2) + '</b>' +
+      '<small>' + tr('ui.prestige.balance.sticky_note', {
+        nodeCount: ownedNodes, totalNodeCount: totalNodes, totalLevels: totalLevels
+      }, '已点亮 {nodeCount}/{totalNodeCount} 节点 · 累计 {totalLevels} 阶') + '</small></div>' +
+      '<section class="meta-overview"><div class="meta-balance"><span>' + tr('ui.prestige.balance.label', null, '轮回点余额') + '</span>' +
       '<strong>' + m.tide.toFixed(2) + '</strong><small>' + tr('ui.prestige.balance.retention_note', null, '跨周目保留 · 用于永久强化') + '</small></div>' +
       '<div class="meta-stats"><div><span>' + tr('ui.prestige.stats.spent', null, '累计消费/兑出') + '</span><b>' + m.spent.toFixed(2) + '</b></div>' +
       /* 2026-11-06：标签从「周目」改为「已轮回」——m.cycle 已收紧为合格轮回次数（重开本周目
@@ -284,6 +316,7 @@
         anchorId: 'meta-tree-' + group.key,
         className: 'meta-talent-tree meta-tree-' + group.key,
         scrollKey: 'meta-' + group.key,
+        foldKey: group.key, collapsed: !!TREE_FOLD[group.key],
         title: group.title, subtitle: group.subtitle, icon: group.icon, iconSrc: group.iconSrc,
         accent: group.accent, layout: 'layered', nodes: nodes
       });
@@ -294,4 +327,6 @@
   }
 
   parts.paneMeta = paneMeta;
+  parts.toggleTreeFold = toggleTreeFold;
+  parts.isTreeFolded = function (key) { return !!TREE_FOLD[key]; };
 })(typeof window !== 'undefined' ? window : globalThis);

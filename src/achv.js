@@ -78,6 +78,23 @@
     { key: 'challengeTotalWarDoctrine', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_TOTALWAR_DOCTRINE', icon: 'assets/challenges/challenge-totalwar-doctrine-illustrated.webp' },
     { key: 'challengeRaider', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_RAIDER', icon: 'assets/challenges/challenge-raider-illustrated.webp' },
     { key: 'challengeConqueror', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_CONQUEROR', icon: 'assets/challenges/challenge-conqueror-illustrated.webp' },
+    /* 飞升挑战系列（2026-11-20）：三项本地成就，文案由 i18n 词条提供，图标复用挑战徽章。
+     * ⚠️ 平台 ID 暂不建：config.ACHV 不加映射键 ⇒ TapTap 侧 idOf 返回 ''、不请求平台解锁；
+     *   本地账本 meta.achv[key] 照常记（成就墙真源与 ID 无关）。Steam 侧有 steamApiName 可解锁。 */
+    { key: 'challengeVeilRush', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_VEIL_RUSH', name: '飞升竞速', icon: 'assets/challenges/challenge-veil-sprint-illustrated.png',
+      desc: '在 8 小时档内研成《掀起帘幕》——以最快速度抵达帷幕之后。' },
+    { key: 'challengeVeilAbyss', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_VEIL_ABYSS', name: '飞升苦旅', icon: 'assets/challenges/challenge-veil-abyss-illustrated.png',
+      desc: '在全产出削减 60% 的重压下研成《掀起帘幕》——负重抵达群星。' },
+    { key: 'challengeVeilStarve', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_VEIL_STARVE', name: '宇宙空洞', icon: 'assets/challenges/challenge-veil-starve-illustrated.png',
+      desc: '在星屑结算收益削减 60% 的虚空中研成《掀起帘幕》——于枯竭处掀幕。' },
+    /* 飞升挑战第二批（2026-11-20）：无神论 / 动荡年代 / 繁盛市场今在此。
+     * ⚠️ 平台 ID 不建（同上）：不写 CFG.ACHV 映射，本地账本照常记。图标待出图替换。 */
+    { key: 'challengeVeilNoFaith', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_VEIL_NOFAITH', name: '无神论', icon: 'assets/challenges/challenge-veil-nofaith-illustrated.png',
+      desc: '不装备任何信条、弃绝一切信仰全产加成，以无神之身研成《掀起帘幕》。' },
+    { key: 'challengeVeilTurmoil', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_VEIL_TURMOIL', name: '动荡年代', icon: 'assets/challenges/challenge-veil-turmoil-illustrated.png',
+      desc: '幸福度恒为动荡最低档，仍要在最深的不安中研成《掀起帘幕》。' },
+    { key: 'challengeVeilCramped', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_VEIL_CRAMPED', name: '繁盛市场今在此', icon: 'assets/challenges/challenge-veil-cramped-illustrated.png',
+      desc: '在所有仓储上限被压缩 70% 的逼仄仓廪里研成《掀起帘幕》——螺蛳壳里做道场。' },
     { key: 'starComplete', steamApiName: 'SHELLBREAK_STAR_COMPLETE', name: '太空时代', icon: 'assets/achievements/achv-star-complete.png',
       desc: '破壳之后把星空槽完全填满——深海的族民，终于把目光投向了整片星海。' },
     { key: 'religion',     steamApiName: 'SHELLBREAK_RELIGION', name: '立教', icon: 'assets/achievements/achv-religion.png',

@@ -72,7 +72,9 @@
       oldFaith: 0, memorialWonders: {}, oldArtworkEarnedTotal: 0, oldTideStelesEarnedTotal: 0,
       challenges: { completed: { cold: false, small: false, science: 0, abyss: 0, speedrun: 0, drift_terra: false,
         waterpollution: false, anarchy: false, good_old_days: false, three_launch_sites: false, eternity_moment: 0, pacifist: false,
-        weapon_critique: false, totalwar_doctrine: false, raider: false, conqueror: 0 } },
+        weapon_critique: false, totalwar_doctrine: false, raider: false, conqueror: 0,
+        veil_rush: 0, veil_abyss: 0, veil_starve: 0,
+        veil_nofaith: false, veil_turmoil: false, veil_cramped: 0 } },
       /* 美好旧日解锁后，首次采用的各政体会永久生成对应被动政策卡。 */
       govPassiveCards: {},
       govEverAdopted: {},
@@ -816,6 +818,39 @@
         ['organ', 'void', 'gene'].forEach(function (k) {
           if (!v.paths[k] || typeof v.paths[k] !== 'object' || Array.isArray(v.paths[k])) v.paths[k] = {};
         });
+        /* 生命织章等级只进 meta.veil（跨普通轮回保留），按节点白名单逐档收口。 */
+        var genePath = v.paths.gene;
+        var geneBranches = {
+          supreme: ['lore', 'valor', 'agility', 'longevity'],
+          pure: ['morph', 'growth', 'fastmat', 'forge']
+        };
+        Object.keys(genePath).forEach(function (branch) {
+          if (!geneBranches[branch]) delete genePath[branch];
+        });
+        Object.keys(geneBranches).forEach(function (branch) {
+          if (!genePath[branch] || typeof genePath[branch] !== 'object' || Array.isArray(genePath[branch]))
+            genePath[branch] = {};
+          var levels = genePath[branch];
+          Object.keys(levels).forEach(function (id) {
+            if (geneBranches[branch].indexOf(id) < 0) delete levels[id];
+          });
+          geneBranches[branch].forEach(function (id) {
+            var level = Number(levels[id]);
+            levels[id] = isFinite(level) ? Math.max(0, Math.min(3, Math.floor(level))) : 0;
+          });
+        });
+        /* 虚境升华账本属于帷幕 meta：领域等级与煌皇奇观跨普通轮回保留，
+         * 逐项收口，避免脏存档把任意数值或奇观键带进效果结算。 */
+        var voidPath = v.paths.void;
+        if (!voidPath.domains || typeof voidPath.domains !== 'object' || Array.isArray(voidPath.domains)) voidPath.domains = {};
+        ['wither', 'warlord', 'pleasure', 'lore', 'emperor'].forEach(function (id) {
+          var level = Number(voidPath.domains[id]);
+          voidPath.domains[id] = isFinite(level) ? Math.max(0, Math.min(3, Math.floor(level))) : 0;
+        });
+        if (!voidPath.wonders || typeof voidPath.wonders !== 'object' || Array.isArray(voidPath.wonders)) voidPath.wonders = {};
+        ['wonder_void_stamp_fortress', 'wonder_void_candle_hall', 'wonder_void_mars_foundry'].forEach(function (id) {
+          if (voidPath.wonders[id] !== true) delete voidPath.wonders[id];
+        });
       }
     } else m.veil = null;
     /* 天元突破的倍率档只认 1 / SKYDRILL_OVERDRIVE_MUL，脏档（改档 / 旧版本）一律回落 1×：
@@ -912,11 +947,14 @@
      *   challenges.emptyProgress 与 state-migrate 的 challengeDone 判据）。 */
     var challengeIds = { cold: true, small: true, science: true, abyss: true, speedrun: true, drift_terra: true, waterpollution: true,
       anarchy: true, good_old_days: true, three_launch_sites: true, eternity_moment: true, pacifist: true,
-      weapon_critique: true, totalwar_doctrine: true, raider: true, conqueror: true };
+      weapon_critique: true, totalwar_doctrine: true, raider: true, conqueror: true,
+      veil_rush: true, veil_abyss: true, veil_starve: true,
+      veil_nofaith: true, veil_turmoil: true, veil_cramped: true };
     /* ⚠️ conqueror 是三档挑战，不入 singleTier，completed 走数值夹取（0/1/2/3）。 */
     var singleTierChallenges = { cold: true, small: true, drift_terra: true, waterpollution: true,
       anarchy: true, good_old_days: true, three_launch_sites: true, pacifist: true,
-      weapon_critique: true, totalwar_doctrine: true, raider: true };
+      weapon_critique: true, totalwar_doctrine: true, raider: true,
+      veil_nofaith: true, veil_turmoil: true };
     for (var challengeId in challengeIds) {
       var completed = m.challenges.completed[challengeId];
       if (singleTierChallenges[challengeId]) m.challenges.completed[challengeId] = completed === true;
@@ -1227,6 +1265,18 @@
   function saveRun(run) {
     try {
       if (!run || !run.res) return false;
+      /* 小红书端的同步 localStorage 只是异步 Storage API 的内存门面。
+       * 原生存档能力不可用时拒绝记为“已保存”，避免玩家误以为刷新后还能恢复。 */
+      var xhsStorage = root.shellbreakXhsStorage;
+      if (xhsStorage && (!xhsStorage.isAvailable || !xhsStorage.isAvailable())) {
+        saveHealth.lastFailAt = Date.now();
+        saveHealth.lastError = 'xhs_storage_unavailable';
+        saveHealth.failCount++;
+        saveHealth.failAfterOk++;
+        diagSet({ err: saveHealth.lastError }, true);
+        diagBump('fail', 1, true);
+        return false;
+      }
       /* 存档是最后一道防线：JSON.stringify(NaN) 会静默写成 null，
        * 下一次刷新时迁移层只能把它当成坏值回落为 0。不要让一帧坏状态覆盖
        * 上一份可用存档；运行态的 addRes 守卫负责修复，之后下一次合法快照再落盘。

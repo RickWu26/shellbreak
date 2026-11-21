@@ -1543,6 +1543,22 @@ meta.tide + meta.spent === meta.tideEarnedTotal
    `shellbreakPlatform` 的真浏览器页验英文通道；只验 `file://` 默认页会漏掉 7 张卡。
 5. 回归锁：`sim/e2e-suites/waterpollution.mjs` ⑮（真取代 4 条）/ ⑯（生效口径 6 条）。
    改过的 js 各自 bump `?v=`，否则浏览器静默吃旧版。
+6. **退役即接替（2026-11-20 用户拍板「后继全部改成和前卡一致」）**：`research()` 拔下旧卡后
+   **立刻**把 `p.replacedBy` 指向的后继卡装回同一格（走 `setCardAt` ⇒ 免费、不耗免卸令牌），
+   日志合成一条「A 已退役，由 B 接替装填」。旧行为是留空槽等玩家自己回卡库重装。
+   - **两个字段必须成对**：`retiredBy` → 后继**市政** id，`replacedBy` → 后继**卡** id。
+     25 条退役卡全覆盖。⚠️ 后继卡**不许推**：同市政常送 2–3 张卡，按 type / 送卡顺序 /
+     "第一张" 都会错——`神不在此` 的后继是《璀璨星图》而非《星际后勤保障》，
+     `戏剧与诗歌` 是《政治经济学》而非《工业化配给》。真源是后继卡 `desc` 里的「取代「X」」。
+   - 25 条里原有 6 条新旧卡 type 不同，已按用户口径把**后继卡**改成与前卡一致：
+     超凡入圣 sci、国家凝聚力 prod、各员一层奋力努力 prod、联邦枢密院 grow、
+     星际探索热潮 wild、至高指令 wild（链上传递：总动员令 wild → 星际探索热潮 wild → 至高指令 wild）。
+   - `replaceRetiredAt` 四道门：已拥有 / 当前未装着 / 该格容得下 type / `cardBlocked` 放行；
+     任一不过就留空（= 退役老语义，绝不硬塞）。挑战专属卡（水体污染两张）在非该挑战局
+     `cardOwned` 恒 false，天然不接替；安那其挑战只准装《轮回之终末》，被 `cardBlocked` 挡住。
+   - 读档 `state-migrate` **只清不补**：老档补位等于凭空多装一张卡，那是另一回事。
+   - 回归锁：`sim/e2e-suites/civics.mjs`「意识形态完成后…接替同一格」+ 探针
+     `sim/probe_card_upgrade.mjs`（25 条链 + 5 条边界 = 32 条）。
 
 ## 五点三十五、军力储备 ≠ 军人：写战争 UI 前先回查 `war.js:104-129 / 785-837`（2026-11-11 · 战争结果 toast 实装）
 
@@ -1632,3 +1648,19 @@ meta.tide + meta.spent === meta.tideEarnedTotal
 4. **探针造高纪元夹具**：科技页横幅渲染有 `blk.era === selectedEra && selectedEra <= era` 门，
    只设 `s.lvl.kelp=5` 进页而 `s.era` 仍是 1 ⇒ 点 2~10 读不到横幅（`on=N` 但 `.tnflavor` 数=0）；
    夹具须 `s.era=10`。连点后同步读 DOM 也是空，须逐点 `setTimeout` 等重绘。
+
+## 五点三十八、「达标自动停机」类状态：判据要与结算同源，且**竣工判定不能挂在被跳过的块里**（2026-11-21 · 玩家反馈「戴森球加自动限制防 2000 组件爆仓」）
+1. **停机判据 = `economy.dysonFull(s)` = `dysonPct(s) >= 1`**，唯一落点，五处同读：
+   `economy-tick` 2f（结算）/ `economy-rates`（面板速率）/ `hydroAlloc`（`europaL` 占流）/
+   `launchStatus`（缺料徽标）/ `render-pane-village`（停机徽标）。漏一处就是面板撒谎
+   （停着还显示扣铀、或停机后仍占 4×等级 的热液能流）。
+2. ⚠️ **不许用 `s.dysonDone` 当停机判据**：它是 tick 内一次性置位的持久旗，离线补算 / 崩溃中断 /
+   老档都可能「pct 已满、旗未置」。用 pct 才不会把那种档永久卡住（停机 + 永不竣工）。
+3. ⚠️ **竣工判定必须移出「running 块」**：A 方案停机后 2f 整段被跳过，判定若仍挂在里面就再也进不来。
+   现行结构 = 2f（发射）/ 2g（竣工 + 半程，每拍都查）。同理适用于任何「先停自己、再判完成」的机制。
+4. **停机只停动作，不回收存量**：`sunSails` 是热液能供给源（0.05/秒/帆），清零或夹到上限＝删玩家资产。
+   停机后 `launchProcs` 余数**保留**（不重置），与「玩家按 − 停场」同一语义。
+5. **挑战上限必须跟着走**：`eternity_moment` 的 `cap` 是倍率（5/10/20），上限是 50000/5000 而不是
+   10000/1000。判据读 `dysonPct`（内部走 `challenges.dysonSailCap/dysonNodeCap`），绝不读死 CFG 常量。
+6. **验证**：`sim/probe_dyson_autostop.mjs`（21 条，含未达标照发、达标冻结、老档补旗、rates 归零、
+   不占流、不误报缺料、跨上限边界、挑战倍率档）；回归锁 `sim/e2e-suites/era10-content.mjs` ⑦b。

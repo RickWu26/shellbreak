@@ -491,6 +491,13 @@
     out.card = out.cards[0] || null;
     /* 宗教名（2026-09-29）：老档没有这个字段 ⇒ 迁成 ''（未命名）。新档原样保留。 */
     out.religionName = (typeof raw.religionName === 'string') ? raw.religionName : '';
+    /* 2026-11-20 修（用户反馈·坏档卡死）：坏档装着「轮回之终末」却没起名 —— 显示层是「虚境」，
+     *   权威态 s.religionName 仍是 '' ⇒ 《归正会》鼓舞永不激活、市政树卡死，轮回系统也永不解锁，
+     *   而改名框已被这张卡锁死，玩家无法自救。卡在即立教：读档时补写锚定名。
+     *   ⚠️ 只补「装了这张卡且名字为空」这一种情况；无卡的普通老档仍保持 ''（e2e civics 钉此口径）。
+     *   字符串与 civics.js 的 VOID_FAITH_NAME 保持一致（跨文件无共享常量，改一处须两处同改）。 */
+    if (!(out.religionName || '').trim() && out.cards.indexOf('card_cycle_terminus') >= 0)
+      out.religionName = '虚境';
     /* 聚落名（2026-10-17）：老档没有这个字段 ⇒ 迁成 ''（未起名；ERA6+ 沿用「渊海之国」兜底）。
      * 新档原样保留。本轮回有效，轮回 doBreak 后由 state.js 重置为 ''。 */
     out.habitatName = (typeof raw.habitatName === 'string') ? raw.habitatName : '';

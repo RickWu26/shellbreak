@@ -743,14 +743,14 @@
       /* retiredBy（2026-09-30）：市政《职业行会》完成后这张卡退役——
        *   cardOwned 对它返回 false（装不了新槽），research('guild') 会把已装的自动拔下
        *   （免费，退役是制度行为不是玩家动作）。字段存的是**市政 id**（guild）不是卡 id。 */
-      retiredBy: 'guild',
+      retiredBy: 'guild', replacedBy: 'card_guild',
       desc: '工坊效率 +20%（工艺制作产出，装在卡槽里才生效）。完成《职业行会》后退役。', flavor: '迈向文明的一步。'},
     { id: 'card_mystic', name: '神秘主义', civic: 'mystic', type: 'sci',  effect: { science: 0.3 },
-      retiredBy: 'sacred_path',
+      retiredBy: 'sacred_path', replacedBy: 'card_transcendence',
       desc: '科技产出 +0.3/秒。完成《神圣之路》后退役。', flavor: '大地、洋流、热泉，听我号令。'},
     { id: 'card_town_meeting', name: '乡镇集会', civic: 'town_meeting', type: 'grow', effect: {},
       /* 城市供给完成后由研究流程自动退役并卸下，避免两个加成叠加。 */
-      retiredBy: 'city_supply', popCapFlat: 3, popGrowthTimeMul: 0.5,
+      retiredBy: 'city_supply', replacedBy: 'card_city_supply', popCapFlat: 3, popGrowthTimeMul: 0.5,
       desc: '人口上限 +3，人口生产时间 −50%。完成「城市供给」后由该卡取代。', flavor: '天下熙熙皆为利来。' },
     { id: 'card_coral_cultivation', name: '珊瑚培育', civic: 'coral_cultivation', type: 'prod', effect: {},
       resOutMul: { coral: 1.15 },
@@ -768,7 +768,7 @@
        *   由 card_political_econ（squareMul ×2.5 + theaterMul ×2.5）上位替代。
        *   retiredBy 指向**后继卡的 civic id**（与 card_records→enlightenment 等先例同方向）。
        *   ⚠️ 原漏写此字段 ⇒ 戏剧与诗歌在政治经济学出来后从不消失（用户报 bug，2026-10-21 补）。 */
-      retiredBy: 'rationing',
+      retiredBy: 'rationing', replacedBy: 'card_political_econ',
       desc: '广场的市政点乘区 ×2（即「广场效果 +100%」）。完成《工业化配给》后由「政治经济学」取代而退役。', flavor: '这是一个问题。'},
     /* ⚠️⚠️【effect 空壳与 squareMul / templeMul 是**刻意**的，不是漏装】
      *    与《戏剧与诗歌》那一条同一个道理：政策卡的 `effect` 走的是 `flow()` 那条
@@ -782,13 +782,13 @@
     { id: 'card_theology', name: '神学', civic: 'theology', type: 'relig',
       effect: {}, templeMul: 2,
       /* 被《星球村》市政完成后退役（由 card_future_theology 上位替代：神庙信仰 ×5、科技 −30%）。 */
-      retiredBy: 'planet_village',
+      retiredBy: 'planet_village', replacedBy: 'card_future_theology',
       desc: '神庙的信仰产出乘区 ×2（即「神庙效果 +100%」）。完成《星球村》后退役。', flavor: '教宗无谬？'},
     { id: 'card_records',  name: '历史记录', civic: 'records', type: 'sci',
       effect: {}, libraryMul: 2,
       /* retiredBy（2026-10-01 ERA4）：市政《启蒙运动》完成后这张卡退役——
        * 「启蒙运动」卡（libraryMul ×2 + universityMul ×2）是它的完全上位替代。 */
-      retiredBy: 'enlightenment',
+      retiredBy: 'enlightenment', replacedBy: 'card_enlightenment',
       desc: '潮纹馆的科技加成 ×2（即「图书馆效果」翻倍，不含研究所那一份）。完成《启蒙运动》后退役。', flavor: '历史如镜。'},
 
     /* ── ERA3 市政扩展的 4 张卡（2026-09-30 用户规格表）──
@@ -802,7 +802,7 @@
      *     读 s.cards 判断「装没装」——同一纪律：研究出市政只是拿到卡，没装 = 0。 */
     { id: 'card_sovereign', type: 'relig', name: '王权神授', civic: 'sovereign',
       effect: {},
-      retiredBy: 'reformed',
+      retiredBy: 'reformed', replacedBy: 'card_divine_right',
       desc: '城堡每级增加 10% 信仰产出（装在卡槽里才生效）。完成《归正会》后被「天赋神权」取代而退役。', flavor: '绝罚！'},
     { id: 'card_monastery', name: '修道院', civic: 'sovereign', type: 'relig', effect: {},
       /* ERA2-7 扩卡（2026-10-22 用户拍板「直接实装」；原设计为 coreFaithMul 核心建筑每级+5%，
@@ -822,12 +822,12 @@
        *   基础物流建设一出生就是退役态的死内容）：retiredBy 写在**旧卡**上指向**新市政**——
        *   《城市化》(ERA5) 完成后本卡退役，由 card_logistics（storeMul ×3）上位替代。
        *   与技艺→guild / 历史记录→enlightenment 等 5 处先例同方向。 */
-      retiredBy: 'urbanization',
+      retiredBy: 'urbanization', replacedBy: 'card_logistics',
       desc: '仓储区所有建筑的仓储 +100%（即海藻仓/压舱仓/灯塔的容量贡献翻倍）。完成《城市化》后退役。', flavor: '苹果、麦酒与乳酪。'},
     { id: 'card_guild', name: '职业行会', civic: 'guild', type: 'prod',
       effect: {}, craftRatio: 0.40,
       /* 国家凝聚力（意识形态）解锁后退役：新卡明确取代本卡，不能与 +80% 叠加。 */
-      retiredBy: 'ideology',
+      retiredBy: 'ideology', replacedBy: 'card_national_solidarity',
       desc: '工坊效率 +40%（取代「技艺」；研究完成后技艺卡退役）。', flavor: '你不能逮捕盗贼行会……'},
     { id: 'card_steel_guild', name: '钢铁公会', civic: 'steel_guild', type: 'prod', effect: {},
       resOutMul: { steel: 1.15 },
@@ -846,13 +846,13 @@
       desc: '精铁产出 +15%。', flavor: 'Drum  links,zwei,drei' },
     { id: 'card_divine_right', name: '天赋神权', civic: 'reformed', type: 'relig', effect: {},
       /* ERA8（2026-10-18）：被《我们在此》卡取代后退役（core+space 每级 +10% 信仰 上位替代 core 每级 +10%）。 */
-      retiredBy: 'cosmic_indifference',
+      retiredBy: 'cosmic_indifference', replacedBy: 'card_we_are_here',
       /* 礁栖核心所有建筑每级 +10% 信仰产出：coreFaithMul(s) 读它，乘在 faithRate 整段上。 */
       coreFaithMul: 0.10,
       desc: '礁栖核心所有建筑每级 +10% 信仰产出（替代「王权神授」）。', flavor: '主与我们同在。'},
     { id: 'card_mercantilism', name: '重商主义', civic: 'mercantilism', type: 'grow', effect: {},
       /* 被《星球村》市政完成后退役（由 card_transnational 上位替代：银行商人产出 ×4）。 */
-      retiredBy: 'planet_village',
+      retiredBy: 'planet_village', replacedBy: 'card_transnational',
       /* 银行的商人产出加成 +100%：bankMerchantMul(s) 读它，乘在 bankLux 那一段上。 */
       bankMerchantMul: 2,
       desc: '银行的商人产出加成 +100%。完成《星球村》后退役。', flavor: '魁奈是个外行！'},
@@ -860,15 +860,15 @@
      * ⚠️ 这 8 条原先 flavor:'' ⇒ 卡库那一整块 policy-card-flavor 不渲染（不是空白占位，
      *    是整段消失）；policyFlavor() 先查字典 policy.card.<slug>.flavor 再回落本字段。 */
     { id: 'card_trade_intelligence', name: '贸易情报', civic: 'trade', type: 'military', effect: {},
-      tradeRouteWarCostDiscounts: [0, 0.03, 0.08, 0.15], retiredBy: 'mercantilism',
+      tradeRouteWarCostDiscounts: [0, 0.03, 0.08, 0.15], retiredBy: 'mercantilism', replacedBy: 'card_official_business',
       desc: '根据商路等级降低战争行动的军力消耗。', flavor: '「德\'罗丽丝女王陛下有令，所有病人必须集中居住。」'},
     { id: 'card_sweep', name: '扫荡', civic: 'military_training', type: 'military', effect: {},
       desc: '提高劫掠行动的成功与大成功概率，降低失败概率。', flavor: '「把水抽干，鱼自然无法生存。」'},
     { id: 'card_drill', name: '演练', civic: 'military_training', type: 'military', effect: {},
-      barracksBonusMul: 0.5, retiredBy: 'professional_army',
+      barracksBonusMul: 0.5, retiredBy: 'professional_army', replacedBy: 'card_mercenary',
       desc: '军营提供的军力加成 +50%。', flavor: '「EXP+1」'},
     { id: 'card_mercenary', name: '雇佣兵', civic: 'professional_army', type: 'military', effect: {},
-      barracksBonusMul: 1.0, retiredBy: 'space_politics',
+      barracksBonusMul: 1.0, retiredBy: 'space_politics', replacedBy: 'card_fleet_review',
       desc: '军营提供的军力加成 +100%，取代「演练」。', flavor: '「我就是要点数量理念。」'},
     { id: 'card_victory_day_parade', name: '胜利日阅兵', civic: 'professional_army', type: 'military', effect: {},
       desc: '成功的战争行动不会造成军人阵亡。', flavor: '「双鹰旗下。」'},
@@ -882,7 +882,7 @@
       desc: '根据商路等级大幅降低战争行动的军力消耗，取代「贸易情报」。', flavor: '「两枚金币，哪枚卑劣，哪枚高尚？」'},
     { id: 'card_enlightenment', name: '启蒙运动', civic: 'enlightenment', type: 'sci', effect: {},
       /* 被《太空竞赛》市政完成后退役（由 card_no_god_here 完全上位替代：潮纹馆/大学科技 ×3、神庙信仰 −50%、观测站 ×1.5）。 */
-      retiredBy: 'space_race',
+      retiredBy: 'space_race', replacedBy: 'card_no_god_here',
       /* 替代《历史记录》：潮纹馆科技 +100%（libraryMul，走 MUL_FIELD）、大学科技 +100%
        * （universityMul）、神庙信仰 −50%（templeFaithMul）。三处各自一个读数函数。 */
       libraryMul: 2, universityMul: 2, templeFaithMul: 0.5,
@@ -894,16 +894,16 @@
      * ⚠️【cost 为提议值，未拍板】同轮市政节点顺延。 */
     { id: 'card_rationing', name: '工业化配给', civic: 'rationing', type: 'prod', effect: {},
       /* 幸福度 −1（cardHappyOffset，economy 幸福恒温器 _gb 段读）；工坊效率 +40%（craftRatio，加法乘区）。 */
-      retiredBy: 'common_destiny', happyOffset: -1, craftRatio: 0.40,
+      retiredBy: 'common_destiny', replacedBy: 'card_egal_work', happyOffset: -1, craftRatio: 0.40,
       desc: '幸福度 −1；工坊（工艺制作）效率 +40%。完成《共同命运》后退役。', flavor: '绳床，一夜仅需一便士。'},
     { id: 'card_political_econ', name: '政治经济学', civic: 'rationing', type: 'grow', effect: {},
       /* 替代《戏剧与诗歌》（retiredBy）：广场效果 ×2.5（squareMul）+ 歌剧院效果 ×2.5（theaterMul，新通道）。 */
-      retiredBy: 'prosperity_unity', squareMul: 2.5, theaterMul: 2.5,
+      retiredBy: 'prosperity_unity', replacedBy: 'card_federal_privy', squareMul: 2.5, theaterMul: 2.5,
       desc: '广场的市政点乘区 ×2.5、歌剧院的官员市政点乘区 ×2.5（取代「戏剧与诗歌」）。', flavor: '可能性之兽。'},
     { id: 'card_logistics', name: '基础物流建设', civic: 'urbanization', type: 'prod', effect: {},
       /* 2026-10-18 用户纠错 + 链补全：原 retiredBy:'market' 方向反了（ERA2 市政淘汰 ERA5 卡 ⇒ 出生即死）。
        *   修正后替代链：中世纪集市 ×2 →(城市化)→ 本卡 ×3 →(全球化)→ 洲际物流 ×5（card_interlog）。 */
-      retiredBy: 'globalization', storeMul: 3,
+      retiredBy: 'globalization', replacedBy: 'card_interlog', storeMul: 3,
       desc: '仓储区建筑容量 ×3（取代「中世纪集市」）。', flavor: '国家的血管与神经。'},
     { id: 'card_city_supply', name: '城市供给', civic: 'city_supply', type: 'grow', effect: {},
       popCapFlat: 5, popGrowthTimeMul: 0.5,
@@ -914,7 +914,7 @@
       desc: '市政与科技产出 −50%，热液能（蒸汽）供给 +100%。', flavor: '可是，这一切都值得吗？'},
     { id: 'card_mobilization', type: 'wild', name: '总动员令', civic: 'mobilization', effect: {},
       /* ERA8（2026-10-18）：被《星际探索热潮》卡取代后退役（退役时由 research 顺手从 s.cards 拔下）。 */
-      retiredBy: 'far_sight',
+      retiredBy: 'far_sight', replacedBy: 'card_fever',
       /* 闲置鲛人每提供 1% 破壳系数（shellSpeedPerIdle）。
        * ⚠️ 2026-10-24 用户拍「接线到破壳系数」：该字段**已接通** —— 唯一消费者是 civics.cardBreakCoefMul
        *   （被 shell.breakCoef 当整段乘区读）。别再当它「挂起通道」，也别在别处重复乘一次。
@@ -931,7 +931,7 @@
       /* ERA8（2026-10-18）：被《社交网络》卡取代后退役（每鲛人 0.5→3 市政点的上位替代）。
        *   ⚠️ 幸福度新 3 档门控在**市政完成**（s.civics.massmedia，economy-social.happyTier），
        *      不在卡上 ⇒ 卡退役不影响档位，只换 civicPerPop/luxConsumeMul 这组数值。 */
-      retiredBy: 'social_network', civicPerPop: 0.5, luxConsumeMul: 0.5,
+      retiredBy: 'social_network', replacedBy: 'card_social_network', civicPerPop: 0.5, luxConsumeMul: 0.5,
       desc: '每名鲛人 +0.5 市政点/秒；但奢侈品消耗 +50%。完成《社交网络》后退役。', flavor: '号外！号外！'},
     { id: 'card_overseas_advertising', name: '海外宣传', civic: 'massmedia', effect: {},
       cultureCostDiscountPerWonder: 0.01,
@@ -939,7 +939,7 @@
     { id: 'card_museum', name: '博物馆管理', civic: 'naturalhistory', type: 'wild', effect: {},
       museumMul: 2,
       desc: '博物馆效果翻倍（书手市政点 +40% 而非 +20%）；艺术品效果随轮回额外放大。', flavor: '博物馆奇妙夜。'},
-    { id: 'card_national_solidarity', name: '国家凝聚力', civic: 'ideology', type: 'wild', effect: {},
+    { id: 'card_national_solidarity', name: '国家凝聚力', civic: 'ideology', type: 'prod', effect: {},
       craftRatio: 0.80,
       desc: '工坊效率 +80%（取代「职业行会」的 +40%）。', flavor: '他们的土地，他们的血。'},
 
@@ -975,7 +975,7 @@
       spaceBuildSave: 0.20, civicOutMul: 0.80,
       desc: '太空建筑建造 -20%；市政产出 -20%。', flavor: '光荣的引路人'},
     { id: 'card_no_god_here', name: '神不在此', civic: 'space_race', type: 'sci', effect: {},
-      retiredBy: 'solar_logistics',
+      retiredBy: 'solar_logistics', replacedBy: 'card_brilliant_star_map',
       /* 替代《启蒙运动》（retiredBy 设在 card_enlightenment 上 = space_race）：潮纹馆科技 ×3（libraryMul，加入 MUL_FIELD）、
        * 研究所科技 ×3（universityMul，通用相乘）、神庙信仰 -50%（templeFaithMul，通用相乘）、星空观测站产出 ×1.5（obsSciMul）。 */
       libraryMul: 3, universityMul: 3, templeFaithMul: 0.5, obsSciMul: 1.5,
@@ -1024,10 +1024,10 @@
     { id: 'card_space_net', name: '星际物流网', civic: 'space_politics', type: 'prod', effect: {},
       planetOutMul: 1.3,
       desc: '异星建筑（瑞亚星矿井/泰坦气云采集站）产出 +30%。', flavor: '川陀,450亿人口.'},
-    { id: 'card_fever', name: '星际探索热潮', civic: 'far_sight', type: 'sci', effect: {},
+    { id: 'card_fever', name: '星际探索热潮', civic: 'far_sight', type: 'wild', effect: {},
       starPerPop: 1,
       /* ERA10（2026-10-20）：被《至高指令》取代（retiredBy 设在被替代卡上，值 = 替代它的市政 id）。 */
-      retiredBy: 'supreme_directive',
+      retiredBy: 'supreme_directive', replacedBy: 'card_supreme_directive',
       desc: '星空探索速率 +x%，x = 人口数（%）（替代「总动员令」）。', flavor: '翠绿的，翠绿的青草。'},
 
     /* ── ERA9 政策卡（2026-10-20 用户规格 · 实装）──
@@ -1043,7 +1043,7 @@
     { id: 'card_alien_abundance', name: '上上善道', civic: 'prosperity_unity', type: 'wild', effect: {},
       planetOutMul: 1.4,
       desc: '异星建筑（瑞亚星矿井/泰坦气云采集站）产出 +40%。', flavor: 'For the GREATER GOOD!'},
-    { id: 'card_federal_privy', name: '联邦枢密院', civic: 'prosperity_unity', type: 'wild', effect: {},
+    { id: 'card_federal_privy', name: '联邦枢密院', civic: 'prosperity_unity', type: 'grow', effect: {},
       squareMul: 4, theaterMul: 4,
       /* 取代《政治经济学》（retiredBy 设在 card_political_econ 上 = prosperity_unity）。 */
       desc: '广场的市政点乘区 ×4、歌剧院的官员市政点乘区 ×4（取代「政治经济学」）。', flavor: 'ORDER!'},
@@ -1051,14 +1051,14 @@
       /* 精铁(iron)/钢(steel)/θ金属(thetaMetal) 产出 +30%（resOutMul map，逐资源相乘）。 */
       resOutMul: { iron: 1.3, steel: 1.3, thetaMetal: 1.3 },
       desc: '精铁、钢、θ金属产出 +30%。', flavor: '机械飞升。'},
-    { id: 'card_egal_work', name: '各员一层奋力努力', civic: 'common_destiny', type: 'wild', effect: {},
+    { id: 'card_egal_work', name: '各员一层奋力努力', civic: 'common_destiny', type: 'prod', effect: {},
       craftRatio: 1.4, happyOffset: -2,
       /* 取代《工业化配给》（retiredBy 设在 card_rationing 上 = common_destiny）。 */
       desc: '工艺效率 +140%、幸福度 −2（取代「工业化配给」）。', flavor: '滴答、滴答、滴答。'},
     { id: 'card_mind_over_matter', name: '心胜于物', civic: 'sacred_path', type: 'wild', effect: {},
       wonderBuildSave: 0.3,
       desc: '奇观建造消耗 −30%。', flavor: '我在此。'},
-    { id: 'card_transcendence', name: '超凡入圣', civic: 'sacred_path', type: 'wild', effect: { science: 300 },
+    { id: 'card_transcendence', name: '超凡入圣', civic: 'sacred_path', type: 'sci', effect: { science: 300 },
       /* 取代《神秘主义》（retiredBy 设在 card_mystic 上 = sacred_path）。 */
       desc: '科技产出 +300/秒（取代「神秘主义」）。', flavor: '愿你也在此。'},
     { id: 'card_interstellar_logi', name: '星际后勤保障', civic: 'solar_logistics', type: 'prod', effect: {},
@@ -1087,7 +1087,7 @@
      *   faithOutMul（我们的海 −30%，新字段，economy.faithRate 整段乘区）；
      *   craftMul（我们的海，工坊效率**乘区 ×2**，落点 workshop.craftMul 乘区链——
      *     用户拍「乘区 ×2」，不进 craftRatio 加法轴：加法轴里 +100% 在基值 0.5 时只有 ×1.67）。 */
-    { id: 'card_supreme_directive', name: '至高指令', civic: 'supreme_directive', type: 'prod', effect: {},
+    { id: 'card_supreme_directive', name: '至高指令', civic: 'supreme_directive', type: 'wild', effect: {},
       launchCycle: -2,
       desc: '发射场制造节律 −2 秒（与《空间矢量控制》的 −2s 相加，10s → 6s）；取代「星际探索热潮」。', flavor: 'DAS WAR EIN BEFEHL!'},
     { id: 'card_saving', name: '节能减耗', civic: 'supreme_directive', type: 'prod', effect: {},
@@ -1103,7 +1103,7 @@
     /* 征夫发役：纪元 1–3 奇观建造消耗 −20%。挂《技艺》(craft)，被《职业行会》(guild) 完成后退役，
      *   由《王室特许》上位替代（retiredBy 指向后继市政 id，与技艺→guild 同先例）。 */
     { id: 'card_corvee', name: '征夫发役', civic: 'craft',
-      retiredBy: 'guild',
+      retiredBy: 'guild', replacedBy: 'card_royal_charter',
       wonderBuildSaveEra: 0.20, wonderEraCap: 3,
       desc: '纪元 1–3 奇观建造消耗 −20%。完成《职业行会》后由「王室特许」取代而退役。', flavor: '消耗建造者一次使用次数，为奇观建造提供20%进度。' },
     /* 王室特许：纪元 1–5 奇观建造消耗 −20%（取代征夫发役，覆盖到 era5）。挂《职业行会》(guild)，无 retiredBy（链尾）。 */
@@ -1147,7 +1147,7 @@
      *    ⚠️ economy.js 里那两条 if-else **不是**「互斥的实现本体」，只是脏状态/手改存档
      *    的第二道防线（正常路径下两卡已不可能共存）；别再拿它当「已经替代了」的证据。 */
     { id: 'card_quarantine', name: '隔离病患', civic: 'sanitation_act', type: 'grow', challengeOnly: 'waterpollution',
-      retiredBy: 'urbanization',
+      retiredBy: 'urbanization', replacedBy: 'card_disease_control',
       effect: {},
       desc: '污染致死概率 −15%（不受医院 40% 的软上限影响）。完成《城市化》后由「疾控防治」取代而退役。',
       flavor: '「德罗丽丝女王陛下有令，所有病人必须集中居住。」' },
@@ -1168,7 +1168,7 @@
       desc: '污染致死概率 −30%（不受医院软上限影响，取代「隔离病患」）。',
       flavor: '「请在这里排队检测核酸。」' },
     { id: 'card_pollution_control', name: '污染治理', civic: 'enlightenment', type: 'prod', challengeOnly: 'waterpollution',
-      retiredBy: 'globalization',
+      retiredBy: 'globalization', replacedBy: 'card_green_movement',
       effect: {},
       desc: '污染产出 −20%。完成《全球化》后由「绿色运动」取代而退役。',
       flavor: '「伦尼姆，帝国的明珠，但贫民窟的孩子很难在这里的工业废水中活过 14 岁。」' },

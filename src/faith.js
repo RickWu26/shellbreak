@@ -34,13 +34,40 @@
     { id: 'holy_see_edict', category: 'military', icon: 'assets/faith-tenets/military/holy-see-edict.png', percent: 15 },
     { id: 'expedition_blessing', category: 'military', icon: 'assets/faith-tenets/military/expedition-blessing.png', percent: 10 },
     { id: 'martyr_oath', category: 'military', icon: 'assets/faith-tenets/military/martyr-oath.png', percent: 25 },
-    { id: 'triumph_hymn', category: 'military', icon: 'assets/faith-tenets/military/triumph-hymn.png', percent: 10 }
+    { id: 'triumph_hymn', category: 'military', icon: 'assets/faith-tenets/military/triumph-hymn.png', percent: 10 },
+    { id: 'creed_wither', category: 'doctrine', icon: 'assets/faith-tenets/void/creed-wither.png', percent: 100, requiresVoidDomain: 'wither' },
+    { id: 'creed_bingkui', category: 'military', icon: 'assets/faith-tenets/void/creed-bingkui.png', percent: 200, requiresVoidDomain: 'warlord' },
+    { id: 'creed_duoyang', category: 'profession', icon: 'assets/faith-tenets/void/creed-duoyang.png', percent: 200, requiresVoidDomain: 'pleasure' },
+    { id: 'creed_yisou', category: 'industry', icon: 'assets/faith-tenets/void/creed-yisou.png', percent: 200, requiresVoidDomain: 'lore' }
   ];
   var BY_ID = {};
   for (var ti = 0; ti < TENETS.length; ti++) BY_ID[TENETS[ti].id] = TENETS[ti];
 
   function idOf(id) { return BY_ID[id] ? id : null; }
-  function has(s, id) { return !!(s && s.faithTenets && s.faithTenets.indexOf(id) >= 0); }
+  /* 无神论挑战（veil_nofaith，2026-11-20）：本挑战局不得装备任何信条。
+   * ⚠️ 这是 goal 型（终点研成《掀起帘幕》），active() 在研成后返回 null ⇒ 限制自动解除，
+   *    与飞升苦旅同一口径。用 active() 而非 entered()：完成瞬间限制就该撤。 */
+  function noFaithActive(s) {
+    var a = (s && SB.challenges && SB.challenges.active) ? SB.challenges.active(s) : null;
+    return !!(a && a.id === 'veil_nofaith');
+  }
+  /* 四选一奖励（无神论永久奖励，跨周目）：tierDone≥1 时草稿池由 3 选 1 放宽为 4 选 1。
+   * ⚠️ 读 meta 档位而非本局 active —— 这是完成后新局才生效的永久奖励。 */
+  function draftOptionCount() {
+    var meta = (SB.game && SB.game.meta) ? SB.game.meta() : null;
+    var done = (SB.challenges && SB.challenges.tierDone)
+      ? SB.challenges.tierDone('veil_nofaith', meta) : 0;
+    return done ? 4 : 3;
+  }
+  function has(s, id) {
+    if (noFaithActive(s)) return false;
+    return !!(s && s.faithTenets && s.faithTenets.indexOf(id) >= 0);
+  }
+  function tenetAvailable(s, id) {
+    var tenet = BY_ID[id];
+    return !!tenet && (!tenet.requiresVoidDomain
+      || !!(SB.voidFx && SB.voidFx.domainLv && SB.voidFx.domainLv(tenet.requiresVoidDomain) >= 3));
+  }
   function tierForThreshold(threshold) { return THRESHOLDS.indexOf(Number(threshold)); }
   function randomValue() {
     var n = SB.rng ? SB.rng() : Math.random();
@@ -72,13 +99,13 @@
     for (var p in pending) blocked[p] = true;
     for (i = 0; i < TENETS.length; i++) {
       var t = TENETS[i];
-      if ((t.minTier || 0) <= tier && !blocked[t.id]) pool.push(t.id);
+      if ((t.minTier || 0) <= tier && !blocked[t.id] && tenetAvailable(s, t.id)) pool.push(t.id);
     }
     for (i = pool.length - 1; i > 0; i--) {
       j = Math.floor(randomValue() * (i + 1));
       var swap = pool[i]; pool[i] = pool[j]; pool[j] = swap;
     }
-    s.faithTenetDrafts.push({ threshold: threshold, options: pool.slice(0, 3), chosen: null });
+    s.faithTenetDrafts.push({ threshold: threshold, options: pool.slice(0, draftOptionCount()), chosen: null });
     return true;
   }
   function normalizeDrafts(s) {
@@ -91,9 +118,9 @@
       if (tier < 0 || seenThresholds[threshold]) continue;
       seenThresholds[threshold] = true;
       opts = []; seen = {};
-      if (Array.isArray(d.options)) for (j = 0; j < d.options.length && opts.length < 3; j++) {
+      if (Array.isArray(d.options)) for (j = 0; j < d.options.length && opts.length < draftOptionCount(); j++) {
         id = idOf(d.options[j]);
-        if (id && (BY_ID[id].minTier || 0) <= tier && !seen[id]) { seen[id] = true; opts.push(id); }
+        if (id && (BY_ID[id].minTier || 0) <= tier && !seen[id] && tenetAvailable(s, id)) { seen[id] = true; opts.push(id); }
       }
       chosen = idOf(d.chosen);
       if (!chosen || opts.indexOf(chosen) < 0) chosen = null;
@@ -141,7 +168,8 @@
   }
   function choose(s, threshold, id) {
     id = idOf(id);
-    if (!s || !id || has(s, id)) return false;
+    if (noFaithActive(s)) return false;   /* 无神论挑战：装备入口预防性拦截 */
+    if (!s || !id || has(s, id) || !tenetAvailable(s, id)) return false;
     var drafts = s.faithTenetDrafts || [], draft = null;
     for (var i = 0; i < drafts.length; i++) if (drafts[i].threshold === Number(threshold)) { draft = drafts[i]; break; }
     if (!draft || draft.chosen || draft.options.indexOf(id) < 0) return false;
@@ -188,6 +216,7 @@
     return 1;
   }
   function percentMul(s, id) { return has(s, id) ? 1 + (BY_ID[id].percent || 0) / 100 : 1; }
+  function creedMul(s, id) { return tenetAvailable(s, id) ? percentMul(s, id) : 1; }
   function saveMul(s, id) { return has(s, id) ? 1 - (BY_ID[id].percent || 0) / 100 : 1; }
   function workshopEthicAdd(s) {
     return has(s, 'workshop_ethic') ? Math.max(0, (s && s.lvl && s.lvl.temple) || 0) * (BY_ID.workshop_ethic.percentPerTemple || 0) / 100 : 0;
@@ -214,6 +243,7 @@
   SB.faith = {
     thresholds: THRESHOLDS.slice(), tenets: TENETS,
     byId: function (id) { return idOf(id) ? BY_ID[id] : null; },
+    tenetAvailable: tenetAvailable,
     has: has, syncRun: syncRun, recordEarned: recordEarned, choose: choose, hasPending: pending,
     nextThreshold: nextThreshold, thresholdForTenet: thresholdForTenet, text: text,
     tenetName: tenetName, tenetEffect: tenetEffect, params: params,
@@ -233,6 +263,10 @@
     civicCostMul: function (s) { return saveMul(s, 'church_codex'); },
     wonderCostMul: function (s) { return saveMul(s, 'sacred_monument'); },
     militaryOutputMul: function (s) { return percentMul(s, 'faith_guard'); },
+    creedStarMul: function (s) { return creedMul(s, 'creed_wither'); },
+    creedMilitaryMul: function (s) { return creedMul(s, 'creed_bingkui'); },
+    creedScribeCultureMul: function (s) { return creedMul(s, 'creed_duoyang'); },
+    creedScholarSciMul: function (s) { return creedMul(s, 'creed_yisou'); },
     scaleCapFaithCostMul: function (s) { return saveMul(s, 'holy_see_edict'); },
     militaryActionCostMul: militaryActionCostMul,
     failedMilitaryRefund: refundFailedMilitaryAction,

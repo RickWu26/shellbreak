@@ -117,8 +117,20 @@
     var emblemHtml = tree.iconSrc
       ? '<img src="' + escapeHtml(tree.iconSrc) + '" alt="" aria-hidden="true" decoding="async">'
       : escapeHtml(tree.icon || '✦');
+    /* 树级折叠（2026-11-20 玩家反馈⑥「前面几个都点满了，每次要一直翻」）。
+     * ⚠️ 只加类 **不删 DOM**：`.talent-map-scroll` 由 CSS 隐藏。
+     *    e2e.mjs 钉 `data-perk` 唯一、meta-render-guard 钉写入次数，删节点会让两条一起红；
+     *    且 `data-talent-scroll` 的横向滚动记忆依赖元素存在，删了会丢滚动位置。
+     * ⚠️ 只有传 `foldKey` 的调用点（轮回商店）才出按钮——星屑商店（render.js）不传 ⇒ 行为与原来逐字一致。 */
+    var foldKey = tree.foldKey || '';
+    var folded = !!tree.collapsed;
+    var foldBtnHtml = foldKey ? '<button type="button" class="talent-tree-fold" data-meta-fold="' +
+      escapeHtml(foldKey) + '" aria-expanded="' + (folded ? 'false' : 'true') + '" title="' +
+      escapeHtml(tr(folded ? 'ui.talent_tree.fold.expand' : 'ui.talent_tree.fold.collapse', null,
+        folded ? '展开这棵树' : '收起这棵树')) + '">' +
+      (folded ? '▸' : '▾') + '</button>' : '';
     var totalRanks = 0, active = 0, html = '<section' + (tree.anchorId ? ' id="' + escapeHtml(tree.anchorId) + '"' : '') +
-      ' class="talent-tree ' + escapeHtml(tree.className || '') + '" style="--talent-accent:' +
+      ' class="talent-tree ' + escapeHtml(tree.className || '') + (folded ? ' is-folded' : '') + '" style="--talent-accent:' +
       escapeHtml(tree.accent || '#d7bd7a') + '"><header class="talent-tree-header"><span class="talent-tree-emblem' + (tree.iconSrc ? ' has-image' : '') + '">' +
       emblemHtml + '</span><div class="talent-tree-heading"><b>' + escapeHtml(tree.title) + '</b><small>' +
       escapeHtml(tree.subtitle || '') + '</small></div><span class="talent-tree-count">';
@@ -128,7 +140,7 @@
     }
     html += escapeHtml(tr('ui.talent_tree.progress.summary', {
       activatedCount: active, nodeCount: nodes.length, totalLevels: totalRanks
-    }, '{activatedCount}/{nodeCount} 个节点已点亮 · 累计强化 {totalLevels} 阶')) + '</span></header>' +
+    }, '{activatedCount}/{nodeCount} 个节点已点亮 · 累计强化 {totalLevels} 阶')) + '</span>' + foldBtnHtml + '</header>' +
       '<div class="talent-map-scroll"' + (tree.scrollKey ? ' data-talent-scroll="' + escapeHtml(tree.scrollKey) + '"' : '') + '><div class="talent-map" style="--talent-leaves:' + totalLeaves + ';height:' + mapHeight + 'px">' + svg;
     for (i = 0; i < nodes.length; i++) {
       var n = nodes[i], pos = positions[n.id] || { x: 500, depth: 0 };

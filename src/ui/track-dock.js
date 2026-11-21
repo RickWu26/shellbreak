@@ -158,10 +158,13 @@
       var w = null;
       for (var i = 0; i < SB.WONDERS.length; i++) if (SB.WONDERS[i].id === id) { w = SB.WONDERS[i]; break; }
       if (!w) return null;
-      if (s.wonders && s.wonders[id]) return null;        // 已建成
+      if ((s.wonders && s.wonders[id])
+        || (SB.voidFx && SB.voidFx.wonderOwned && SB.voidFx.wonderOwned(id))) return null; // 已建成
       if (SB.workshop && SB.workshop.wonderBlocked) {
         var why = SB.workshop.wonderBlocked(s, id);
-        if (why && /^需要先/.test(why)) return null;       // 未解锁（列表里也不显示）
+        var wonderInfoParts = infoParts();
+        if (why && ((wonderInfoParts.wonderHasRequirementBlock
+          && wonderInfoParts.wonderHasRequirementBlock(s, w)) || /^需要先/.test(why))) return null; // 未解锁（列表里也不显示）
       }
       var rowsW = costRows(s, SB.wonder.discountedCost(s, id));
       /* 建造价里的建筑等级（2026-11-02 · costBuild）：必须进行，否则追踪框会「材料全齐 ⇒ 变绿」

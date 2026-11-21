@@ -25,6 +25,14 @@
    *   读数函数漏剥了加成** ⇒ 面板显示的「耗」比真实扣的多。属面板撒谎家族。
    * 【本函数的作用】把那份偏移量单独算出来，供 happyBurn / happyCostPer /
    *   happyLedger 共用同一口径 —— 三处同源，不再各写一遍减法。 */
+  /* 动荡年代通关奖励（veil_turmoil，2026-11-20）：永久幸福度 +1（单档，tierDone 读 meta）。
+   * ⚠️ 三处同源：本函数、economy.js happyStep 的 _gb、economy.js happyLedger.bonusParts
+   *   全部调这同一个函数，禁止任何一处另写 tierDone 表达式（否则面板与实账漂移）。 */
+  function veilHappyBonus() {
+    var meta = (SB.game && SB.game.meta) ? SB.game.meta() : null;
+    return (SB.challenges && SB.challenges.tierDone)
+      ? (SB.challenges.tierDone('veil_turmoil', meta) ? 1 : 0) : 0;
+  }
   function happyBonusTotal(s) {
     return ((SB.civic ? SB.civic.govHappyBonus(s) : 0)
       + (SB.wonder ? SB.wonder.happyBonus(s) : 0)
@@ -37,7 +45,9 @@
        * ⚠️⚠️ 这一项是「居民别被自己污染养贵」的唯一保险：happyMech = s.happy − 本函数，
        *   若不剥掉它，happyCost 会把它算进消耗单价 ⇒ 污染反而让居民变贵（方向相反的 bug）。
        *   三处必须同批改：economy.js happyStep 的 _gb、本函数、economy.js happyLedger.bonusParts。 */
-      + ((SB.economy && SB.economy.pollutionHappyOffset) ? SB.economy.pollutionHappyOffset(s) : 0)) || 0;
+      + ((SB.economy && SB.economy.pollutionHappyOffset) ? SB.economy.pollutionHappyOffset(s) : 0)
+      /* 动荡年代通关奖励：永久 +1 幸福度（与政体/奇观同口径的常驻偏移，进 _gb 被剥除，不烧 luxury）。 */
+      + veilHappyBonus()) || 0;
   }
   /* 用于**计价**的幸福度 = s.happy − 加成。可以为负（加成大于当前幸福度时），
    *   happyCost 对 H≤0 走保底 0.005，与 tick 的 `_Hmech` 同一套分支，天然对齐。 */
@@ -224,6 +234,11 @@
     { name: '黄金时代', lo: 6,  mul: 1.55, nextAt: null, nextName: null,    nextMul: null }
   ];
   function happyTier(H, s) {
+    /* 动荡年代挑战（veil_turmoil）：幸福度恒钉最低档（动荡 ×0.80），奢侈品/奇观无法抬升。
+     * ⚠️ 钳在 happyTier 这一处即可覆盖 happyMul（全产乘区）与 economy.js happyLedger 的
+     *    面板档位，两侧共用同一份钳制值；snapshot 纪律（happyOf）不受影响。 */
+    var a = (s && SB.challenges && SB.challenges.active) ? SB.challenges.active(s) : null;
+    if (a && a.id === 'veil_turmoil') return HAPPY_TIERS[0];
     var nat = 0;
     for (var i = 0; i < HAPPY_TIERS.length; i++) {
       if (i === HAPPY_TIERS.length - 1 || H < HAPPY_TIERS[i + 1].lo) { nat = i; break; }
@@ -332,6 +347,7 @@
 
   SB.economySocial = {
     happyCost: happyCost, happyBonusTotal: happyBonusTotal, happyMech: happyMech,
+    veilHappyBonus: veilHappyBonus,
     luxSaveAll: luxSaveAll, tenementLuxAdd: tenementLuxAdd, fissionLuxAdd: fissionLuxAdd, luxDemandMul: luxDemandMul,
     happyBurn: happyBurn, happyCostPer: happyCostPer, happySupply: happySupply,
     happyMul: happyMul, happyOf: happyOf, happyTier: happyTier, HAPPY_TIERS: HAPPY_TIERS,

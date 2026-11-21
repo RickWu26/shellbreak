@@ -559,7 +559,10 @@
   /* 四个能力位，形如 `ls1ts1fs0cl1`。这是 P0-1 的直接证据：
    * 只要看到 `ts0` 而 `fs1`，就说明「有备份但旧启动链读不到」。 */
   function capText() {
-    return 'ls' + (localStore() ? 1 : 0) + 'ts' + (envAvailable() ? 1 : 0)
+    var xhsRuntime = !!(root.shellbreakPlatform && root.shellbreakPlatform.runtime === 'xiaohongshu');
+    var xhsStore = root.shellbreakXhsStorage;
+    var xhsAvailable = !!(xhsRuntime && xhsStore && xhsStore.isAvailable && xhsStore.isAvailable());
+    return 'xh' + (xhsAvailable ? 1 : 0) + 'ls' + (!xhsRuntime && localStore() ? 1 : 0) + 'ts' + (envAvailable() ? 1 : 0)
       + 'fs' + (fsAvailable() ? 1 : 0) + 'cl' + (cloudProbe() ? 1 : 0);
   }
   /* 接口形态探测（2026-10-30，Ver1.0.7）。
@@ -708,7 +711,7 @@
     return [
       tr('save.diag.title', null, '天壳 SHELLBREAK 存档诊断'),
       tr('save.diag.version_generated', { version: d.ver || '?', generatedAt: t(Date.now()) }, '版本 {version}　生成 {generatedAt}'),
-      tr('save.diag.storage_capabilities', { capabilityFlags: capText() }, '能力 {capabilityFlags}（ls=localStorage；ts=TapTap 存储；fs=用户目录文件；cl=云存档）'),
+      tr('save.diag.storage_capabilities', { capabilityFlags: capText() }, '能力 {capabilityFlags}（xh=小红书 Storage JS API；ls=网页存储；ts=TapTap 存储；fs=用户目录文件；cl=云存档）'),
       /* 接口形态（2026-10-30）：与上一行「能力」的区别 —— 能力答「有没有这条通道」，
        * 接口答「这条通道到底能做什么」。玩家报「导入点不动 / 切后台丢一段」时，
        * 先看这行有没有 wfs0（= 无同步写接口），能一句话定性，不必再靠返回值反推。 */
@@ -901,8 +904,10 @@
   }
 
   function status() {
+    var xhsStorage = root.shellbreakXhsStorage;
     return {
       env: envAvailable(), fs: fsAvailable(), cloud: cloudProbe(),
+      xhsStorage: xhsStorage && xhsStorage.status ? xhsStorage.status() : null,
       cap: capText(),
       writeOk: st.writeOk, writeFail: st.writeFail, lastError: st.lastError,
       tapOk: st.tapOk, tapFail: st.tapFail, fileOk: st.fileOk, fileFail: st.fileFail,

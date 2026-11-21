@@ -268,6 +268,25 @@ export function run({ SB, check, noop, fs, path, ROOT }) {
       !!(SB.ui && SB.ui.renderParts && typeof SB.ui.renderParts.refreshDysonPanel === 'function'));
   }
 
+  /* ---------------- ⑦b 竣工自动停机（2026-11-21 · 玩家反馈 A「达标自动全停」）---------------
+   * 【要锁什么】dysonPct 到 1 以后三座发射场必须整段停：不扣料、不推进帆/节点、
+   *   rates 的帆/节点速率归零（面板 === 结算）。之前会一直发射到 20000 帆 / 2000 节点。
+   * 【为什么用 9999 起跑】要覆盖「跨过上限的那一拍照常发射 + 下一拍彻底冻结」这个边界，
+   *   而不是一开始就摆一个满额状态（那样测不出 2g 之外的真实停机路径）。 */
+  {
+    const s = launchState('sail', ['adiabatic']);
+    s.res.uranium = 1e6;
+    s.sunSails = 9999; s.dysonNodes = 1000;
+    SB.economy.tick(s, 10, noop);          // 这一拍照发到 ≥10000 并置 dysonDone
+    const sails1 = s.sunSails, u1 = s.res.uranium;
+    SB.economy.tick(s, 10, noop);          // 停机后再跑 10 秒
+    check('戴森双达标 ⇒ 发射场自动全停（帆不涨 / 铀不扣 / rates 归零）',
+      s.dysonDone === true && s.sunSails === sails1 && s.res.uranium === u1 &&
+      near(SB.economy.rates(s).sunSailRate, 0),
+      'done=' + s.dysonDone + ' sails=' + s.sunSails + '/' + sails1 +
+      ' U=' + s.res.uranium + '/' + u1 + ' rate=' + SB.economy.rates(s).sunSailRate);
+  }
+
   /* ---------------- ⑧ 强人工智能：机器人倍率 + 信仰进人口基项 ---------------- */
   {
     const s = fr(); s.lvl.robotbay = 10; s.jobs = { miner: 2 }; s.robotJobs = { miner: 10 };

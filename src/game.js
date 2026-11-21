@@ -3124,9 +3124,23 @@
      * ⚠️ 2026-11-03：去掉 `!S.broken`。破壳后 broken 长期为真 ⇒ 这一条曾让「破壳后的
      *   ERA10 进度」在切后台 / 关页面时整体丢失（自动存档那条同批拆门）。 */
     function flush() { if (!suppressExitSave && S) SB.state.saveRun(snapshot(S)); }
-    if (root.addEventListener) root.addEventListener('pagehide', flush);
+    function flushAndVerifyXhs() {
+      var storage = root.shellbreakXhsStorage;
+      if (!storage || !storage.flushAndVerify) return;
+      storage.flushAndVerify([CFG.SAVE_KEY, CFG.RUN_KEY]).then(function (result) {
+        if (result && result.ok) return;
+        if (SB.saveTransfer && SB.saveTransfer.syncPlatformSaveHint)
+          SB.saveTransfer.syncPlatformSaveHint(result && result.unavailable
+            ? 'save.xhs_storage.unavailable' : 'save.xhs_storage.write_failed');
+      }, function () {
+        if (SB.saveTransfer && SB.saveTransfer.syncPlatformSaveHint)
+          SB.saveTransfer.syncPlatformSaveHint('save.xhs_storage.write_failed');
+      });
+    }
+    function flushOnExit() { flush(); flushAndVerifyXhs(); }
+    if (root.addEventListener) root.addEventListener('pagehide', flushOnExit);
     if (root.tap && typeof root.tap.onHide === 'function') root.tap.onHide(function () {
-      flush();
+      flushOnExit();
       if (SB.store && SB.store.flushNativeSync && !SB.store.flushNativeSync()) {
         /* 把「卡在哪条通道」一起记下来（2026-10-30）：只写「未确认」等于让我们
          * 下次还得靠猜；`nosync` 一出现就能确定这台设备没有同步文件接口。 */
@@ -3138,7 +3152,7 @@
       /* A 项省电：切后台/锁屏时给 <html> 打 vis-hidden，CSS 据此暂停所有 infinite 动画
        * （atmosphere-drift / p0-tide 等），GPU 合成线程随之 idle，不再空转发热。 */
       if (document.documentElement) document.documentElement.classList.toggle('vis-hidden', !!document.hidden);
-      if (document.hidden) flush();
+      if (document.hidden) flushOnExit();
     });
     /* 初始态同步一次（极端情况：页面在 hidden 状态下完成首次渲染）。 */
     if (document.documentElement) document.documentElement.classList.toggle('vis-hidden', !!(document && document.hidden));
@@ -3243,7 +3257,7 @@
       : '';
     var pathName = function (id) {
       var p = (SB.ui.veilHub && SB.ui.veilHub.PATHS ? SB.ui.veilHub.PATHS : []).filter(function (x) { return x.id === id; })[0];
-      return p ? p.name : id;
+      return p ? gameText('ui.veil.path.name.' + p.id, null, p.name) : id;
     };
     /* 路径选择区（2026-11-18 用户拍板「玩家自己选，暂时只能选机械飞升」）：
      * 有可选 → 原生 radio 单选，默认选中第一项（当前只有 si）；其余未实装项置灰不可选。
@@ -3260,15 +3274,16 @@
       /* 尚未实装的路径也列出来，明确告知玩家「制作中、这次选不了」，避免只给一个选项却不说为什么。 */
       var wipNames = (SB.ui.veilHub && SB.ui.veilHub.PATHS ? SB.ui.veilHub.PATHS : [])
         .filter(function (p) { return p.wip && sel.indexOf(p.id) < 0; })
-        .map(function (p) { return p.name; });
+        .map(function (p) { return pathName(p.id); });
       var wipTip = wipNames.length
-        ? '<div class="note" style="color:var(--dim);margin-top:2px">另两条路径（' + wipNames.join('、')
-          + '）仍在制作中，暂不可选。</div>'
+        ? '<div class="note" style="color:var(--dim);margin-top:2px">'
+          + gameText('ui.veil.hub.wip_paths_note', { pathNames: wipNames.join('、') }, '') + '</div>'
         : '';
       pickBlock = '<div class="note" style="margin-top:10px"><b>选择本次要开启的飞升路径：</b></div>'
         + opts + wipTip;
     } else {
-      pickBlock = '<div class="note" style="color:var(--dim);margin-top:10px">当前没有可开启的新路径（另两条制作中）；本次仍可获得飞升点，但不开启新路径。</div>';
+      pickBlock = '<div class="note" style="color:var(--dim);margin-top:10px">'
+        + gameText('ui.veil.hub.no_openable_paths_note', null, '') + '</div>';
     }
     var body = '<div class="warnbox">当幕布掀起，本重轮回的一切将归零重来：'
       + '<b>' + pv.cycleTide.toFixed(2) + ' 轮回点</b>、<b>' + Math.round(pv.cycleStar)

@@ -184,48 +184,23 @@
       hint.classList.toggle('error', !!error);
     }
   }
-  function saveNow() {
-    var s = null;
-    try { s = SB.game && SB.game.run ? SB.game.run() : null; } catch (e) { s = null; }
-    if (!s) { saveNowFeedback(tr('save.manual.error.no_progress', null, '当前没有可保存的进度。'), true); return false; }
-    /* ⚠️ 2026-11-03：这里原有一条「破壳即存档保护，拒绝保存」。破壳曾是本局终点，
-     *   现在它只是里程碑（后面还有整个 ERA10），broken 会一直为真到换局
-     *   ⇒ 那条判据会让玩家破壳后**永远存不了档**，还弹「当前进度异常」误导成存档坏了。
-     *   真正的异常态判据是「快照生成失败」，由下面那句负责。 */
-    var snap = null;
-    try { snap = SB.game.snapshot(s); } catch (e) { snap = null; }
-    if (!snap) { saveNowFeedback(tr('save.manual.error.snapshot_failed', null, '保存失败：无法生成进度快照。'), true); return false; }
-    var nativeBefore = (SB.store && SB.store.nativeRevision) ? SB.store.nativeRevision() : 0;
-    var ok = false;
-    try { ok = SB.state.saveRun(snap); } catch (e) { ok = false; }
-    if (SB.store && SB.store.fsAvailable && SB.store.fsAvailable()
-        && SB.store.nativeRevision && SB.store.nativeRevision() > nativeBefore) {
-      saveNowFeedback('正在校验 TapTap 原生存档…');
-      var verified = false;
-      var checkTimer = root.setTimeout(function () {
-        if (!verified) saveNowFeedback('原生存档写入仍未确认，请重试或导出存档文件。', true);
-      }, 3500);
-      SB.store.nativeLastWrite().then(function (fileOk) {
-        verified = true; root.clearTimeout(checkTimer);
-        if (fileOk) saveNowFeedback('已保存到 TapTap 本机文件 · ' + hhmm(Date.now()));
-        else saveNowFeedback('原生存档写入未确认，请重试或导出存档文件。', true);
-      });
-      return true;
-    }
-    if (!ok) {
-      var why = '';
-      try { why = (SB.state.saveStatus() || {}).lastError || ''; } catch (e) {}
-      saveNowFeedback(tr('save.manual.error.write_failed',
-        { error: why || tr('save.manual.error.write_rejected', null, '写入被拒绝') },
-        '保存失败：' + (why || '写入被拒绝')), true);
-      return false;
-    }
-    /* 写后读回。⚠️ 2026-10-29 实测踩到的坑：**只 parse 一遍是不够的** ——
-     *   容器「假成功」（setItem 不抛异常、其实没落盘）时，读回来的是**上一份旧档**，
-     *   它当然能 parse 成功，于是面板亮「已保存」，玩家被结结实实骗一次。
-     *   探针 `_cdp_savenow2.mjs` 的 C 分支就是这么抓到「returned:true 但什么都没写」的。
-     *   现在改成比对 `_ts`：saveRun 不重写它（含补位分支 patchBadRes 也是原样拷贝），
-     *   所以「读回的 _ts == 本次快照的 _ts」才等于「这一次真的落盘了」。 */
+  function syncPlatformSaveHint(key) {
+    var platform = root.shellbreakPlatform;
+    if (!platform || platform.runtime !== 'xiaohongshu') return false;
+    var storage = root.shellbreakXhsStorage;
+    var available = !!(storage && storage.isAvailable && storage.isAvailable());
+    key = key || (available ? 'save.autosave.hint' : 'save.xhs_storage.unavailable');
+    var hint = document.getElementById('saveNowHint');
+    if (!hint) return false;
+    hint.textContent = tr(key, null, '');
+    hint.classList.toggle('error', key !== 'save.autosave.hint');
+    hint.setAttribute('role', 'status');
+    return true;
+  }
+  function confirmManualSaveReadback(snap) {
+    /* For asynchronous platform storage, this check runs only after the platform
+     * write has been flushed and read back. Browser and TapTap paths keep their
+     * existing synchronous readback behavior. */
     var txtBack = null;
     try {
       txtBack = (SB.store && SB.store.readLocal)
@@ -251,6 +226,71 @@
       health.classList.toggle('error', saveHealthBad());
     }
     return true;
+  }
+  function saveNow() {
+    var s = null;
+    try { s = SB.game && SB.game.run ? SB.game.run() : null; } catch (e) { s = null; }
+    if (!s) { saveNowFeedback(tr('save.manual.error.no_progress', null, '当前没有可保存的进度。'), true); return false; }
+    /* ⚠️ 2026-11-03：这里原有一条「破壳即存档保护，拒绝保存」。破壳曾是本局终点，
+     *   现在它只是里程碑（后面还有整个 ERA10），broken 会一直为真到换局
+     *   ⇒ 那条判据会让玩家破壳后**永远存不了档**，还弹「当前进度异常」误导成存档坏了。
+     *   真正的异常态判据是「快照生成失败」，由下面那句负责。 */
+    var snap = null;
+    try { snap = SB.game.snapshot(s); } catch (e) { snap = null; }
+    if (!snap) { saveNowFeedback(tr('save.manual.error.snapshot_failed', null, '保存失败：无法生成进度快照。'), true); return false; }
+    var xhsStorage = root.shellbreakXhsStorage;
+    if (xhsStorage && (!xhsStorage.isAvailable || !xhsStorage.isAvailable())) {
+      saveNowFeedback(tr('save.xhs_storage.unavailable', null, ''), true);
+      return false;
+    }
+    var nativeBefore = (SB.store && SB.store.nativeRevision) ? SB.store.nativeRevision() : 0;
+    var ok = false;
+    try { ok = SB.state.saveRun(snap); } catch (e) { ok = false; }
+    if (SB.store && SB.store.fsAvailable && SB.store.fsAvailable()
+        && SB.store.nativeRevision && SB.store.nativeRevision() > nativeBefore) {
+      saveNowFeedback('正在校验 TapTap 原生存档…');
+      var verified = false;
+      var checkTimer = root.setTimeout(function () {
+        if (!verified) saveNowFeedback('原生存档写入仍未确认，请重试或导出存档文件。', true);
+      }, 3500);
+      SB.store.nativeLastWrite().then(function (fileOk) {
+        verified = true; root.clearTimeout(checkTimer);
+        if (fileOk) saveNowFeedback('已保存到 TapTap 本机文件 · ' + hhmm(Date.now()));
+        else saveNowFeedback('原生存档写入未确认，请重试或导出存档文件。', true);
+      });
+      return true;
+    }
+    if (!ok) {
+      var why = '';
+      try { why = (SB.state.saveStatus() || {}).lastError || ''; } catch (e) {}
+      saveNowFeedback(tr('save.manual.error.write_failed',
+        { error: why || tr('save.manual.error.write_rejected', null, '写入被拒绝') },
+        '保存失败：' + (why || '写入被拒绝')), true);
+      return false;
+    }
+    if (xhsStorage) {
+      setBusy(true);
+      xhsStorage.flushAndVerify([CFG.SAVE_KEY, CFG.RUN_KEY]).then(function (result) {
+        setBusy(false);
+        if (!result || !result.ok) {
+          saveNowFeedback(tr(result && result.unavailable
+            ? 'save.xhs_storage.unavailable' : 'save.xhs_storage.write_failed', null, ''), true);
+          return;
+        }
+        confirmManualSaveReadback(snap);
+      }, function () {
+        setBusy(false);
+        saveNowFeedback(tr('save.xhs_storage.write_failed', null, ''), true);
+      });
+      return true;
+    }
+    /* 写后读回。⚠️ 2026-10-29 实测踩到的坑：**只 parse 一遍是不够的** ——
+     *   容器「假成功」（setItem 不抛异常、其实没落盘）时，读回来的是**上一份旧档**，
+     *   它当然能 parse 成功，于是面板亮「已保存」，玩家被结结实实骗一次。
+     *   探针 `_cdp_savenow2.mjs` 的 C 分支就是这么抓到「returned:true 但什么都没写」的。
+     *   现在改成比对 `_ts`：saveRun 不重写它（含补位分支 patchBadRes 也是原样拷贝），
+     *   所以「读回的 _ts == 本次快照的 _ts」才等于「这一次真的落盘了」。 */
+    return confirmManualSaveReadback(snap);
   }
   /* ── 诊断出口（2026-10-29）──────────────────────────────────────────
    * 【为什么要有它】玩家报「存档没了」时，我们过去只能靠猜：日志里只有 [rank]，
@@ -400,6 +440,9 @@
       '</div>';
     modal.classList.remove('hidden');
     document.body.classList.add('modal-open');
+    var xhsStorage = root.shellbreakXhsStorage;
+    if (xhsStorage && (!xhsStorage.isAvailable || !xhsStorage.isAvailable()))
+      setStatus(tr('save.xhs_storage.unavailable', null, ''), true);
     document.getElementById('saveManagerClose').onclick = function () { closePanel(); };
     document.getElementById('saveFileInput').onchange = onFileSelected;
     box.querySelectorAll('[data-save-action]').forEach(function (button) {
@@ -1144,6 +1187,7 @@
    * 第二次才装上；有了闸则可以安全重复调用。 */
   var autoPumpTimer = null;
   function boot() {
+    syncPlatformSaveHint();
     var button = document.getElementById('btnSaveManager');
     if (button) button.onclick = openPanel;
     /* 设置栏「立即保存」（2026-10-29）：与存档管理面板里那颗调**同一个函数**。
@@ -1176,6 +1220,7 @@
     currentBundle: currentBundle, validateBundle: validateBundle,
     /* 2026-10-29：手动「立即保存」（面板按钮 + 设置栏按钮共用；e2e 也直接调它）。 */
     saveNow: saveNow,
+    syncPlatformSaveHint: syncPlatformSaveHint,
     /* 2026-10-27 新增：自动云备份与存档健康度（供 UI 与回归直接读/驱动）。 */
     autoCloudPump: autoCloudPump, autoCloudStatus: autoCloudStatus,
     backupSoon: backupSoon,

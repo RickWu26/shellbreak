@@ -542,6 +542,10 @@
             tiplate: resourceName('tiplate', '钛合金板'),
             hydro: resourceName('hydro', '热液能')
           };
+          /* 2026-11-21 竣工自动停机（玩家反馈 A）：pct>=1 后三座发射场全停，
+           * 面板不能再按「N 级 × 每秒单耗」摆耗料（那笔料已经不扣了）。
+           * 判据只读 economy.dysonFull —— 与 tick 2f / rates / hydroAlloc / launchStatus 同源。 */
+          var _lpStopped = (SB.economy && SB.economy.dysonFull) ? SB.economy.dysonFull(s) : false;
           var _lpCostRows = [
             { key: 'uranium', name: _lpNames.uranium, per: _lpCosts.uranium || 0 },
             { key: 'strongProp', name: _lpNames.strongProp, per: _lpCosts.strongProp || 0 },
@@ -550,7 +554,8 @@
             { key: 'hydro', name: _lpNames.hydro, per: _lpHydroPer }
           ];
           var _lpCostShort = [], _lpCostFull = [];
-          for (var _lpc = 0; _lpc < _lpCostRows.length; _lpc++) {
+          /* 停机时不摆耗料清单：那笔料确实已经不扣了（与 tick 2f 跳过整段同源）。 */
+          if (!_lpStopped) for (var _lpc = 0; _lpc < _lpCostRows.length; _lpc++) {
             var _lpCost = _lpCostRows[_lpc];
             if (_lpCost.per <= 0) continue;
             var _lpTotal = _lpCost.per * _launchRun;
@@ -578,7 +583,12 @@
            * ⚠️ 必须在本段之前算好，因为下面的 title 要带着它一起拼。 */
           var _lpLackName = '';
           var _lpSt = (SB.economy && SB.economy.launchStatus) ? SB.economy.launchStatus(s, b.id) : null;
-          if (_lpSt && _lpSt.lack) {
+          if (_lpStopped) {
+            /* 竣工停机徽标（2026-11-21）：优先于缺料徽标 —— 停机时 launchStatus 恒 null，
+             * 两者不可能同时成立；这里仍先判停机，防将来 launchStatus 语义变动后叠两条。 */
+            _lpLackHTML = '<b class="lack-tag is-done" title="' + htmlText(tr('village.launch.auto_stop.tooltip', null, '戴森球已达标，三座发射场自动停机，不再消耗原料与热液能。')) + '">' +
+              htmlText(tr('village.launch.auto_stop.badge', null, '已竣工 · 自动停机')) + '</b>';
+          } else if (_lpSt && _lpSt.lack) {
             for (var _lpl = 0; _lpl < _lpCostRows.length; _lpl++) {
               if (_lpCostRows[_lpl].key === _lpSt.lack) { _lpLackName = _lpCostRows[_lpl].name; break; }
             }
@@ -588,9 +598,13 @@
               _lpLackHTML = '<b class="lack-tag is-stop">' + htmlText(tr('village.launch.resource_shortage.badge', { resourceName: _lpLackName })) + '</b>';
             }
           }
-          var _lpCostTitle = tr('village.launch.resource_demand.tooltip', { resourceCostList: _lpCostFull.join(' · ') });
+          var _lpCostTitle = _lpStopped
+            ? tr('village.launch.auto_stop.tooltip', null, '戴森球已达标，三座发射场自动停机，不再消耗原料与热液能。')
+            : tr('village.launch.resource_demand.tooltip', { resourceCostList: _lpCostFull.join(' · ') });
           if (_lpLackName) _lpCostTitle += ' ' + tr('village.launch.resource_shortage.status', { missingResource: _lpLackName });
-          var _lpCostHTML = '<span class="launch-consumption" title="' + htmlText(_lpCostTitle) + '">' + htmlText(_lpCostShort.join(' · ')) + '</span>';
+          /* 停机时不再摆「N 级 × 每秒单耗」：那笔料确实不扣了，显示出来就是面板撒谎。 */
+          var _lpCostHTML = _lpStopped ? ''
+            : '<span class="launch-consumption" title="' + htmlText(_lpCostTitle) + '">' + htmlText(_lpCostShort.join(' · ')) + '</span>';
           var _lpTargetName = tr(_lpNodeMode ? 'village.launch.target.dyson_nodes.name' : 'village.launch.target.solar_sails.name');
           launchProgressHTML = '<div class="launch-progress" id="launch-progress-' + b.id + '" data-launch-progress="' + b.id + '" title="' + htmlText(tr('village.launch.progress.tooltip', { resourceDemandTooltip: _lpCostTitle })) + '" role="progressbar" aria-label="' +
             htmlText(tr('village.launch.progress.aria_label', { launchTarget: _lpTargetName })) + '" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + _lpPct + '" data-pct="' + _lpPct + '">' +

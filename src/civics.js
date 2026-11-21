@@ -676,11 +676,13 @@
   }
   /* 虚境信仰（card_cycle_terminus，locked 卡）：信仰更名「虚境」并锁死。
    * 装填该卡后，信仰资源名强制为「虚境」，玩家改名框失效（覆盖并锁死，不可逆）。 */
+  /* 锚定名：显示层（faithDisplayName）与权威态（s.religionName，装卡时补写）共用同一常量，避免漂移。 */
+  var VOID_FAITH_NAME = '虚境';
   function faithNameLocked(s) {
     return cardEffective(s, 'card_cycle_terminus');
   }
   function faithDisplayName(s) {
-    return faithNameLocked(s) ? '虚境' : ((s && s.religionName) || '').trim();
+    return faithNameLocked(s) ? VOID_FAITH_NAME : ((s && s.religionName) || '').trim();
   }
   /* 虚拟现实卡（craftRatioPerPop 1）：工坊效率加法轴 −1%×人口（用户确认加算、Q1 不设护栏）。
    * 返回**负的加值**，workshop.craftRatio 源⑩直加（轴上正源：工坊级/热锻级/科技/政体/卡/perk）。 */
@@ -1086,7 +1088,8 @@
   function researchCost(s, c) {
     var mul = SB.challenges && SB.challenges.researchCostMul ? SB.challenges.researchCostMul(s) : 1;
     return (c && c.cost || 0) * mul
-      * (SB.faith && SB.faith.civicCostMul ? SB.faith.civicCostMul(s) : 1);
+      * (SB.faith && SB.faith.civicCostMul ? SB.faith.civicCostMul(s) : 1)
+      * (SB.voidFx && SB.voidFx.domainCivicCostMul ? SB.voidFx.domainCivicCostMul() : 1);
   }
   /* 返回 null 表示可以研究，否则返回「为什么不行」——这句会挂成灰按钮的 title。 */
   function blocked(s, c) {
@@ -1162,7 +1165,10 @@
     /* 卡退役（2026-09-30）：完成后扫一遍 POLICIES，把 retiredBy 指向本市政的卡从
      * 所有槽里拔下。**免费**——退役是制度行为，不是玩家「换卡」，不该收换卡费。
      * （不拔的话卡还留在 s.cards 里，craftRatio/mulOfField 只看槽不查所有权，
-     *  等于退役卡永久生效——那是「数据退役了、结算没跟着走」的静默断链。） */
+     *  等于退役卡永久生效——那是「数据退役了、结算没跟着走」的静默断链。）
+     * ⚠️ 2026-11-20（用户拍板「后继全部改成和前卡一致」）：拔下后**立刻**把后继卡补进同一格。
+     *   旧行为是留空槽等玩家自己回卡库重装（还要翻一遍卡池才知道能装什么），
+     *   而退役的时机恰好就是后继卡解锁的那一刻 ⇒ 那时它必然已拥有、必然可用。 */
     ensureCards(s);
     for (var pi = 0; pi < POLICIES.length; pi++) {
       var pp = POLICIES[pi];
@@ -1170,7 +1176,8 @@
       for (var si = 0; si < s.cards.length; si++) {
         if (s.cards[si] === pp.id) {
           s.cards[si] = null;
-          if (emit) emit(tr('civic.retired_policy.log', { policyName: policyName(pp) }, '政策卡「' + pp.name + '」已退役。'));
+          var _replaced = replaceRetiredAt(s, si, pp, emit);
+          if (emit && !_replaced) emit(tr('civic.retired_policy.log', { policyName: policyName(pp) }, '政策卡「' + pp.name + '」已退役。'));
         }
       }
       /* ⚠️ 仅第 0 号槽镜像，**勿读**（读→ cardSlotted / cardCraftRatio），2026-10-14 钉 */
@@ -1398,6 +1405,35 @@
     }
     return { moved: moved, dropped: dropped };
   }
+  /* 退役即接替（2026-11-20 用户拍板）：旧卡刚从 slot 拔下（此刻该格已是 null），
+   * 把 POLICIES[oldP].replacedBy 指向的后继卡装回同一格。
+   * 判据四条，任一不过就留给空槽（= 退役的老语义，绝不硬塞）：
+   *   ① 后继卡已拥有（挑战专属卡在非该挑战局 cardOwned 恒 false，天然挡住）；
+   *   ② 当前没装着同一张（避免重复）；
+   *   ③ 该格容得下它的 type（数据侧已统一成与前卡同类型，这里是数据漂移的兜底：
+   *      原槽塞不进就找一张空的原生槽/万能槽，都没有就放弃）；
+   *   ④ cardBlocked 放行（安那其挑战只准装轮回之终末、政体被动卡每局一张、没槽等都在这）。
+   * ⚠️ 走 setCardAt 而不是直接写 s.cards：装填是唯一写入口，免费/镜像/cardEver 的规矩
+   *    只在那一处，绕过去就会长出第二套语义。emit 传 null 是为了把日志合成一条「接替」。 */
+  function replaceRetiredAt(s, slot, oldP, emit) {
+    var nid = oldP && oldP.replacedBy;
+    if (!nid) return false;
+    var np = policyById(nid);
+    if (!np) return false;
+    if (!cardOwned(s, nid)) return false;
+    if (cardSlotted(s, nid)) return false;
+    var target = slot, L = slotList(s);
+    if (target >= L.length || !cardFits(np, L[target].type)) {
+      target = firstFitSlot(s, np, false);
+      if (target < 0) return false;
+    }
+    if (cardBlocked(s, nid, target) !== null) return false;
+    if (!setCardAt(s, target, nid, null)) return false;
+    if (emit) emit(tr('civic.policy.upgraded.log', {
+      oldName: policyName(oldP), newName: policyName(np)
+    }, '政策卡「' + oldP.name + '」已退役，由「' + np.name + '」接替装填。'));
+    return true;
+  }
   function inSlot(s, id) { return !!(s.cards && s.cards.indexOf(id) >= 0); }
   function firstFilled(s) {
     if (!s.cards) return -1;
@@ -1539,6 +1575,13 @@
     if (fee > 0) s.res.culture -= fee;
     s.cardEver = true;                                // 拔下同样置位：也是一次「调整政策卡」
     s.cards[slot] = tid;
+    /* 2026-11-20 修（用户反馈·坏档卡死）：「轮回之终末」锁死改名框、显示名强制「虚境」，
+     *   但旧实现只改显示层（faithDisplayName），从不写权威态 s.religionName。
+     *   若玩家前期没起名（''），装卡后 religion 判据（tech.js:496/712）读空串 ⇒
+     *   《归正会》鼓舞永不激活、市政树卡死；game.maybeReligionPopup 也永不解锁轮回系统，
+     *   而改名框已被本卡锁死 ⇒ 玩家永久无法自救。装卡即补写锚定名，从根上统一显示与权威态。 */
+    if (tid === 'card_cycle_terminus' && !(s.religionName || '').trim())
+      s.religionName = VOID_FAITH_NAME;
     /* ⚠️ 仅第 0 号槽镜像，**勿读**（读→ cardSlotted / cardCraftRatio），2026-10-14 钉 */
     s.card = s.cards[0] || null;
     if (emit) {

@@ -44,6 +44,10 @@
         if (civics[i].scribeRename && s.civics[civics[i].id]) { n = '官员'; break; }
       }
     }
+    if (jid === 'scribe' && SB.voidFx && SB.voidFx.stampBearerOwned && SB.voidFx.stampBearerOwned())
+      n = SB.i18n && SB.i18n.t ? (SB.i18n.t('job.name.stamp_bearer') || n) : n;
+    if (jid === 'scholar' && SB.voidFx && SB.voidFx.keepReaderOwned && SB.voidFx.keepReaderOwned())
+      n = SB.i18n && SB.i18n.t ? (SB.i18n.t('job.name.keep_reader') || n) : n;
     return n;
   }
 
@@ -61,6 +65,8 @@
         }
       }
     }
+    if (jid === 'scribe' && SB.voidFx && SB.voidFx.stampBearerOwned && SB.voidFx.stampBearerOwned()) key = 'job.name.stamp_bearer';
+    if (jid === 'scholar' && SB.voidFx && SB.voidFx.keepReaderOwned && SB.voidFx.keepReaderOwned()) key = 'job.name.keep_reader';
     var translated = SB.i18n && SB.i18n.t ? SB.i18n.t(key) : '';
     return translated || jobName(s, jid);
   }

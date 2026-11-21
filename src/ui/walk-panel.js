@@ -38,6 +38,7 @@
   var GROUPS = null;
   var BUILT = false;
   var CELLS = Object.create(null);      // k -> { box, value, cap, rate, name, luxOut, luxBurn, faith }
+  var JUMPS = Object.create(null);      // tabId -> { box, label }  页签快速跳转按钮（镜像主 .tab）
   var POWER_ADDED = false;
   var LAST_S = null, LAST_RATE = null;
   var drag = null, moved = false;
@@ -166,12 +167,69 @@
       if (Object.prototype.hasOwnProperty.call(CELLS, k)) setText(CELLS[k].name, resourceName(k, LAST_S));
     }
   }
+  /* 页签快速跳转（2026-11-20 用户反馈）：按钮镜像主界面 .tab 清单，不另立名单。
+   * ⚠️ 解锁门禁**不在这里判**：点击统一走 SB.game.setTab(id)，与点顶部页签完全同一条路径，
+   *    setTab 里那套（科技/工坊/奇观/meta/veil/挑战/成就/信仰/星图）门禁原样生效，绝不绕过。
+   *    这里只把主 tab 的 .locked / .on 视觉同步过来（含 disabled），玩家一眼看出哪些能点。
+   * ⚠️ 按钮挂在 #wpJump（index.html 常驻骨架），仍遵守「不塞进 #pane-*」铁律。 */
+  function tabLabel(tab) {
+    var span = tab.querySelector ? tab.querySelector('[data-i18n]') : null;
+    return span && span.textContent ? span.textContent.trim() : '';
+  }
+  function buildJumps(d) {
+    var host = el('wpJump');
+    if (!host || !host.appendChild) return;
+    var tabs = d.querySelectorAll ? d.querySelectorAll('.tab[data-tab]') : [];
+    var frag = d.createDocumentFragment ? d.createDocumentFragment() : host;
+    for (var i = 0; i < tabs.length; i++) {
+      var tab = tabs[i], id = tab.getAttribute('data-tab');
+      if (!id || JUMPS[id]) continue;
+      var box = d.createElement('button');
+      box.type = 'button';
+      box.className = 'wp-jump';
+      box.setAttribute('data-jump-tab', id);
+      var label = d.createElement('span');
+      label.className = 'wp-jump-label';
+      label.textContent = tabLabel(tab) || id;
+      box.appendChild(label);
+      frag.appendChild(box);
+      JUMPS[id] = { box: box, label: label };
+    }
+    if (frag !== host) host.appendChild(frag);
+    syncJumps();
+  }
+  function syncJumps() {
+    var d = doc();
+    if (!d || !d.querySelectorAll) return;
+    var tabs = d.querySelectorAll('.tab[data-tab]');
+    for (var i = 0; i < tabs.length; i++) {
+      var tab = tabs[i], id = tab.getAttribute('data-tab'), j = JUMPS[id];
+      if (!j) continue;
+      var locked = tab.classList.contains('locked');
+      j.box.classList.toggle('locked', locked);
+      j.box.classList.toggle('on', tab.classList.contains('on'));
+      j.box.disabled = !!locked;
+      var txt = tabLabel(tab);
+      if (txt && j.label.textContent !== txt) j.label.textContent = txt;
+    }
+  }
+  function onJump(e) {
+    var t = e.target || {};
+    var btn = t.closest && t.closest('[data-jump-tab]');
+    if (!btn || btn.disabled) return;
+    var id = btn.getAttribute('data-jump-tab');
+    if (!id || !SB.game || !SB.game.setTab) return;
+    SB.game.setTab(id);   // 与顶部页签同一路径，门禁原样生效
+    close();              // 跳过去后收起小窗，免得挡住目标页
+  }
+
   function build() {
     var d = doc();
     if (BUILT || !d || !d.createElement || !el('wpMain')) return;
     var g = groups(), main = [];
     for (var i = 0; i < g.main.length; i++) main.push(makeCell(d, g.main[i]));
     fill(d, 'wpMain', main);
+    buildJumps(d);
     BUILT = true;
     labels();
   }
@@ -330,6 +388,7 @@
     if (!LAST_S) return;
     build();
     if (!BUILT || !isOpen()) return;
+    syncJumps();   // 主 tab 的锁态/高亮会变（解锁、切页），每帧镜像
     addPowerCell(LAST_S);
     var need = E().foodUse ? E().foodUse(LAST_S) : 0;
     var LL = E().happyLedger ? E().happyLedger(LAST_S) : null;
@@ -341,9 +400,10 @@
   function init() {
     var d = doc();
     if (!d) return;
-    var fab = el('walkFab'), hd = d.querySelector('.wp-hd'), x = el('wpClose');
+    var fab = el('walkFab'), hd = d.querySelector('.wp-hd'), x = el('wpClose'), jump = el('wpJump');
     if (fab && fab.addEventListener) fab.addEventListener('click', toggle);
     if (x && x.addEventListener) x.addEventListener('click', close);
+    if (jump && jump.addEventListener) jump.addEventListener('click', onJump);
     if (hd && hd.addEventListener) {
       hd.addEventListener('pointerdown', onDown);
       hd.addEventListener('pointermove', onMove);

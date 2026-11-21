@@ -175,7 +175,9 @@
       + (s.perk && s.perk.recipeCraft && s.perk.recipeCraft[c.id] ? s.perk.recipeCraft[c.id] : 0)
       /* 硅基承续 · 鳞/眼/手（2026-11-17）：精铁 / θ 金属 / 钢 各自的制造效率 +50/100/200%。
        * 走 recipeCraft **加法轴**（本来就是「某配方 +X%」的语义，与科技/工坊升级同源）。 */
-      + (SB.veilFx ? SB.veilFx.recipeCraft(c.id, c.out) : 0)
+       + (SB.veilFx ? SB.veilFx.recipeCraft(c.id, c.out) : 0)
+       /* 生命织章 · 生体锻炉：精铁 / 钢 / θ 效率在同一 recipeCraft 加法轴上叠加。 */
+       + (SB.veilFx && SB.veilFx.geneForgeCraft ? SB.veilFx.geneForgeCraft(c.id, c.out) : 0)
     ) : 0);
     /* workshopEff（ERA10）折进基数：1 + 加法轴(craftRatio) + 配方卡/科技(_recipeCraft) + 科技(workshopEff)。 */
     var _cr = Math.max(0, 1 + craftRatio(s) + _recipeCraft + (_Tm ? (_Tm.workshopEff || 0) : 0));
@@ -189,6 +191,7 @@
        *   与 boomcraft / 工业机器人 / throne 同属**乘区链**，不进 craftRatio 加法轴
        *   （加法轴里 +100% 在基值 0.5 时只等于 ×1.67，不是「翻倍」）。装卡才生效，没装 = 1。 */
       * ((SB.civic && SB.civic.cardOurSeaCraftMul) ? SB.civic.cardOurSeaCraftMul(s) : 1);
+    if (SB.voidFx && SB.voidFx.craftWonderMul) m *= SB.voidFx.craftWonderMul();
     /* ERA7（spec §4 博洛西洛发射场）：仅载人火箭工艺（craft_rocketengine）额外 ×mannedRocketMul（×2）。
      * 用可选参数 c 区分——不进基值，避免放大所有工艺制品（面板===结算纪律：stepOut/craft/两处面板都传 c）。 */
     if (c && c.id === 'craft_rocketengine' && SB.wonder && SB.wonder.mannedRocketMul) m *= SB.wonder.mannedRocketMul(s);
@@ -563,8 +566,14 @@
   }
   function upgradeCost(s, id) {
     var u = upgradeById(id);
-    return u ? (SB.economy && SB.economy.scaffoldAdjustedCost
-      ? SB.economy.scaffoldAdjustedCost(s, u.cost) : u.cost) : {};
+    if (!u) return {};
+    var cost = SB.economy && SB.economy.scaffoldAdjustedCost
+      ? SB.economy.scaffoldAdjustedCost(s, u.cost) : u.cost;
+    var geneMul = (SB.veilFx && SB.veilFx.geneUpgradeCostMul) ? SB.veilFx.geneUpgradeCostMul() : 1;
+    if (geneMul >= 1) return cost;
+    var discounted = {};
+    Object.keys(cost || {}).forEach(function (key) { discounted[key] = cost[key] * geneMul; });
+    return discounted;
   }
   /* 前置工具 / 前置升级是否还缺 —— 门禁、追踪坞、面板共用这一份判据（2026-11-14）。
    * ⚠️ 不要拿 render-info.workshopHasRequirementBlock 代替：那个还含「工坊未建」门，
@@ -654,7 +663,13 @@
   function wonderBlocked(s, id) {
     var w = wonderById(id);
     if (!w) return '没有这座奇观';
-    if (s.wonders && s.wonders[id]) return '已经建成了';
+    if ((s.wonders && s.wonders[id]) || (SB.voidFx && SB.voidFx.wonderOwned && SB.voidFx.wonderOwned(id)))
+      return tr('workshop.wonder.already_built', null, '已经建成了');
+    if (w.requiresVeilDomain && (!SB.voidFx || !SB.voidFx.domainLv
+      || SB.voidFx.domainLv(w.requiresVeilDomain) < (w.requiresVeilLevel || 1))) {
+      var domainName = tr('domain.' + w.requiresVeilDomain + '.name');
+      return tr('workshop.wonder.domain_locked', { domainName: domainName });
+    }
     /* ⚠️ 2026-09-28 修：`w.need &&` 这一层**不能省**。
      *    奇观可以**没有** need（大图书馆在「通识」删掉后就是这种状态），而少了这道判据，
      *    `s.techs[undefined]` 是 undefined ⇒ `!undefined` 恒 true ⇒ **没有门的奇观被判成
@@ -727,6 +742,10 @@
     }
     s.wonders = s.wonders || {};
     s.wonders[id] = true;
+    if (SB.voidFx && SB.voidFx.recordWonderBuild && SB.voidFx.recordWonderBuild(id)) {
+      var meta = SB.game && SB.game.meta ? SB.game.meta() : null;
+      if (meta && SB.state && SB.state.saveMeta) SB.state.saveMeta(meta);
+    }
     if (id === 'wonder_terra_core') s.frozen = false;
     /* 一次性奖励（大图书馆的 +1000 科技点，2026-09-28 用户规格）。
      * ⚠️ 排在**置位之后**、也只在这里发一次：奇观是买断制（上面 wonderBlocked 会拦

@@ -16,11 +16,20 @@
     /* 随行资源面板（2026-11-16）：节点是 index.html 常驻骨架，只绑一次；
      * 网格在首次 paint 时惰性建，e2e 假 DOM 里没有这些节点会自动 no-op。 */
     if (SB.ui.walkPanel && SB.ui.walkPanel.init) SB.ui.walkPanel.init();
+    if (SB.saveTransfer && SB.saveTransfer.syncPlatformSaveHint) SB.saveTransfer.syncPlatformSaveHint();
     SB.game.boot();
     if (SB.saveTransfer && SB.saveTransfer.boot) SB.saveTransfer.boot();
     if (SB.redeem && SB.redeem.boot) SB.redeem.boot();
     if (SB.ui.background && SB.ui.background.boot) SB.ui.background.boot();
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
-  else boot();
+  function startAfterPlatformStorage() {
+    var platformStorage = root.shellbreakXhsStorage;
+    if (platformStorage && platformStorage.ready && typeof platformStorage.ready.then === 'function') {
+      platformStorage.ready.then(boot, boot);
+      return;
+    }
+    boot();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startAfterPlatformStorage);
+  else startAfterPlatformStorage();
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -17,7 +17,7 @@
 > 页内大厅 → 路径操作界面（硅基装配台）为**页内切换**，带「← 返回帷幕」。轮回商店页底部
 > `.meta-veil` 入口卡与 `#veilHub`/`#veilModal` 两个遮罩层已删除。同批把页签名「轮回商店」缩短为「轮回」。
 > 详见 `VEIL_HUB_SPEC_v0.1.md` 顶部形态变更说明。
-> **待标定 / 待接**：VEIL_TREE 23 节点未建（首层软着陆待做）；装配台 30 效果档中 §7 七项未解挂点（礁口巢上限/工艺独立乘区/按岗位产出/食物需求/钻机被动破壳两轴/软实力消耗/敌国上限）暂只记等级、未接生产乘区；虚境/基因操作界面仍占位。
+> **待标定 / 待接**：VEIL_TREE 23 节点未建（首层软着陆待做）；装配台 30 效果档中 §7 七项未解挂点（礁口巢上限/工艺独立乘区/按岗位产出/食物需求/钻机被动破壳两轴/软实力消耗/敌国上限）暂只记等级、未接生产乘区；虚境界面仍占位，基因目前只有不写档的只读界面演示。
 > 决策来源：2026-11-14 两轮用户拍板 + 2026-11-16 三项拍板（编号见 §0）。
 > ⚠️ **覆盖声明**：本稿**作废**前几轮的「ERA11 局内三选一飞升路径 + ERA12 三型天灾」分层方案。
 > 现行分层 = 飞升是 **meta 层二层轮回**，ERA11 是一个大轮回周期末尾的唯一新纪元，ERA12 本期不做。
@@ -66,7 +66,7 @@
 | 清（资产 / 加成 / 进度） | 保留（身份 / 防作弊 / 统计 / 版本） |
 |---|---|
 | `tide`、`perks`、`stardust`、`starPerks` | `tideEarnedTotal`、`stardustEarned`（#1 要的历史记录） |
-| `veil.points` 余额、`veil.perks`（#3 重买）、`veil.cycleTide` / `veil.cycleStar` 归零 | `cycle`、`runs`、`rebirths`、`layers` |
+| `veil.perks`（#3 重买）、`veil.cycleTide` / `veil.cycleStar` 归零 | `veil.points` 余额跨掀幕保留并加上本次新得点数；`cycle`、`runs`、`rebirths`、`layers` |
 | 四项旧日遗产：`oldFaith`、`memorialWonders`、`oldArtworkEarnedTotal`、`oldTideStelesEarnedTotal`（#2） | `achv`、`achievements`、`challenges.completed`、`redeemed` |
 | `techLog`、`buildingLvlTotal`、`govPassiveCards`、`govEverAdopted`、`lastRun`、`track`、`challengePopupPending` | `seenVersion`、`onboardSeen`、`compensationTotal`、`driftTerraVersion` |
 | 本局 `s` 全部（走 `startRun` 重建） | `religionSeen`、`shopUnlocked`、`stardustShopUnlocked` |
@@ -93,7 +93,7 @@
 doBreak(silent)        // ① 先结算本局，否则本局收益凭空消失
   → 计帷幕点            // ② 用周期增量，不是历史总量
   → 原子清零            // ③ 见 §3.2，一次 saveMeta
-  → veil.count++ / cycleTide,cycleStar = 0
+  → veil.points += gained / veil.count++ / cycleTide,cycleStar = 0
   → startRun            // ④ game.js:174 / :203 → freshRun(true)
   → 新局买 VEIL_TREE 首层节点（当场到账）
 ```

@@ -23,6 +23,12 @@
       ? SB.i18n.contentName(id, fallback) : (fallback || '');
   }
   function localizedWonderName(s, id, fallback) {
+    var voidWonderNames = {
+      wonder_void_stamp_fortress: 'wonder.void_stamp_fortress.name',
+      wonder_void_candle_hall: 'wonder.void_candle_hall.name',
+      wonder_void_mars_foundry: 'wonder.void_mars_foundry.name'
+    };
+    if (voidWonderNames[id]) return tr(voidWonderNames[id], null, fallback || id || '');
     if (!englishLocale()) return fallback || id || '';
     var throneNames = {
       theo_state: 'wonder.supreme_throne.name',
@@ -169,7 +175,14 @@
     return false;
   }
   function localizedWonderRequirement(s, id, w, why) {
-    if (!englishLocale() || !w || !why) return why || '';
+    if (!w || !why) return why || '';
+    if (w.requiresVeilDomain && (!SB.voidFx || !SB.voidFx.domainLv
+      || SB.voidFx.domainLv(w.requiresVeilDomain) < (w.requiresVeilLevel || 1))) {
+      return tr('workshop.wonder.domain_locked', {
+        domainName: tr('domain.' + w.requiresVeilDomain + '.name', null, '')
+      }, why);
+    }
+    if (!englishLocale()) return why || '';
     if (w.need && !(s.techs && s.techs[w.need])) {
       var tech = SB.tech && SB.tech.byId ? SB.tech.byId(w.need) : null;
       return tr('workshop.requirement.technology', {
@@ -224,6 +237,8 @@
   }
   function wonderHasRequirementBlock(s, w) {
     if (!w) return false;
+    if (w.requiresVeilDomain && (!SB.voidFx || !SB.voidFx.domainLv
+      || SB.voidFx.domainLv(w.requiresVeilDomain) < (w.requiresVeilLevel || 1))) return true;
     if (w.need && s.techs && !s.techs[w.need]) return true;
     if (w.needCivic && s.civics && !s.civics[w.needCivic]) return true;
     if (!w.challengeOnly) return false;
@@ -233,6 +248,12 @@
         : allowed.indexOf(current) < 0;
   }
   function localizedWonderDescription(s, id, fallback) {
+    var voidWonderDescriptions = {
+      wonder_void_stamp_fortress: 'wonder.void_stamp_fortress.description',
+      wonder_void_candle_hall: 'wonder.void_candle_hall.description',
+      wonder_void_mars_foundry: 'wonder.void_mars_foundry.description'
+    };
+    if (voidWonderDescriptions[id]) return tr(voidWonderDescriptions[id], null, fallback || '');
     if (!englishLocale()) return fallback || '';
     if (id === 'wonder_throne') {
       var branch = s && s.gov === 'theo_state' ? 'faith'
@@ -479,6 +500,7 @@
     return value && !/\{[A-Za-z0-9_]+\}/.test(value) ? value : (fallback || '');
   }
   function localizedJobName(s, id) {
+    if (SB.folk && SB.folk.localizedJobName) return SB.folk.localizedJobName(s, id);
     var fallback = SB.folk && SB.folk.jobName ? SB.folk.jobName(s, id) : id;
     var key = id;
     if (id === 'scribe' && fallback === '官员') key = 'official';
@@ -1409,7 +1431,8 @@
     if (!s || !w) return;
     var wonderName = localizedWonderName(s, id, SB.wonder.displayName(s, id));
     var wonderDesc = localizedWonderDescription(s, id, SB.wonder.displayDesc(s, id));
-    var done = !!(s.wonders && s.wonders[id]);
+    var done = !!(s.wonders && s.wonders[id])
+      || !!(SB.voidFx && SB.voidFx.wonderOwned && SB.voidFx.wonderOwned(id));
     var why = done ? null : SB.workshop.wonderBlocked(s, id);
     var whyText = localizedWonderRequirement(s, id, w, why);
     var requirementBlocked = wonderHasRequirementBlock(s, w);

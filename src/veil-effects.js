@@ -33,6 +33,58 @@
     var n = o ? Number(o[id]) || 0 : 0;
     return n < 0 ? 0 : (n > 3 ? 3 : Math.floor(n));
   }
+  var GENE_NODE_IDS = {
+    supreme: ['lore', 'valor', 'agility', 'longevity'],
+    pure: ['morph', 'growth', 'fastmat', 'forge']
+  };
+  var GENE_LEVEL_COSTS = [1, 3, 5];
+  function geneLv(branch, id) {
+    if (!GENE_NODE_IDS[branch] || GENE_NODE_IDS[branch].indexOf(id) < 0) return 0;
+    var m = (SB.game && SB.game.meta) ? SB.game.meta() : null;
+    var paths = m && m.veil && m.veil.paths;
+    if (!paths || !Array.isArray(paths.opened) || paths.opened.indexOf('gn') < 0) return 0;
+    var levels = paths.gene && paths.gene[branch];
+    var n = levels ? Number(levels[id]) || 0 : 0;
+    return n < 0 ? 0 : (n > 3 ? 3 : Math.floor(n));
+  }
+  /* Resonance uses each node's cumulative actual Ascension Point cost through its current level. */
+  function geneInvestmentPoints(branch) {
+    var ids = GENE_NODE_IDS[branch];
+    if (!ids) return 0;
+    var total = 0;
+    ids.forEach(function (id) {
+      var level = geneLv(branch, id);
+      for (var i = 0; i < level; i++) total += GENE_LEVEL_COSTS[i];
+    });
+    return total;
+  }
+  function geneResonanceBonusPct() {
+    var supreme = geneInvestmentPoints('supreme'), pure = geneInvestmentPoints('pure');
+    var high = Math.max(supreme, pure), low = Math.min(supreme, pure);
+    if (high <= 0) return 0;
+    if (supreme === pure) return 100;
+    return low / high > 0.5 ? 50 : 0;
+  }
+  function geneEffectMul() { return 1 + geneResonanceBonusPct() / 100; }
+  function geneTier(branch, id, values) {
+    var n = geneLv(branch, id);
+    return n > 0 ? values[n - 1] * geneEffectMul() : 0;
+  }
+  function geneAmp(id) {
+    var geneByOrgan = {
+      scale: ['supreme', 'valor'], eye: ['supreme', 'valor'], hand: ['supreme', 'valor'],
+      tail: ['supreme', 'agility'], brain: ['supreme', 'agility'],
+      heart: ['supreme', 'longevity'], stomach: ['supreme', 'longevity']
+    };
+    var link = geneByOrgan[id];
+    if (!link) return 1;
+    var m = (SB.game && SB.game.meta) ? SB.game.meta() : null;
+    var opened = m && m.veil && m.veil.paths && m.veil.paths.opened;
+    return Array.isArray(opened) && opened.indexOf('si') >= 0 && geneLv(link[0], link[1]) >= 3
+      ? 1 + 0.2 * geneEffectMul() : 1;
+  }
+  function amplifyOutputMul(mult, organId) { return 1 + (mult - 1) * geneAmp(organId); }
+  function amplifyCutMul(mult, organId) { return 1 - (1 - mult) * geneAmp(organId); }
   /* 替换型档位的取值器：lv 0 → 恒等值；否则取 table[lv]。 */
   function pick(table, n) { return n <= 0 ? table[0] : table[Math.min(n, table.length - 1)]; }
   function anyLv3() { return lv('scale') >= 3 || lv('eye') >= 3 || lv('hand') >= 3; }
@@ -54,7 +106,7 @@
   /* 工艺效率额外乘区（SPEC §7-2：与 craftRatio 加法轴**相乘**，不并入）。
    * 2026-11-18 用户拍板：三级统一工艺主题 ×1.5 / ×2 / ×2.5（替换型取当前级），
    * 原 LV2/LV3「矿工 / 采石工产出 +200/+300%」作废，不再按岗位加成。 */
-  VF.craftExtraMul = function () { return pick([1, 1.5, 2, 2.5], lv('heart')); };
+  VF.craftExtraMul = function () { return amplifyOutputMul(pick([1, 1.5, 2, 2.5], lv('heart')), 'heart'); };
   /* 矿工 / 采石工岗位产出：随 LV2/LV3 改为工艺乘区后**停用**，恒等 1（保留函数避免调用点报错）。 */
   VF.jobOutMul = function () { return 1; };
   /* 星球改造「速度 +100%」按**时间 −50%**（SPEC §0 #3 已拍，LV3 附加项保留）。 */
@@ -63,9 +115,9 @@
   /* ── 胃 · 藻解釜 ───────────────────────────────────────────────────── */
   /* 食物 / 奢侈品需求、族民诞生间隔：30% / 50% / 70%（替换型，均为额外乘区）。
    * 「族民生产时间」= **人口诞生间隔**（SPEC §0 #4），不是工作节拍。 */
-  VF.foodNeedMul = function () { return pick([1, 0.7, 0.5, 0.3], lv('stomach')); };
-  VF.luxNeedMul = function () { return pick([1, 0.7, 0.5, 0.3], lv('stomach')); };
-  VF.birthTimeMul = function () { return pick([1, 0.7, 0.5, 0.3], lv('stomach')); };
+  VF.foodNeedMul = function () { return amplifyCutMul(pick([1, 0.7, 0.5, 0.3], lv('stomach')), 'stomach'); };
+  VF.luxNeedMul = function () { return amplifyCutMul(pick([1, 0.7, 0.5, 0.3], lv('stomach')), 'stomach'); };
+  VF.birthTimeMul = function () { return amplifyCutMul(pick([1, 0.7, 0.5, 0.3], lv('stomach')), 'stomach'); };
 
   /* ── 鳞 / 眼 / 手 · 配方与军力 ─────────────────────────────────────── */
   /* 配方工艺效率：精铁/钢/θ 金属按 SPEC 各自一条。走 recipeCraft 加法轴（与科技/政策卡
@@ -75,16 +127,19 @@
     var keys = [recipeId, outRes];
     var add = 0;
     function gain(n) { return n <= 0 ? 0 : pick([0, 0.5, 1, 2], n); }
-    if (keys.indexOf('craft_iron') >= 0 || keys.indexOf('iron') >= 0) add += gain(lv('scale'));
-    if (keys.indexOf('craft_steel') >= 0 || keys.indexOf('steel') >= 0) add += gain(lv('hand'));
-    if (keys.indexOf('craft_theta') >= 0 || keys.indexOf('theta') >= 0 || keys.indexOf('thetaMetal') >= 0) add += gain(lv('eye'));
+    if (keys.indexOf('craft_iron') >= 0 || keys.indexOf('iron') >= 0)
+      add += gain(lv('scale')) * geneAmp('scale');
+    if (keys.indexOf('craft_steel') >= 0 || keys.indexOf('steel') >= 0)
+      add += gain(lv('hand')) * geneAmp('hand');
+    if (keys.indexOf('craft_theta') >= 0 || keys.indexOf('theta') >= 0 || keys.indexOf('thetaMetal') >= 0)
+      add += gain(lv('eye')) * geneAmp('eye');
     return add;
   };
   VF.RECIPE_KEYS = RECIPE_KEYS;
   /* 军人产出军力 +50% / +100% / +200%（鳞 + 手 各一条，两条**相加**后一次性乘）。 */
   VF.soldierPactPct = function () {
-    var n = Math.max(lv('scale'), lv('hand'));
-    return n <= 0 ? 0 : pick([0, 0.5, 1, 2], n);
+    function gain(id) { return pick([0, 0.5, 1, 2], lv(id)) * geneAmp(id); }
+    return gain('scale') + gain('hand');
   };
 
   /* ── 星屑：工坊区每级建筑 +1%（鳞 / 眼 / 手 三处叠加，SPEC §0 #1）── */
@@ -108,13 +163,16 @@
   VF.wonderSave = function () { return lv('fin') >= 3 ? 0.3 : 0; };
 
   /* ── 尾 · 潮轮 ─────────────────────────────────────────────────────── */
-  VF.hydroOutMul = function () { return lv('tail') <= 0 ? 1 : 1 + pick([0, 0.5, 1, 1.5], lv('tail')); };
+  VF.hydroOutMul = function () {
+    var mult = lv('tail') <= 0 ? 1 : 1 + pick([0, 0.5, 1, 1.5], lv('tail'));
+    return amplifyOutputMul(mult, 'tail');
+  };
   /* 钻机破壳速度 +200% ⇒ ×3（与被动削壳**两轴隔离**，SPEC §7-5 明写不许合并）。 */
   VF.drillSpeedMul = function () { return lv('tail') >= 3 ? 3 : 1; };
 
   /* ── 脑 · 共识核 ───────────────────────────────────────────────────── */
   /* 软实力行动消耗 −20/40/60%（乘在既有 cultureCostCut 折扣之后，SPEC §7-6）。 */
-  VF.softCostMul = function () { return pick([1, 0.8, 0.6, 0.4], lv('brain')); };
+  VF.softCostMul = function () { return amplifyCutMul(pick([1, 0.8, 0.6, 0.4], lv('brain')), 'brain'); };
   /* 被动破壳速度 +100% ⇒ ×2（shellDrive 轴，别并进钻机）。 */
   VF.passiveShellMul = function () { return lv('brain') >= 3 ? 2 : 1; };
 
@@ -126,6 +184,40 @@
   };
   /* 敌国文明规模上限 −20%（与征服者 cap 乘子**相乘**，SPEC §7-7）。 */
   VF.enemyCapMul = function () { return lv('throat') >= 3 ? 0.8 : 1; };
+
+  /* ── 生命织章 · 跨周目节点效果 ─────────────────────────────────────── */
+  VF.geneLv = geneLv;
+  VF.geneLevelCost = function (level) { return GENE_LEVEL_COSTS[level] || 0; };
+  VF.geneInvestmentPoints = geneInvestmentPoints;
+  VF.geneResonanceBonusPct = geneResonanceBonusPct;
+  VF.geneEffectMul = geneEffectMul;
+  VF.geneAmp = geneAmp;
+  VF.geneScholarMul = function () { return 1 + geneTier('supreme', 'lore', [20, 40, 60]) / 100; };
+  VF.geneScribeMul = VF.geneScholarMul;
+  VF.genePopFaithMul = VF.geneScholarMul;
+  VF.geneValorMul = function () { return 1 + geneTier('supreme', 'valor', [20, 40, 60]) / 100; };
+  VF.geneAgilityMul = function () { return 1 + geneTier('supreme', 'agility', [20, 40, 60]) / 100; };
+  VF.geneMerchantMul = function () { return 1 + geneTier('supreme', 'longevity', [40, 80, 120]) / 100; };
+  VF.geneFreezeCut = function () { return geneTier('supreme', 'longevity', [10, 20, 40]) / 100; };
+  VF.geneWarmCut = VF.geneFreezeCut;
+  VF.geneUpgradeCostMul = function () { return 1 - geneTier('pure', 'morph', [20, 40, 60]) / 100; };
+  VF.geneBuildingGrowthCut = function () { return geneTier('pure', 'growth', [10, 20, 30]) / 100; };
+  VF.geneFastmatMul = function () { return 1 + geneTier('pure', 'fastmat', [60, 120, 240]) / 100; };
+  VF.geneForgeCraft = function (recipeId, outRes) {
+    var keys = [recipeId, outRes], applies = false;
+    function has(id) {
+      if (keys.indexOf(id) >= 0) return true;
+      return !!(outRes && typeof outRes === 'object' && outRes[id] != null);
+    }
+    if (has('craft_iron') || has('iron')) applies = true;
+    else if (has('craft_steel') || has('steel')) applies = true;
+    else if (has('craft_theta') || has('theta') || has('thetaMetal')) applies = true;
+    return applies ? geneTier('pure', 'forge', [60, 120, 240]) / 100 : 0;
+  };
+  /* 原始金属产线和工坊配方共用同一配方加法轴。 */
+  VF.metalRecipeAdd = function (recipeId) {
+    return VF.recipeCraft(recipeId) + VF.geneForgeCraft(recipeId);
+  };
 
   /* 诊断用：把当前全部通道值摊平，供 UI / e2e 断言（只读）。 */
   VF.snapshot = function () {
@@ -141,9 +233,80 @@
       hydroOutMul: VF.hydroOutMul(), drillSpeedMul: VF.drillSpeedMul(),
       softCostMul: VF.softCostMul(), passiveShellMul: VF.passiveShellMul(),
       warScaleDamageMul: VF.warScaleDamageMul(), enemyCapMul: VF.enemyCapMul(),
-      anyLv3: anyLv3()
+      anyLv3: anyLv3(), geneAmp: { scale: geneAmp('scale'), eye: geneAmp('eye'), hand: geneAmp('hand'),
+        heart: geneAmp('heart'), stomach: geneAmp('stomach'), tail: geneAmp('tail'), brain: geneAmp('brain') }
     };
   };
 
   SB.veilFx = VF;
+
+  /* 虚境升华 · 五神领域赐福。等级和煌皇奇观都属于本次飞升的 meta 账本，
+   * 不写入当局状态，普通轮回后仍有效；读不到账本时回到恒等效果。 */
+  var VOID_DOMAIN_IDS = ['wither', 'warlord', 'pleasure', 'lore', 'emperor'];
+  /* 虚境内容当前只在帷幕面板中提供只读预览；正式开放时再切换此开关。 */
+  var VOID_PLAYABLE = false;
+  var VOID_WONDER_IDS = [
+    'wonder_void_stamp_fortress', 'wonder_void_candle_hall', 'wonder_void_mars_foundry'
+  ];
+  function voidPath() {
+    var m = (SB.game && SB.game.meta) ? SB.game.meta() : null;
+    return m && m.veil && m.veil.paths && m.veil.paths.void || null;
+  }
+  function domainLv(id) {
+    if (!VOID_PLAYABLE || VOID_DOMAIN_IDS.indexOf(id) < 0) return 0;
+    var path = voidPath(), domains = path && path.domains;
+    var n = domains ? Number(domains[id]) || 0 : 0;
+    return n < 0 ? 0 : (n > 3 ? 3 : Math.floor(n));
+  }
+  function domainPct(id, values) {
+    var n = domainLv(id);
+    return n > 0 ? values[n - 1] : 0;
+  }
+  function wonderOwned(id) {
+    if (!VOID_PLAYABLE || VOID_WONDER_IDS.indexOf(id) < 0) return false;
+    var path = voidPath();
+    return !!(path && path.wonders && path.wonders[id] === true);
+  }
+  function recordWonderBuild(id) {
+    if (!VOID_PLAYABLE || VOID_WONDER_IDS.indexOf(id) < 0) return false;
+    var m = (SB.game && SB.game.meta) ? SB.game.meta() : null;
+    if (!m || !m.veil || !m.veil.paths) return false;
+    if (!m.veil.paths.void || typeof m.veil.paths.void !== 'object') m.veil.paths.void = {};
+    if (!m.veil.paths.void.wonders || typeof m.veil.paths.void.wonders !== 'object') m.veil.paths.void.wonders = {};
+    m.veil.paths.void.wonders[id] = true;
+    return true;
+  }
+  var VX = {
+    playable: function () { return VOID_PLAYABLE; },
+    domainLv: domainLv,
+    wonderOwned: wonderOwned,
+    recordWonderBuild: recordWonderBuild,
+    tideYieldPct: function () { return domainPct('wither', [30, 50, 70]); },
+    tideYieldMul: function () { return 1 + VX.tideYieldPct() / 100; },
+    starYieldPct: function () { return domainPct('wither', [30, 50, 70]); },
+    starYieldMul: function () { return 1 + VX.starYieldPct() / 100; },
+    startTide: function () { return domainPct('wither', [30, 50, 70]); },
+    startStardust: function () { return domainPct('wither', [3, 5, 7]); },
+    domainSoldierPct: function () { return domainPct('warlord', [50, 100, 200]); },
+    domainSoldierMul: function () { return 1 + VX.domainSoldierPct() / 100; },
+    domainFortressPct: function () { return domainPct('warlord', [20, 25, 30]); },
+    domainFortressMul: function (s) {
+      var level = Math.max(0, Number(s && s.lvl && s.lvl.fortress) || 0);
+      return 1 + VX.domainFortressPct() / 100 * level;
+    },
+    domainScribePct: function () { return domainPct('pleasure', [50, 100, 200]); },
+    domainScribeMul: function () { return 1 + VX.domainScribePct() / 100; },
+    domainScholarPct: function () { return domainPct('lore', [50, 100, 200]); },
+    domainScholarMul: function () { return 1 + VX.domainScholarPct() / 100; },
+    domainCivicSavePct: function () { return domainPct('pleasure', [10, 20, 30]); },
+    domainCivicCostMul: function () { return 1 - VX.domainCivicSavePct() / 100; },
+    domainTechSavePct: function () { return domainPct('lore', [10, 20, 30]); },
+    domainTechCostMul: function () { return 1 - VX.domainTechSavePct() / 100; },
+    stampBearerOwned: function () { return wonderOwned('wonder_void_stamp_fortress'); },
+    keepReaderOwned: function () { return wonderOwned('wonder_void_candle_hall'); },
+    civicWonderMul: function () { return VX.stampBearerOwned() ? 2 : 1; },
+    scienceWonderMul: function () { return VX.keepReaderOwned() ? 2 : 1; },
+    craftWonderMul: function () { return wonderOwned('wonder_void_mars_foundry') ? 3 : 1; }
+  };
+  SB.voidFx = VX;
 })(typeof window !== 'undefined' ? window : globalThis);

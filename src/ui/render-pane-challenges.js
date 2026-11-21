@@ -69,6 +69,11 @@
         return tr(key, { engineCount: 50, energyAmount: '50M' }, fallback);
       }
       if (def.id === 'three_launch_sites') key = 'challenge.definition.three_launch_sites.goal';
+      /* 飞升挑战系列（2026-11-20）：终点是研成《掀起帘幕》科技，不是戴森球/虚境飞升。
+       * ⚠️ 必须在此拦截，否则会落进最后的 dyson_verge_ascent 分支显示「完成戴森球工程」。 */
+      else if (def.id === 'veil_rush' || def.id === 'veil_abyss' || def.id === 'veil_starve'
+        || def.id === 'veil_nofaith' || def.id === 'veil_turmoil' || def.id === 'veil_cramped')
+        key = 'challenge.definition.goal.veil_tech';
       else if (def.id === 'anarchy' || def.id === 'good_old_days' || def.id === 'eternity_moment')
         key = 'challenge.definition.goal.verge_ascent';
       else key = 'challenge.definition.goal.dyson_verge_ascent';
@@ -79,6 +84,7 @@
         '第一档': 'challenge.definition.tier.tier_1',
         '第二档': 'challenge.definition.tier.tier_2',
         '第三档': 'challenge.definition.tier.tier_3',
+        '32 小时档': 'challenge.definition.tier.32_hours',
         '16 小时档': 'challenge.definition.tier.16_hours',
         '8 小时档': 'challenge.definition.tier.8_hours',
         '4 小时档': 'challenge.definition.tier.4_hours',
@@ -324,7 +330,17 @@
             endgameGoalMultiplier: td.cap
           }, '') : d.id === 'conqueror' ? tr('ui.challenge.tier_rule.conqueror', {
             recoveryMultiplier: td.cap
-          }, '敌方规模恢复 ×' + td.cap) : tr('ui.challenge.tier_rule.production_penalty', {
+          }, '敌方规模恢复 ×' + td.cap) :
+          /* ⚠️ 2026-11-21 档位惩罚文案同源：这两条 cap 都不是「全产出惩罚」。
+           *    veil_starve cap = 破壳星屑结算收益压低比例；veil_cramped cap = 仓储上限压低比例。
+           *    缺专属分支时会落到 production_penalty 模板，面板印「本轮全产出 −30%」这类
+           *    与卡头规则自相矛盾的假文案（同 conqueror 2026-11-15 那次）。 */
+          d.id === 'veil_starve' ? tr('ui.challenge.tier_rule.veil_starve', {
+            stardustPenaltyPercent: Math.round(td.cap * 100)
+          }, '破壳星屑结算收益 −' + Math.round(td.cap * 100) + '%') :
+          d.id === 'veil_cramped' ? tr('ui.challenge.tier_rule.veil_cramped', {
+            storagePenaltyPercent: Math.round(td.cap * 100)
+          }, '仓储上限 −' + Math.round(td.cap * 100) + '%') : tr('ui.challenge.tier_rule.production_penalty', {
             productionPenaltyPercent: Math.round(td.cap * 100)
           }, '');
           var tierLabel = definitionText(d, 'tierLabel', ti);
