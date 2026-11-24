@@ -706,17 +706,21 @@
         cleanBefore[bKey] = (typeof bv === 'number' && isFinite(bv) && bv >= 0) ? bv : out.res[bKey];
       }
       var tpVal = (typeof rawCp.tp === 'number' && isFinite(rawCp.tp) && rawCp.tp >= 0 && rawCp.tp < pumpPeriod) ? rawCp.tp : 0;
+      var rawLeft = Math.min(rawCp.left, rawCp.secs);
+      var clampedLeft = Math.min(rawLeft, rawCp.cap);
+      var extraUncounted = Math.max(0, rawLeft - clampedLeft);
+      var clampedSecs = Math.max(clampedLeft, rawCp.secs - extraUncounted);
       out.offlineCheckpoint = {
         v: 2,
-        left: Math.min(rawCp.left, rawCp.secs),
-        total: rawCp.secs,
-        secs: rawCp.secs,
+        left: clampedLeft,
+        total: clampedSecs,
+        secs: clampedSecs,
         cap: rawCp.cap,
         wallAt: rawCp.v === 2 && typeof rawCp.wallAt === 'number' && isFinite(rawCp.wallAt) && rawCp.wallAt > 0
           ? rawCp.wallAt : 0,
         tp: tpVal,
         adActive: rawCp.adActive === true,
-        uncountedSecs: rawCp.uncountedSecs,
+        uncountedSecs: rawCp.uncountedSecs + extraUncounted,
         before: cleanBefore,
         bPop: rawCp.bPop,
         bShell: rawCp.bShell,

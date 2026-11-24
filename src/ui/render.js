@@ -1920,7 +1920,7 @@
           SB.ui.renderParts.mountStarMap(node);
         }
         var smState = res();
-        notifyStarMapActive(!document.hidden);
+        notifyStarMapActive(!(root.document && root.document.hidden));
         syncStarMapGameData(smState);
         SB.ui.renderParts.refreshStarMapBuildings(smState);
       } else if (k === 'folk' && SB.ui.input && SB.ui.input.isFolkControlPointerActive &&

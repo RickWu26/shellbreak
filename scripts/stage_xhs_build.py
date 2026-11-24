@@ -69,6 +69,7 @@ def main() -> None:
     shutil.copy2(ROOT / "platform" / "xiaohongshu" / "csp-adapter.js", PACKAGE / "src" / "xhs-csp-adapter.js")
     platform_version = hashlib.sha256((PACKAGE / "src" / "xhs-platform.js").read_bytes()).hexdigest()[:12]
     storage_version = hashlib.sha256((PACKAGE / "src" / "xhs-storage.js").read_bytes()).hexdigest()[:12]
+    zh_locale_version = hashlib.sha256((PACKAGE / "src" / "locales" / "zh-CN.js").read_bytes()).hexdigest()[:12]
 
     star_map_source = ROOT / "src" / "ui" / "star-map-frame.html"
     star_map_css, star_map_runtime = extract_star_map(star_map_source.read_text(encoding="utf-8"))
@@ -114,7 +115,7 @@ def main() -> None:
                 r"<script>\s*.*?</script>",
                 f'<script src="src/xhs-platform.js?v={platform_version}"></script>\n'
                 f'<script src="src/xhs-storage.js?v={storage_version}"></script>\n'
-                '<script src="src/locales/zh-CN.js?v=73"></script>\n'
+                f'<script src="src/locales/zh-CN.js?v={zh_locale_version}"></script>\n'
                 '<script src="src/xhs-reward-locale.js"></script>\n'
                 '<script src="src/i18n.js?v=4"></script>\n'
                 '<script src="src/xhs-csp-adapter.js"></script>\n'

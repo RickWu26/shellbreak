@@ -1813,17 +1813,25 @@
     }
   }
 
-  /* 每段新间隙独立判断门槛与上限，已认领的时长继续留在任务中。 */
+  /* 合并新离线间隙时仍把待补总剩余时长约束在单次离线上限 cap 内，防止多次中断叠加刷时长。 */
   function extendCatchUp(j, gap) {
-    if (gap < CFG.OFFLINE_MIN) return;
     var cap = offlineCap(j.s);
-    var secs = Math.min(gap, cap);
-    if (!(secs > 0) || !isFinite(secs)) return;
-    j.left += secs;
-    j.total += secs;
     j.cap = cap;
-    j.uncountedSecs += gap - secs;
-    j.silent = j.silent && gap < OFFLINE_SETTLE_MIN && j.uncountedSecs <= 0;
+    var curLeft = Math.max(0, j.left || 0);
+    if (curLeft > cap) {
+      var excess = curLeft - cap;
+      j.left = cap;
+      j.total = Math.max(cap, (j.total || cap) - excess);
+      j.uncountedSecs = (j.uncountedSecs || 0) + excess;
+      curLeft = cap;
+    }
+    if (gap < CFG.OFFLINE_MIN || !(gap > 0) || !isFinite(gap)) return;
+    var room = Math.max(0, cap - curLeft);
+    var add = Math.min(gap, room);
+    j.left = curLeft + add;
+    j.total = (j.total || curLeft) + add;
+    j.uncountedSecs = (j.uncountedSecs || 0) + Math.max(0, gap - add);
+    j.silent = j.silent && gap < OFFLINE_SETTLE_MIN && j.uncountedSecs <= 0 && gap <= add;
     j.adActive = j.adActive || adMul() > 1;
   }
 

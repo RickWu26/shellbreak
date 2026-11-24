@@ -348,45 +348,92 @@ export function run({ SB, check, loadAll }) {
         'advanced=' + (after.t - tStart).toFixed(5));
     }
 
-    /* 两次被杀中间有独立的离线间隙，原时段和未用完的广告余额继续结算。 */
+    /* 未达上限时中断后再次离线可补齐剩余差额；已达上限时不再无界叠加，防止多轮重启刷时长。 */
     {
       const store = new Map(), clock = { v: 0 };
       const r1 = bootIsolated(store, clock);
       const s1 = seedMidRun(r1.SB);
-      const cap = r1.SB.CFG.OFFLINE_CAP, tStart = s1.t;
+      const cap = r1.SB.CFG.OFFLINE_CAP, halfCap = cap / 2, tStart = s1.t;
       s1.ad.on = true;
       s1.ad.ms = 1200000;
-      r1.SB.game.planCatchUp(s1, cap, false);
+      r1.SB.game.planCatchUp(s1, halfCap, false);
       const first = savePartial(r1, clock, store);
       const cp1 = first.offlineCheckpoint;
       check('第一次检查点的广告余额与已推进的双倍时长一致',
-        cp1?.left > 0 && Math.abs(first.t - tStart - 2 * (cap - cp1.left)) < 1e-6 &&
-        Math.abs(first.ad.ms - (1200000 - (cap - cp1.left) * 1000)) < 1e-5);
+        cp1?.left > 0 && Math.abs(first.t - tStart - 2 * (halfCap - cp1.left)) < 1e-6 &&
+        Math.abs(first.ad.ms - (1200000 - (halfCap - cp1.left) * 1000)) < 1e-5);
 
       clock.v += 600000;
       const r2 = bootIsolated(store, clock);
       const secondBoot = savedRun(r2, store);
       const cp2 = secondBoot.offlineCheckpoint;
       const extra = (cp2.wallAt - cp1.wallAt) / 1000;
-      check('再离线约 10 分钟后保留原剩余时长，并立即记下新间隙',
+      check('未超上限时再离线约 10 分钟可完整接续新间隙并保留剩余双倍进度',
         extra >= 600 && extra < 602 && cp2.uncountedSecs === 0 &&
-        Math.abs(cp2.left - cp1.left - extra) < 1e-6 && Math.abs(cp2.total - cap - extra) < 1e-6);
-      const second = savePartial(r2, clock, store);
+        Math.abs(cp2.left - cp1.left - extra) < 1e-6 && Math.abs(cp2.total - halfCap - extra) < 1e-6);
+      const closed = finish(r2), after = savedRun(r2, store);
+      check('连续重启仍完整发放混合 2×/1× 进度且广告余额只扣一次',
+        closed && Math.abs(after.t - tStart - cp2.total - 1200) < 1e-5 &&
+        after.ad.ms === 0 && after.offlineCheckpoint == null,
+        'advanced=' + (after.t - tStart).toFixed(5) + ' ad.ms=' + after.ad.ms);
+    }
 
+    {
+      const store = new Map(), clock = { v: 0 };
+      const r1 = bootIsolated(store, clock);
+      const s1 = seedMidRun(r1.SB);
+      const cap = r1.SB.CFG.OFFLINE_CAP, tStart = s1.t;
+      r1.SB.game.planCatchUp(s1, cap, false);
+      const first = savePartial(r1, clock, store);
+      const done1 = first.t - tStart;
+      const cp1 = first.offlineCheckpoint;
+
+      clock.v += 600000;
+      const r2 = bootIsolated(store, clock);
+      const secondBoot = savedRun(r2, store);
+      const cp2 = secondBoot.offlineCheckpoint;
+      const extra1 = (cp2.wallAt - cp1.wallAt) / 1000;
+      check('已满上限时中途重启仅补回已消耗配额，剩余时长仍封顶于 cap',
+        r2.SB.game.runtimeStatus().catchupActive &&
+        Math.abs(cp2.left - cap) < 1e-6 &&
+        Math.abs(cp2.total - (done1 + cap)) < 1e-6 &&
+        Math.abs(cp2.uncountedSecs - Math.max(0, extra1 - done1)) < 1e-6,
+        'left=' + cp2?.left + ' uncounted=' + cp2?.uncountedSecs);
+
+      const second = savePartial(r2, clock, store);
+      const done2 = second.t - tStart;
       clock.v += 36000000;
       const r3 = bootIsolated(store, clock);
       const third = savedRun(r3, store);
-      const cp3 = third.offlineCheckpoint, cp2Partial = second.offlineCheckpoint;
-      check('第二次重启只截断新增的 10 小时间隙，原有待补时长保持完整',
+      const cp3 = third.offlineCheckpoint;
+      check('多轮长离线下待补算剩余时长始终受 cap 封顶（防刷上限）',
         r3.SB.game.runtimeStatus().catchupActive && third.t === second.t &&
-        cp3?.left === cp2Partial.left + cap && cp3.total === cp2.total + cap &&
-        Math.abs(cp3.uncountedSecs - ((cp3.wallAt - cp2Partial.wallAt) / 1000 - cap)) < 1e-6,
-        'total=' + cp3?.total + ' left=' + cp3?.left);
-      const closed = finish(r3), after = savedRun(r3, store);
-      check('连续重启仍完整发放混合 2×/1× 进度且广告余额只扣一次',
-        closed && Math.abs(after.t - tStart - cp3.total - 1200) < 1e-5 &&
-        after.ad.ms === 0 && after.offlineCheckpoint == null,
-        'advanced=' + (after.t - tStart).toFixed(5) + ' ad.ms=' + after.ad.ms);
+        Math.abs(cp3.left - cap) < 1e-6 && Math.abs(cp3.total - (done2 + cap)) < 1e-6 &&
+        cp3.uncountedSecs >= 36000 - (done2 - done1) - 5,
+        'left=' + cp3?.left + ' total=' + cp3?.total);
+      const storeTamper = new Map(), clockTamper = { v: 0 };
+      const rBoot = bootIsolated(storeTamper, clockTamper);
+      const sTamper = seedMidRun(rBoot.SB);
+      sTamper.offlineCheckpoint = {
+        v: 2, left: cap * 3, secs: cap * 3, total: cap * 3, cap: cap * 3,
+        wallAt: Date.now(), tp: 0, uncountedSecs: 0, before: {}, bPop: 120, bShell: 1000, bFam: 0, bFrost: 0
+      };
+      rBoot.SB.state.saveRun(Object.assign(rBoot.SB.game.snapshot(sTamper), { offlineCheckpoint: sTamper.offlineCheckpoint }));
+      const rTamperedBoot = bootIsolated(storeTamper, clockTamper);
+      const cpBoot = savedRun(rTamperedBoot, storeTamper).offlineCheckpoint;
+      const migCap = r3.SB.state.migrateRun({
+        t: 100,
+        offlineCheckpoint: {
+          v: 2, left: cap * 3, secs: cap * 3, total: cap * 3, cap,
+          wallAt: 0, tp: 0, uncountedSecs: 0, before: {}, bPop: 1, bShell: 1000, bFam: 0, bFrost: 0
+        }
+      }).offlineCheckpoint;
+      check('篡改检查点放大 cap 与 left 时在迁移层与启动恢复层均受真实上限钳制',
+        migCap.left === cap && migCap.uncountedSecs === cap * 2 &&
+        cpBoot.left === cap && cpBoot.uncountedSecs >= cap * 2);
+      check('封顶队列补算完成后总推进精确收口并清除检查点',
+        finish(r3) && Math.abs((savedRun(r3, store).t - tStart) - cp3.total) < 1e-5 &&
+        savedRun(r3, store).offlineCheckpoint == null);
     }
 
     /* 旧版在 8h 补算中重启，再次写盘后可能出现 secs=28832、left=28768。 */

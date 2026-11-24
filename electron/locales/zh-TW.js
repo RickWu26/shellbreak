@@ -2,6 +2,13 @@
 
 window.ShellbreakLocales = window.ShellbreakLocales || Object.create(null);
 window.ShellbreakLocales["zh-TW"] = Object.freeze({
+  "changelog.performance.boot_and_assets": "載入與包體最佳化：網頁與通路版啟動腳本與樣式合併壓縮，成就與挑戰列表改用輕量化縮圖，背景與音樂改為按需載入，顯著加快首屏進入速度。",
+  "changelog.performance.power_save_and_render": "新增「省電模式」並大幅降低日常耗電與發熱：僅重新整理目前所在頁籤，資源欄改用原位數值更新，切到背景自動暫停介面重新整理，星圖切走或捲出視口時停止動畫繪製；開啟省電模式後還會關閉動態背景與裝飾動效並降低掛機重新整理頻率。",
+  "changelog.performance.offline_checkpoint": "離線補算改為短分片推進並支援斷點續算：長離線計算不再卡死畫面，中途關閉或切背景重啟後會從未算完的位置接著結算（單次待補時長仍遵守離線上限，不會重複多算），同時最佳化了後期暖石、政策卡與崗位結算速度。",
+  "changelog.ui.responsive_shell_and_nav": "介面版面與導覽改版：寬螢幕升級為「資源與環境 / 主操作區 / 日誌控制台」三欄工作台；手機端新增雙行吸頂狀態列、滑出式概覽抽屜、四分類設定抽屜與隨進度逐步顯現的底部導覽分組，日誌預設收為單行速覽並可隨時展開。",
+  "changelog.ui.filters_and_craft_roundtrip": "巢穴、族民與工坊新增檢視篩選與「去製造」往返：建築支援依「全部 / 可建造 / 運轉中」篩選並切換「詳細 / 簡潔」卡片密度（切換不重建列表、不丟焦點），族民支援篩選「已在崗」，工坊新增「只看可造」；建築缺少工坊成品時可直接點「去製造」跳到對應配方，做完點頂部返回列一鍵回到原建築。",
+  "changelog.ui.mobile_research_list": "手機端科技與市政新增依紀元分組的直排列表檢視：窄螢幕預設以縱向卡片展示，支援「看前置」定位與篩選，並可在頂部隨時切回橫向長卷。",
+  "changelog.fix.craft_jump_touch_and_toast": "修復多項互動與穩定性問題：修正追蹤塢「去製造」無法定位具體配方的問題；放大手機端熱泉爐、汽輪機、發射場等運行數量加減按鈕熱區；修復連續觸發多條戰爭結果提示時偶發節點移除報錯，以及桌面端打包遺漏部分介面與帷幕素材的問題。",
   "changelog.art.achievement_icons_batch": "成就與挑戰圖標換了一批：多張成就勳章與挑戰徽章換成銅金邊框插畫，風格統一，取代先前版本。",
   "changelog.ascension.six_new": "新增六項飛升挑戰：第一批《飛升競速》（離線也計時的限時賽）、《飛升苦旅》（全產出壓低）、《宇宙空洞》（破殼星屑結算收益壓低）；第二批《無神論》（全程不得裝備信條、信仰全產加成失效，獎勵信仰產出 +50% 與信條抽選多一個候選）、《動盪年代》（幸福度恆為最低檔 ×0.80，獎勵永久幸福度 +1）、《繁盛市場今在此》（倉儲上限 −30/−50/−70%，獎勵倉儲上限 +30/+50/+70%）。六項均以研成《掀起簾幕》為終點，檔位與獎勵跨輪迴保留。",
   "changelog.civic.retire_auto_replace": "政策卡退役時不再留下空槽：後繼卡會自動裝進舊卡原本的槽位，25 條替代關係全部配好。挑戰專屬卡只在對應挑戰裡接替，讀舊檔不會凭空多裝卡。",
@@ -4956,4 +4963,4 @@ window.ShellbreakLocales["zh-TW"] = Object.freeze({
   "village.toolbar.aria_label": "建築篩選與視圖"
 });
 window.ShellbreakLocaleCoverage = window.ShellbreakLocaleCoverage || Object.create(null);
-window.ShellbreakLocaleCoverage["zh-TW"] = Object.freeze({"activeKeys":4952,"approvedKeys":4952,"complete":true});
+window.ShellbreakLocaleCoverage["zh-TW"] = Object.freeze({"activeKeys":4959,"approvedKeys":4959,"complete":true});

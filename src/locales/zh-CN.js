@@ -571,6 +571,13 @@ window.ShellbreakLocales["zh-CN"] = Object.freeze({
   "changelog.achievement.clear_waters_of_deep": "《水体污染》通关新增成就「海渊澄明」（本地成就墙即刻生效）。",
   "changelog.achievement.second_nature_reward": "「轻车熟路」成就新增实用奖励：某建筑的「轻车熟路」达成后，之后每个轮回里第一次建造它不消耗材料。成就墙顶部有说明。",
   "changelog.achievement.wandering_terra": "新增成就《流浪泰拉》，以及排行榜「最快流浪启程」。",
+  "changelog.performance.boot_and_assets": "加载与包体优化：网页与渠道版启动脚本与样式合并压缩，成就与挑战列表改用轻量化缩略图，背景与音乐改为按需载入，显著加快首屏进入速度。",
+  "changelog.performance.power_save_and_render": "新增「省电模式」并大幅降低日常耗电与发烫：仅刷新当前所在页签，资源栏改用原位数值更新，切到后台自动暂停界面刷新，星图切走或滚出视口时停止动画绘制；开启省电模式后还会关闭动态背景与装饰动效并降低挂机刷新频率。",
+  "changelog.performance.offline_checkpoint": "离线补算改为短分片推进并支持断点续算：长离线计算不再卡死画面，中途关闭或切后台重启后会从未算完的位置接着结算（单次待补时长仍遵守离线上限，不会重复多算），同时优化了后期暖石、政策卡与岗位结算速度。",
+  "changelog.ui.responsive_shell_and_nav": "界面布局与导航改版：宽屏升级为「资源与环境 / 主操作区 / 日志控制台」三栏工作台；手机端新增双行吸顶状态栏、滑出式概览抽屉、四分类设置抽屉与随进度逐步显现的底部导航分组，日志默认收为单行速览并可随时展开。",
+  "changelog.ui.filters_and_craft_roundtrip": "巢穴、族民与工坊新增视图筛选与「去制造」往返：建筑支持按「全部 / 可建造 / 运转中」筛选并切换「详细 / 简洁」卡片密度（切换不重建列表、不丢焦点），族民支持筛选「已在岗」，工坊新增「只看可造」；建筑缺少工坊成品时可直接点「去制造」跳到对应配方，做完点顶部返回条一键回到原建筑。",
+  "changelog.ui.mobile_research_list": "手机端科技与市政新增按纪元分组的竖排列表视图：窄屏默认以纵向卡片展示，支持「看前置」定位与筛选，并可在顶部随时切回横向长卷。",
+  "changelog.fix.craft_jump_touch_and_toast": "修复多项交互与稳定性问题：修正追踪坞「去制造」无法定位具体配方的问题；放大手机端热泉炉、汽轮机、发射场等运行数量加减按钮热区；修复连续触发多条战争结果提示时偶发节点移除报错，以及桌面端打包遗漏部分界面与帷幕素材的问题。",
   "changelog.art.achievement_icons_batch": "成就与挑战图标换了一批：多张成就徽章与挑战徽章换成铜金边框插画，风格统一，取代此前的版本。",
   "changelog.art.illustrated_icons": "插画更新：《逐光竞速》与《水体污染》两张挑战徽章、科技《装罐填埋》、市政《工坊学校》，以及成就「海渊澄明」都换上了正式插画，取代此前的矢量占位图与空图标。",
   "changelog.ascension.six_new": "新增六项飞升挑战：第一批《飞升竞速》（离线也计时的限时赛）、《飞升苦旅》（全产出压低）、《宇宙空洞》（破壳星屑结算收益压低）；第二批《无神论》（全程不得装备信条、信仰全产加成失效，奖励信仰产出 +50% 与信条抽选多一个候选）、《动荡年代》（幸福度恒为最低档 ×0.80，奖励永久幸福度 +1）、《繁盛市场今在此》（仓储上限 −30/−50/−70%，奖励仓储上限 +30/+50/+70%）。六项均以研成《掀起帘幕》为终点，档位与奖励跨轮回保留。",
@@ -5149,4 +5156,4 @@ window.ShellbreakLocales["zh-CN"] = Object.freeze({
   "village.toolbar.aria_label": "建筑筛选与视图"
 });
 window.ShellbreakLocaleCoverage = window.ShellbreakLocaleCoverage || Object.create(null);
-window.ShellbreakLocaleCoverage["zh-CN"] = Object.freeze({"activeKeys":5145,"approvedKeys":5145,"complete":true});
+window.ShellbreakLocaleCoverage["zh-CN"] = Object.freeze({"activeKeys":5152,"approvedKeys":5152,"complete":true});
