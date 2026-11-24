@@ -17,13 +17,13 @@
     try { savedLoc = localStorage.getItem('shellbreak.locale') || ''; } catch (e) {}
     if (locEnabled) {
       window.ShellbreakLocaleUrls = {
-        'en-US': 'electron/locales/en-US.js?v=84',
-        'zh-TW': 'electron/locales/zh-TW.js?v=34'
+        'en-US': 'electron/locales/en-US.js?v=85',
+        'zh-TW': 'electron/locales/zh-TW.js?v=35'
       };
     }
-    var scripts = '<script src="src/locales/zh-CN.js?v=89"><\/script>';
+    var scripts = '<script src="src/locales/zh-CN.js?v=90"><\/script>';
     if (locEnabled && isElectron) {
-      scripts += '<script src="electron/locales/en-US.js?v=84"><\/script><script src="electron/locales/zh-TW.js?v=34"><\/script>';
+      scripts += '<script src="electron/locales/en-US.js?v=85"><\/script><script src="electron/locales/zh-TW.js?v=35"><\/script>';
     } else if (locEnabled && (savedLoc === 'en-US' || savedLoc === 'zh-TW')) {
       scripts += '<scr' + 'ipt src="' + window.ShellbreakLocaleUrls[savedLoc] + '"><\/scr' + 'ipt>';
     }
@@ -451,7 +451,7 @@
 <script src="src/ui/error-log.js?v=1"></script>
 <script src="src/config.js?v=246"></script>
 <script src="src/config-catalog.js?v=21"></script>
-<script src="src/config-content.js?v=42"></script>
+<script src="src/config-content.js?v=43"></script>
 <script src="src/config-buildings.js?v=51"></script>
 <!-- 科技树数据层 + 玩法层。必须早于 state/economy/shell 的首次调用：
      state.migrateRun 要读 SB.TECHS 过滤老档科技，economy 每 tick 读 SB.tech.mul。 -->
@@ -521,7 +521,7 @@
 <script src="src/ui/star-map-iframe.js?v=1"></script>
 <script src="src/ui/render-pane-workshop.js?v=32"></script>
 <script src="src/ui/render-environment.js?v=29"></script>
-<script src="src/ui/render.js?v=326"></script>
+<script src="src/ui/render.js?v=327"></script>
 <!-- 帷幕之后 · 飞升路径界面（2026-11-17）：外层三路径卡 + 内层弹窗 + 硅基装配台。
      加载早于 game.js；它对 SB.game 的读取都在运行期（点按钮时），无加载期依赖。 -->
 <script src="src/ui/veil-hub-ui.js?v=21"></script>

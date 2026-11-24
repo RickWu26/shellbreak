@@ -78,7 +78,7 @@
     tiplate:    { name: '钛金板件', short: '板', kind: 'craft', unlock: { tech: 'minipump' } },
     /* ERA8（2026-10-18）：θ生物金属是普通库存资源，由生物材料研究所制造，基础仓储上限 200；
      *   与工艺资源区分开，不标 kind:'craft'。解锁权挂科技『生物材料』（biomat）。 */
-    thetaMetal: { name: 'θ生物金属', short: 'θ', unlock: { tech: 'biomat' }, storageEra: 8 },
+    thetaMetal: { name: 'θ生物金属', short: 'θ金属', unlock: { tech: 'biomat' }, storageEra: 8 },
     /* ERA8 市政（2026-10-18 · 用户市政表 H2 拍板）：θ金属自适应薄膜成为**可持有资源**——
      *   上一波实装时工艺产出折算成了钛金板件（避免「无 CAP 无去处的工艺资源」），
      *   但用户市政表《虚拟现实》解锁的奇观「魔鱼世界VR」造价是「薄膜 ×10」，

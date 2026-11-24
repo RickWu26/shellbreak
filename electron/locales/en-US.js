@@ -1392,7 +1392,7 @@ window.ShellbreakLocales["en-US"] = Object.freeze({
   "content.tag.challenge_only": "{challengeName} Only",
   "content.tag.challenge_only.tip": "{challengeName} · Challenge-exclusive content. It appears only in the current run and will not carry over once you complete the challenge or start a new run.",
   "content.theta_metal.name": "θ-Metal",
-  "content.theta_metal.short": "θ",
+  "content.theta_metal.short": "θ-Metal",
   "content.thinafilm.short": "Film",
   "content.tidal_record.name": "Tidal Record",
   "content.tidal_record.short": "Record",

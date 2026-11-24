@@ -423,7 +423,9 @@
         if (cell.lastCap !== capTxt) { setNodeText(cell.capEl, capTxt); cell.lastCap = capTxt; }
       }
 
-      var rowName = SB.i18n && SB.i18n.resourceName ? SB.i18n.resourceName(k, SB.RESS[k].name) : SB.RESS[k].name;
+      var rowName = k === 'thetaMetal'
+        ? tr('content.theta_metal.short', null, SB.RESS[k].short)
+        : SB.i18n && SB.i18n.resourceName ? SB.i18n.resourceName(k, SB.RESS[k].name) : SB.RESS[k].name;
       if (k === 'faith') {
         var rn = (SB.civic && SB.civic.faithDisplayName)
           ? SB.civic.faithDisplayName(s)

@@ -1392,7 +1392,7 @@ window.ShellbreakLocales["zh-CN"] = Object.freeze({
   "content.tag.challenge_only": "{challengeName}限定",
   "content.tag.challenge_only.tip": "{challengeName} · 挑战专属内容，仅在当前周目出现；通关或重开后不再保留。",
   "content.theta_metal.name": "θ生物金属",
-  "content.theta_metal.short": "θ",
+  "content.theta_metal.short": "θ金属",
   "content.thinafilm.short": "膜",
   "content.tidal_record.name": "潮纹记录",
   "content.tidal_record.short": "录",
