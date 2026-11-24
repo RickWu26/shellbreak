@@ -13,25 +13,9 @@
   'use strict';
 
   var CFG = {
-    /* ---- 版本号与更新日志（2026-10-27 恢复）----
-     * VERSION = 当前构建版本号；CHANGELOG = 最新在前，游戏内「更新日志」面板渲染这张表。
-     * ⚠️ 2026-11-06 本地化：items 里存的是 i18n 语义 key，不是中文原文。中文基准与英文译文都在 i18n_text_inventory.xlsx / src/locales/zh-CN.js / electron/locales/en-US.js，
-     *   由 render.js 的 openChangelog() 经 SB.i18n.t() 取词。改文案先改登记表再重新生成词库，不要在这里写回中文硬编码。
-     * ⚠️ 版本号口径（2026-10-27 用户拍板改动）：对外版本名改为 `Ver1.0.1`，
-     *   取代此前 `v0.MAJOR.MINOR`（原约定 2026-10-11 立，2026-10-27 废止）。
-     *   对外文案 / TapTap 版本描述 / README 三处必须同口径。
-     * ⚠️ 更新日志系统 2026-10-25 曾被整体删除（CFG.CHANGELOG、自动弹窗、页脚按钮与面板、
-     *   meta.seenVersion）；2026-10-27 用户要求恢复，四处一并重建。 */
+    /* 更新日志按版本倒序排列。items 引用登记表中的 i18n key。 */
     VERSION: 'Ver1.3.1',
-    /* ⚠️ 2026-10-28：Ver1.0.4-test 那三个 TEST_* 开关（静默启动 / 触摸水波纹 / 按下即关）
-     *   已按用户拍板**整段摘除**，不再以「置 false」形式留在配置里 —— 留在表里就还有被
-     *   误开的风险，也会让 `_repack.py` 的版本名一致性断言失去意义。
-     *   对应的三段代码（bootUi 的弹窗包一层、installTouchPing、input.js 的按下即关）
-     *   一并删除；更新日志**红点**与「更新日志」按钮入口保留。 */
-    /* entering（2026-10-28 语义变更）：meta.seenVersion 与之不等 ⇒ 该版本有未读更新
-     *   ⇒ 页脚「更新日志」按钮亮**红点**（不再是自动弹窗，见 game.js hasUnreadChangelog）；
-     *   玩家点开面板后才写回 seenVersion 熄灯。
-     * 老存档 meta 里没有 seenVersion ⇒ 恢复后第一次进入会亮红点，符合预期。 */
+    /* 玩家打开更新日志后写入 meta.seenVersion，清除当前版本的未读提示。 */
     CHANGELOG: [
       /* Ver1.3.1（2026-11-19 建段）：2026-11-20/21 改动合集。
        * 2026-11-21 定稿：图标换新、六项新飞升挑战（第一批三项 + 第二批三项，用户指出不能只写后三项）、
@@ -76,11 +60,6 @@
       { v: 'Ver1.2.4', date: '2026-11-16', items: [
         'changelog.ui.walk_panel'
       ] },
-      /* Ver1.2.3（2026-11-15）：Ver1.2.2 上线之后的 8 条玩家可见改动合集。
-       * 排序沿用玩家要求：新增类置段首，其余按「界面 → 修复」分组。
-       * ⚠️ 本次只做「写日志」：VERSION 同步升到 Ver1.2.3；index.html ?v bump、
-       *    _repack.py 的版本断言 / 版本清单 / 131→139 条 key 断言、封包与上传，
-       *    一律留到用户当次明说「发版」时统一做（见 .workbuddy/memory）。 */
       { v: 'Ver1.2.3', date: '2026-11-15', items: [
         // —— 新增 ——
         'changelog.stardust.exchange_batch',
@@ -509,7 +488,7 @@
     /* ---- 2026-10-24 成就扩充（设计稿 docs/ACHV_DESIGN_v0.3.md）：+57 条 ----
      * ⛔ 全部占位 '0'：TapTap 后台建成后逐条回填真 ID（MCP 无建成就工具）。
      *    未回填期间 unlockOnce 只记本地账本（meta.achv，成就墙真源），不发平台请求。
-     *    名称/简介来源《assets/achievements/成就文案_v0.1.md》（待评审）；
+     *    名称/简介来源《docs/achievements/成就文案_v0.1.md》（待评审）；
      *    展示文案在 src/achv.js DEFS_BASE（改键名两处同改）。 */
     /* —— 通用 12 条 —— */
     shellBreak: '0',          // 首次破壳（占位）

@@ -1,11 +1,4 @@
-"""重打 TapTap 上传包 rc03（壳厚 10w → 50w 后）。
-
-包结构硬规范（rc01 解析失败实证）：
-  解压后必须**只有一个文件夹**，index.html 在那一层里。
-判据两条：
-  ① 顶层条目数 == 1，且下一层有 index.html
-  ② **真解压到 %TEMP% 再 listdir** —— 不信任 zip 目录表
-"""
+"""构建 TapTap 单目录上传包，解压成品并校验入口、运行素材与平台约束。"""
 import argparse
 import json
 import subprocess
@@ -26,12 +19,9 @@ SRC = os.path.abspath(_ARGS.src or os.environ.get('SB_TAPTAP_SRC') or (r'D:/shel
 OUT = os.path.abspath(_ARGS.out or os.environ.get('SB_TAPTAP_OUT') or (r'D:/shellbreak/TAPTAP-H5-OUTPUT/shellbreak-taptap-public-rc34-v1.0.7.zip' if os.name == 'nt' else os.path.join(REPO, 'TAPTAP-H5-OUTPUT', 'shellbreak-taptap-public-rc34-v1.0.7.zip')))
 TOP = 'shellbreak'
 
-# ---------- 打包前：自动同步源码 → 包目录 ----------
-#⚠️ 2026-10-07 教训：包目录是**拷贝**，只改 src/ 会打出旧代码（壳厚 500000 那次差点踩）。
-#   封包前无条件从仓库根重新同步，不靠人记得手动 cp。
 os.makedirs(SRC, exist_ok=True)
 def _sync_tree(src, dst):
-    """增量同步：逐文件删除 dst 中源已不存在的文件(规避 safe-delete 批量删除阈值)，再覆盖复制。"""
+    """同步到打包暂存目录，并移除源中已不存在的文件。"""
     if os.path.isdir(dst):
         for root, dirs, files in os.walk(dst, topdown=False):
             for fn in files:
@@ -64,30 +54,10 @@ if os.path.isfile(_AI_TOOL):
 assert not os.path.exists(_AI_TOOL), '包内 ai-player.js 没排干净（会被扫成联网功能）'
 print('已排除未被 index.html 引用的 src/ai-player.js（含死 fetch）')
 
-# ---------- 运行时素材 ----------
-# ⚠️ 2026-10-26 修复（严重的静默缺图）：原脚本只同步 tech-icons / civic-icons 两个子树，
-#   导致包内 assets 只有 4 个目录（backgrounds/tech-icons/civic-icons/wonders），
-#   而实际被引用的还有 fonts（标题字体 Ma_Shan_Zheng）、building-icons（69 处）、
-#   resource-icons（34 处）、achievements（22 处）、ui-era、talent-icons、challenges、
-#   company-icons、brand、dyson —— 线上是 404 缺图，而封包断言只查 config.js 文本、
-#   完全查不出来。改为按白名单遍历，**排除 assets/store（66M 本地商店素材，不上传）**。
+# 源码可以引用的运行素材目录，成品校验也使用这份清单。
 ASSET_DIRS = ['achievements', 'audio', 'backgrounds', 'brand', 'building-icons', 'challenges',
               'civic-icons', 'company-icons', 'dyson', 'faith-tenets', 'fonts', 'resource-icons',
               'talent-icons', 'tech-icons', 'ui', 'ui-era', 'veil', 'war', 'wonders']
-# ⚠️ 2026-11-18 新增 veil（硅基承续十部位图 organ-01~10.webp + 三道门徽，见 veil-hub-ui.js）
-#    与 ui（科技/市政树纪元边框 tech-frames/frame-1~6.png，见 50-module-polish.css）。
-#    两者漏进白名单 = 反向守卫拦下封包 / 线上装配台部位图与纪元边框全 404。这是继信条、
-#    战争之后同类事故的正确修法：补白名单，不放宽守卫。
-#    （ui 的引用在 acf759cb 已入库但未发版，rc54 首次打包才暴露；素材是 git-tracked 真运行时资源。）
-# ⚠️ 2026-10-31 新增 audio（BGM 压缩包，见 src/audio.js + CFG.AUDIO）。漏进白名单 = 线上静默缺音乐，
-#    与 2026-10-26「静默缺图」同类事故：封包断言只查 config 文本，查不出缺整个文件夹。
-# ⚠️ 2026-11-09 新增 faith-tenets（31 张信条图标 / 0.9 MB，见 src/faith.js + docs/FAITH_TENET_ICONS.md）。
-#    11-06 信条系统入库时漏登记本白名单 ⇒ rc43~rc47 五个包全部缺整个目录、31 个图标全 404；
-#    玩家看到「图标一直闪」（renderPanes 每 2 秒整块重写 innerHTML，img 反复重建反复 404）。
-#    这是 10-26 的同构复发第二次，光加白名单只修当前一次，下方守卫已同步改成反向校验。
-# ⚠️ 2026-11-12 新增 war（7 张敌国肖像，见 src/ui/render-pane-war.js:36 enemyPortraitUrl）。
-#    战争系统 11-11 入库时又漏登记本白名单 ⇒ 反向校验会当场拦下封包（rc49 之前没打过含战争的包）。
-#    这是同构复发第三次：反向守卫正确报错，修法是补白名单，不是放宽守卫。
 for _d in ASSET_DIRS:
     _sync_tree(os.path.join(REPO, 'assets', _d), os.path.join(SRC, 'assets', _d))
 print('已自动同步 assets/ 的 %d 个子树 -> 包目录（store 本地素材除外）' % len(ASSET_DIRS))
@@ -543,7 +513,7 @@ print('素材检查: OK (白名单 %d 个子树 + 源码反向引用 %d 个目�
 #      ② 唯一白名单 = http(s)://www.w3.org/2000/svg（SVG 命名空间字符串，不是请求）；
 #      ③ 额外钉死自述字样：包里不许出现会让人以为存在联网能力的说明文本；
 #      ④ tap.* 平台服务 API 只**清点并打印**，不作失败判据（官方口径不算联网游戏）。
-#    收紧 CSP 时仍别把 'unsafe-inline' / blob: data: 删掉 —— 星图有 6 段内联 <script>，
+#    收紧 CSP 时仍别把 'unsafe-inline' / blob: data: 删掉 —— 星图使用内联 <script>，
 #    删掉就是 iframe 白屏。
 import re as _re
 _FETCH_B = _re.compile(rb'\bfetch\s*\(')
@@ -552,16 +522,6 @@ _SELF_TELL_B = _re.compile(r'联网功能|ICP\s*核准|静态扫描|网络请求
 _TAP_NET_B = _re.compile(
     rb'\b(?:root\.)?tap\.(getCloudSaveManager|createAchievementManager|'
     rb'createRewardedVideoAd|getLeaderboardManager)')
-# ---------- 包体剔除：assets 下的开发文档（.md 文案/填报清单，非运行时资源）----------
-# ⚠️ 2026-11-08：assets/achievements 里混入了 3 份开发文档（Steam 成就填报清单 / 填报清单 /
-#   成就文案），它们不是游戏运行时资源，却被 ASSET_DIRS 白名单整体 sync 进包；其中
-#   Steam成就填报清单_v0.1.md 含 partner.steamgames.com 外部链接，触发「零外部特征」扫描。
-#   这些文档应归位到 docs/，此处仅从包体剔除（不动仓库文件）。
-for _ad in ('Steam成就填报清单_v0.1.md', '填报清单.md', '成就文案_v0.1.md'):
-    _adp = os.path.join(SRC, 'assets', 'achievements', _ad)
-    if os.path.isfile(_adp):
-        try: os.remove(_adp)
-        except OSError: pass
 # ⚠️ 2026-11-18：字体目录里的 OFL 许可证 txt（含 github / scripts.sil.org 外部 URL）不是
 #    运行时资源（真正被引用的是 Ma_Shan_Zheng.woff2），却因 fonts 整目录白名单被同步进包，
 #    触发「零外部特征」扫描。许可证应留在仓库，仅从包体剔除所有 fonts/*.txt。
@@ -598,7 +558,7 @@ assert 'function platformReady() { return false; }' in _rd, '包内 redeem.js �
 _sm = _read('src/ui/star-map-frame.html')
 assert 'cdnjs.cloudflare.com' not in _sm and 'unpkg.com' not in _sm, '包内星图 CSP 又把 CDN 域名加回来了'
 assert "'unsafe-inline'" in _sm and 'blob: data:' in _sm, \
-    '包内星图 CSP 收紧过头：6 段内联脚本会被禁、iframe 白屏'
+    '包内星图 CSP 收紧过头：内联脚本会被禁、iframe 白屏'
 assert not os.path.exists(_AI_TOOL), '包内 ai-player.js 没排干净'
 print('包体零外部特征: OK (全文件类型 / 不剥注释 / fetch=0 / 非白名单URL=0 / 自述=0 '
       '/ 平台通道锚点 / CSP 必要指令 / ai-player 已排除 / tap 平台服务 %d 处仅清点)'

@@ -6,7 +6,7 @@
  *   mgr.unlockAchievement({ achievementId }) —— 解锁（平台侧幂等，重复调用不报错）。
  *
  * TapTap 成就 ID 由后台创建后回填到 SB.CFG.ACHV；Steam 成就通过 Electron preload
- *   的白名单桥接发送 API Name。两类 ID 不共用，见 assets/achievements/ 的填报清单。
+ *   的白名单桥接发送 API Name。两类 ID 不共用，见 docs/achievements/ 的平台填报清单。
  *
  * ── 与 rank.js / ad.js 同一套边界纪律（2026-10-15）──────────────────────
  *   生产环境**缺少当前平台的 SDK / API Name ⇒ 不调用、绝不"假装成功"**。
