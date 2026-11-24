@@ -20,9 +20,6 @@
     var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params || {}) : '';
     return value || fallback || '';
   }
-  function englishLocale() {
-    return !!(SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US');
-  }
   function definitionId(id) {
     return id === 'waterpollution' ? 'water_pollution' : id;
   }
@@ -44,8 +41,8 @@
     } else if (field === 'summary' || field === 'rule') {
       key = 'challenge.definition.' + id + '.' + field;
       fallback = def[field] || '';
-      if (def.id === 'science' && !englishLocale()) {
-        var scribeName = SB.folk.jobName(SB.game.run(), 'scribe');
+      if (def.id === 'science') {
+        var scribeName = SB.folk.localizedJobName(SB.game.run(), 'scribe');
         key = field === 'summary' ? 'ui.challenge.summary.science' : 'ui.challenge.rule.science';
         return tr(key, { scribeName: scribeName }, fallback);
       }
@@ -69,6 +66,7 @@
         return tr(key, { engineCount: 50, energyAmount: '50M' }, fallback);
       }
       if (def.id === 'three_launch_sites') key = 'challenge.definition.three_launch_sites.goal';
+      else if (def.id === 'conqueror') key = 'challenge.definition.conqueror.goalText';
       /* 飞升挑战系列（2026-11-20）：终点是研成《掀起帘幕》科技，不是戴森球/虚境飞升。
        * ⚠️ 必须在此拦截，否则会落进最后的 dyson_verge_ascent 分支显示「完成戴森球工程」。 */
       else if (def.id === 'veil_rush' || def.id === 'veil_abyss' || def.id === 'veil_starve'
@@ -78,7 +76,13 @@
         key = 'challenge.definition.goal.verge_ascent';
       else key = 'challenge.definition.goal.dyson_verge_ascent';
     } else if (field === 'tierLabel') {
-      fallback = def.tiers[tierIndex].label;
+      var tier = def.tiers[tierIndex];
+      fallback = tier.label;
+      if (tier.labelKey) return tr(tier.labelKey, {}, fallback);
+      if (def.tiers.length === 1) {
+        var namedTier = tr('challenge.definition.' + id + '.tier.label');
+        if (namedTier) return namedTier;
+      }
       var labels = {
         '完成挑战': 'challenge.definition.tier.complete',
         '第一档': 'challenge.definition.tier.tier_1',
@@ -89,10 +93,6 @@
         '8 小时档': 'challenge.definition.tier.8_hours',
         '4 小时档': 'challenge.definition.tier.4_hours',
         '星际远航': 'game.challenge.wandering_terra.tier1.name',
-        '海渊澄明': 'challenge.definition.water_pollution.tier.label',
-        '无政府纪元': 'challenge.definition.anarchy.tier.label',
-        '旧制永存': 'challenge.definition.good_old_days.tier.label',
-        '三地并举': 'challenge.definition.three_launch_sites.tier.label',
         '五倍永恒': 'challenge.definition.eternity_moment.tier_5',
         '十倍永恒': 'challenge.definition.eternity_moment.tier_10',
         '二十倍永恒': 'challenge.definition.eternity_moment.tier_20'
@@ -141,7 +141,6 @@
   function progressLine(s, api, def, tier) {
     var completed = tr('ui.challenge.progress.completed', {}, '挑战已达成 · 永久奖励已生效');
     if (s.challengeDone) return completed;
-    var scribeName = SB.folk.jobName(s, 'scribe');
     if (def.id === 'drift_terra') {
       var prereq = api.prereqState ? api.prereqState(def.id) : null;
       return tr('ui.challenge.progress.drift_terra', {
@@ -210,7 +209,7 @@
     if (def.id === 'science') return tr('ui.challenge.progress.science', {
       scholarCount: (s.jobs && s.jobs.scholar) || 0,
       tierCap: tier.cap,
-      scribeName: scribeName,
+      scribeName: SB.folk.localizedJobName(s, 'scribe'),
       scribeCount: (s.jobs && s.jobs.scribe) || 0
     }, '');
     if (def.id === 'small') return tr('ui.challenge.progress.small_country', {
@@ -270,9 +269,9 @@
     }
 
     h += '<section class="challenge-grid">';
+    var scribeName = SB.folk.localizedJobName(s, 'scribe');
     for (var i = 0; i < orderedList.length; i++) {
       var d = orderedList[i], done = api.tierDone(d.id, m), isActive = active && active.id === d.id;
-      var scribeName = SB.folk.jobName(s, 'scribe');
       var summary = definitionText(d, 'summary');
       var rule = definitionText(d, 'rule');
       var challengeName = definitionText(d, 'name');

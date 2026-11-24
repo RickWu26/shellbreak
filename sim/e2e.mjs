@@ -45,6 +45,7 @@ import { run as runStarMapAnim } from './e2e-suites/star-map-anim.mjs';
 import { run as runTideShellDrive } from './e2e-suites/tide-shell-drive.mjs';
 import { run as runTideDrillOverdrive } from './e2e-suites/tide-drill-overdrive.mjs';
 import { run as runChallengePrereq } from './e2e-suites/challenge-prereq.mjs';
+import { run as runChallengeI18n } from './e2e-suites/challenge-i18n.mjs';
 import { run as runTechUnlockTag } from './e2e-suites/tech-unlock-tag.mjs';
 /* 2026-11-05：追踪坞工坊产物「去制造」跳转（用户反馈）。 */
 import { run as runTrackCraftJump } from './e2e-suites/track-craft-jump.mjs';
@@ -508,6 +509,7 @@ if (process.argv.includes('--military-perks-only')) {
 /* 流浪泰拉「第 15 周目」开启前置（2026-11-05）：门禁、卡片、确认面板、常驻条同源。 */
 if (process.argv.includes('--challenge-prereq-only')) {
   runChallengePrereq({ SB, check, g, doc });
+  runChallengeI18n({ check });
   const failedPre = checks.filter(c => !c.ok);
   console.log(`\n挑战开启前置测试：${checks.length - failedPre.length}/${checks.length} 通过`);
   process.exit(failedPre.length || errors.length ? 1 : 0);
@@ -3233,6 +3235,7 @@ runTideDrillOverdrive({ SB, check, g });
 /* 2026-11-05：挑战开启前置。放全量最尾部——它会临时改 meta.cycle 与当前局的
  * s.challenge，虽自带 finally 还原，也别压在整局 bot 前面。 */
 runChallengePrereq({ SB, check, g, doc });
+runChallengeI18n({ check });
 /* 2026-11-08：科技「解锁建筑」列表挑战专属标注（金属精炼/外星工程混解锁的反例回归锁）。 */
 runTechUnlockTag({ SB, check });
 /* 2026-11-08：轮回商店渲染守卫（"一闪一闪" 闪烁回归锁）。放全量最尾部：hook 假 DOM

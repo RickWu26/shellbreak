@@ -917,6 +917,10 @@
       if (SB.ui.render.techGoEra(+eraValue)) { SB.game.markDirty(); SB.game.renderAll(); }
       return;
     }
+    if (d.warmFold) {
+      SB.ui.renderParts.toggleWarmFold(SB.game.run());
+      return;
+    }
     if (d.warm) {
       toggleWarm(SB.game.run());
       return;

@@ -200,9 +200,9 @@
       goal: { t: 'all', of: [{ t: 'dyson' }, { t: 'annex', n: 7 }] },
       goalText: '完成戴森球工程（虚境飞升亦算），并已吞并全部 7 个敌国',
       tiers: [
-        { label: '一档', cap: 1.5 },
-        { label: '二档', cap: 2 },
-        { label: '三档', cap: 3 }
+        { label: '一档', labelKey: 'challenge.definition.conqueror.tier_1.5', cap: 1.5 },
+        { label: '二档', labelKey: 'challenge.definition.conqueror.tier_2', cap: 2 },
+        { label: '三档', labelKey: 'challenge.definition.conqueror.tier_3', cap: 3 }
       ] },
     /* ── 飞升挑战系列（2026-11-20 实装，docs/CHALLENGE_VEIL_RUSH_DESIGN v0.4 + CHALLENGE_ASCENSION_POOL v0.7）──
      * 三项共同：终点 = 研成《掀起帘幕》科技（goal {t:'tech',id:'beyond_veil'}），
@@ -861,7 +861,7 @@
           '限时 ' + formatClock(t.cap) + ' · 离线计时') + '. ' + challengeDisplayText(d, 'goalText')
       : d.id === 'science'
         ? challengeTr('ui.challenge.tier_rule.science', {
-            scribeName: SB.folk.jobName(s, 'scribe'),
+            scribeName: SB.folk.localizedJobName(s, 'scribe'),
             staffCap: t.cap
           }, '学者与书手各不得超过 ' + t.cap + ' 人')
         : d.id === 'abyss'

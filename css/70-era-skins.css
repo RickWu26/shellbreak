@@ -878,6 +878,7 @@ html[data-era] #card-res .res-details {
   line-height: 1.3;
 }
 html[data-era] #card-res .res-label .res-name { color: var(--pilot-copy); }
+html[data-era] #card-res #res-craft .res-name { overflow-wrap: normal; }
 html[data-era] #card-res .res i.cap { color: var(--dim); font-size: 11px; }
 html[data-era] #card-res .res i.rate { font-size: 11px; font-weight: 650; }
 html[data-era] .overview-grid .res i.sd,
@@ -887,9 +888,7 @@ html[data-era] .overview-grid .res i.sd .lux-burn { display: inline; min-height:
 html[data-era] .overview-grid .res i.sd .lux-out { color: var(--green); }
 html[data-era] .overview-grid .res i.sd .lux-burn { color: var(--red); }
 
-/* Keep the resource archive at three columns at every window size.
- * Compact the resource rows against the actual panel width so a narrow window
- * does not turn the archive into a long single-column list. */
+/* Compact the resource rows against the panel width. */
 @container resource-panel (max-width: 760px) {
   #card-res > #res,
   #card-res #res-craft,
@@ -964,6 +963,13 @@ html[data-era] .overview-grid .res i.sd .lux-burn { color: var(--red); }
   html[data-era] #card-res .res i.cap,
   html[data-era] #card-res .res i.rate,
   html[data-era] #card-res .res i.sd { font-size: clamp(8.5px, 1.75cqi, 9.5px); }
+
+  html[lang^="en"][data-era] #card-res #res-craft .res > .res-icon { grid-row: 1; }
+  html[lang^="en"][data-era] #card-res #res-craft .res-content > b { grid-column: 2; }
+  html[lang^="en"][data-era] #card-res #res-craft .res-details { grid-column: 1 / -1; }
+}
+@container resource-panel (max-width: 275px) {
+  html[lang^="en"][data-era] #card-res #res-craft { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 html[data-era] #card-res #res-craft-wrap {
   margin-top: 13px;
@@ -1027,11 +1033,23 @@ html[data-era] #card-env .env-tier--core {
 }
 html[data-era] #card-env .shellbar {
   align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
   margin: 2px 0 6px;
   padding-bottom: 0;
   border-bottom: 0;
 }
+html[data-era] #card-env .shellbar > span { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
 html[data-era] #card-env #shellTxt { font-variant-numeric: tabular-nums; }
+@container environment-card (max-width: 420px) {
+  html[data-era] #card-env #shellTxt:has(.dyson-stage-badge) .cap {
+    display: block;
+    margin-top: 3px;
+    font-size: 12px;
+    font-weight: 650;
+    color: var(--pilot-copy);
+  }
+}
 html[data-era] #card-env .shellwrap {
   position: relative;
   overflow: hidden;
@@ -1171,7 +1189,17 @@ html[data-era] #card-env .hydro-metric + .hydro-metric {
   border-left: 1px solid color-mix(in srgb, var(--pilot-edge) 52%, transparent);
 }
 html[data-era] #card-env .hydro-metric>span { font-size: 10px; letter-spacing: .04em; }
-html[data-era] #card-env .hydro-metric>b { font-size: 20px; }
+html[data-era] #card-env .hydro-metric>b { flex-wrap: wrap; row-gap: 0; font-size: 20px; }
+html[data-era] #card-env .hydro-metric>b > span { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+html[data-era] #card-env .hydro-metric>b small { white-space: nowrap; }
+@container hydro-flow (max-width: 360px) {
+  html[data-era] #card-env .hydro-metric { justify-content: flex-end; padding-inline: clamp(5px, 2cqi, 7px); }
+  html[data-era] #card-env .hydro-metric>b {
+    flex-flow: column nowrap;
+    align-items: flex-start;
+    font-size: clamp(13px, 5.5cqi, 18px);
+  }
+}
 html[data-era] #card-env .hydro-metric-balance {
   background: linear-gradient(110deg,
     color-mix(in srgb, var(--era-accent) 10%, transparent), transparent 86%);

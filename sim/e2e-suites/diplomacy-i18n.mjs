@@ -1,17 +1,8 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import vm from 'node:vm';
-import { loadNoDom, ROOT } from '../load-sb.mjs';
+import { loadLocalizedGame } from '../load-sb.mjs';
 
 export function run({ check }) {
-  const browser = { ShellbreakLocaleUrls: {} };
-  browser.window = browser;
-  const { ctx, SB } = loadNoDom(browser);
-  for (const file of ['src/locales/zh-CN.js', 'electron/locales/en-US.js', 'electron/locales/zh-TW.js',
-    'src/i18n.js', 'src/war.js', 'src/ui/render-pane-research.js', 'src/ui/render-pane-war.js',
-    'src/ui/heritage-draft.js', 'src/ui/war-toast.js']) {
-    vm.runInContext(readFileSync(join(ROOT, file), 'utf8'), ctx, { filename: file });
-  }
+  const SB = loadLocalizedGame(['src/war.js', 'src/ui/render-pane-research.js', 'src/ui/render-pane-war.js',
+    'src/ui/heritage-draft.js', 'src/ui/war-toast.js']);
   const s = SB.state.freshRun();
   SB.game.run = () => s;
   s.techs.navigation = s.civics.military_training = true;

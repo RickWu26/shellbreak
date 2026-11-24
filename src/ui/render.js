@@ -764,9 +764,8 @@
   }
   function ensureShellTxtMode(txt, mode) {
     var d = root.document;
-    if (!txt._sbDomInit) { txt.innerHTML = ''; txt._sbDomInit = true; }
     if (SHELL_CACHE.txtMode === mode) return;
-    while ((txt.children || []).length) txt.removeChild(txt.children[txt.children.length - 1]);
+    txt.textContent = '';
     var mainNode = d.createTextNode('');
     txt.appendChild(mainNode);
     SHELL_CACHE.mainNode = mainNode;
@@ -949,6 +948,25 @@
     if (btn) btn.onclick = hideModal;
   }
 
+  function challengeOutcomeText(outcome) {
+    var api = SB.challenges, def = outcome && api && api.byId(outcome.id);
+    if (!def || !api.displayText) return outcome || {};
+    var tier = outcome.tier;
+    if (!Number.isInteger(tier) || !def.tiers[tier]) {
+      tier = def.tiers.findIndex(function (item) { return item.label === outcome.label; });
+      if (tier < 0 && def.tiers.length === 1) tier = 0;
+    }
+    // 结算快照可能来自旧版本，只有和定义相符时才套用当前奖励、目标的译文。
+    return {
+      name: api.displayText(def, 'name'),
+      label: tier >= 0 ? api.displayText(def, 'tierLabel', tier) : outcome.label,
+      reward: outcome.reward && tier >= 0 && outcome.reward === api.rewardFor(def, tier)
+        ? api.displayText(def, 'reward', tier) : outcome.reward,
+      goalText: outcome.goalText && outcome.goalText === def.goalText
+        ? api.displayText(def, 'goalText') : outcome.goalText
+    };
+  }
+
   function showChallengeCompletePanel(outcome) {
     var modal = el('modal'), box = el('modalBox');
     if (!modal || !box || !outcome) return false;
@@ -966,14 +984,15 @@
      * 一分钱都没发（同上一条注释的同一个坑：面板说的话必须是这次真的发生的事）。 */
     var isReview = outcome.review === true;
     var titleKey = isReview ? 'ui.challenge.completion.review.title' : 'ui.challenge.completion.title';
-    var title = escHtml(tr(titleKey, { challengeName: outcome.name || '' }, '★ {challengeName} · 挑战完成'));
-    var goal = escHtml(outcome.goalText || tr('ui.challenge.completion.status', null, '挑战完成'));
+    var copy = challengeOutcomeText(outcome);
+    var title = escHtml(tr(titleKey, { challengeName: copy.name || '' }, '★ {challengeName} · 挑战完成'));
+    var goal = escHtml(copy.goalText || tr('ui.challenge.completion.status', null, '挑战完成'));
     box.innerHTML = '<div class="star-complete-panel challenge-complete-panel">' +
       '<h2>' + title + '</h2>' +
       '<p>' + goal + '</p>' +
       (isReview
         ? '<p class="muted">' + escHtml(tr('ui.challenge.completion.review_note', null, '这是通关演出的回放，不影响任何进度与奖励。')) + '</p>'
-        : '<p class="muted">' + escHtml(tr('ui.challenge.completion.reward_notice', { rewardDescription: outcome.reward || '' }, '永久奖励已生效：{rewardDescription}。本局仍可继续发展。')) + '</p>') +
+        : '<p class="muted">' + escHtml(tr('ui.challenge.completion.reward_notice', { rewardDescription: copy.reward || '' }, '永久奖励已生效：{rewardDescription}。本局仍可继续发展。')) + '</p>') +
       '<div class="break-controls"><button class="btn big" type="button" id="challengeCompleteClose">' + htmlText(tr('ui.action.keep_playing', null, '继续游玩')) + '</button></div>' +
       '</div>';
     modal.classList.remove('hidden'); bodyModalClass(true);
@@ -2464,7 +2483,7 @@
       : 'ui.render.render_challenge_notice.theology_requirement_pending');
     if (displayText) rule = displayText(def, 'rule') || displayText(def, 'summary');
     if (active.id === 'science') {
-      var scribeName = SB.folk.jobName(s, 'scribe');
+      var scribeName = SB.folk.localizedJobName(s, 'scribe');
       rule = tr('challenge.notice.science.rule', { scribeJob: scribeName, jobCap: cap });
       progress = tr('challenge.notice.science.progress', {
         scholarCount: (s.jobs && s.jobs.scholar) || 0,
@@ -3156,6 +3175,7 @@
     var ch = '';
     if (cd && !cd.goal) {
       var tier = Math.max(0, Math.min(cd.tiers.length - 1, a.tier | 0));
+      var cInfo = challengeOutcomeText(r.challengeClear || r.challengeFailure || { id: cd.id, tier: tier });
       var cls = '', head = '', badge = '', body = '';
       if (r.challengeClear) {
         cls = ' ok';
@@ -3163,7 +3183,7 @@
         badge = tr('ui.challenge.status.tier_cleared', null, '已达成');
         body = r.challengeClear.replay
           ? breakResultText('repeating_a_completed_challenge_grants_no_additi', '重复挑战不重复发放永久奖励，本局成绩已计入排行榜。')
-          : tr('ui.challenge.result.reward_applied', { reward: r.challengeClear.reward || '' }, '永久奖励已生效：{reward}');
+          : tr('ui.challenge.result.reward_applied', { reward: cInfo.reward || '' }, '永久奖励已生效：{reward}');
       } else if (r.challengeFailure) {
         cls = ' fail';
         head = breakResultText('challenge_failed', '挑战未通关');
@@ -3185,9 +3205,6 @@
         badge = breakResultText('requirements_not_met', '条件不符');
         body = breakResultText('your_results_at_shellbreak_did_not_meet', '破壳那一刻的成绩没有满足本档限制，本档奖励未领取。');
       }
-      /* 标题行取「判定结果自带的」名称/档位，而不是当前 s.challenge ——
-       * 复核老档时两者可能不是同一条（结果来自 s.challengeOutcome，挑战可能是后开的）。 */
-      var cInfo = r.challengeClear || r.challengeFailure || { name: cd.name, label: cd.tiers[tier].label };
       ch = '<div class="bresult' + cls + '">' +
         '<div class="cc-head">' +
         '<span class="cc-icon">' + (cls === ' ok' ? '✓' : (cls === ' fail' ? '✕' : '?')) + '</span>' +
@@ -3271,16 +3288,18 @@
     }, '挑战通关永久加成：轮回点获取 +{prestigePointBonus}')) + '</div>';
     /* 2026-11-02 挑战可重打：重复通关既没有永久奖励、也不加 +10%，原文案会写出
      * 「永久获得 null」并谎称再加 10%。按 replay 标记分两句。 */
+    var clearText = challengeOutcomeText(r.challengeClear);
     if (r.challengeClear) extra += '<div class="note">' + htmlText(r.challengeClear.replay
       ? tr('ui.challenge.result.repeated_clear', {
-        challengeName: r.challengeClear.name || '', tierName: r.challengeClear.label || ''
+        challengeName: clearText.name || '', tierName: clearText.label || ''
       }, '再次通关：{challengeName} · {tierName}。重复通关不再发放永久奖励；本局成绩已计入排行榜。')
       : tr('ui.challenge.result.clear_reward', {
-        challengeName: r.challengeClear.name || '', tierName: r.challengeClear.label || '',
-        reward: r.challengeClear.reward || '', prestigePointBonus: '10%'
+        challengeName: clearText.name || '', tierName: clearText.label || '',
+        reward: clearText.reward || '', prestigePointBonus: '10%'
       }, '挑战通关：{challengeName} · {tierName}。永久奖励：{reward}。之后轮回点获取增加 {prestigePointBonus}。')) + '</div>';
+    var failureText = challengeOutcomeText(r.challengeFailure);
     var challengeFailureNote = r.challengeFailure ? '<div class="note" style="color:var(--red)">' + htmlText(tr('ui.challenge.result.failed_time', {
-      challengeName: r.challengeFailure.name || '', tierName: r.challengeFailure.label || '',
+      challengeName: failureText.name || '', tierName: failureText.label || '',
       elapsedTime: SB.challenges.formatClock(r.challengeFailure.elapsed),
       timeLimit: SB.challenges.formatClock(r.challengeFailure.limit)
     }, '挑战未通关：{challengeName} · {tierName} 超时（用时 {elapsedTime}，限时 {timeLimit}），本档奖励未领取。重开本周目后可重试。')) + '</div>' : '';
@@ -3324,7 +3343,7 @@
     } else {
       el('mNext').textContent = SB.prestige.qualified(res())
         ? breakPanelText('settle_and_claim_prestige_points', '结算并发放轮回点')
-        : breakPanelText('settle_and_restart', '结算后重开');
+        : tr('ui.render.show_break_result.settle_and_restart', null, '结算后重开');
       el('mNext').onclick = function () { SB.game.settleBreak(); };
     }
   }
