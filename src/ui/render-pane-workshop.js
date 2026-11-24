@@ -368,20 +368,19 @@
       '全部原料有上限的配方：任一原料攒到「上限 × 所选档位」时自动转制，转制当时可造量的该档位%（25 / 50 / 75 / 100%），转完跌回档位以下再攒；' +
       '含无上限原料的配方：沿用批次自动制造，库存够造指定数量时造一整批，多出的材料保留。';
     var html = '<div class="note">' + summary + '</div>';
-    if (!used) return html;
-    html += '<section class="assigned-crafts"><strong>' + tr('ui.workshop.automation_slots.assigned') + '</strong><ul>';
+    var lockedRows = '';
     for (var i = 0; i < used; i++) {
       var slot = slots[i], recipe = SB.workshop.craftById(slot.id);
+      if (!SB.workshop.craftHasPrereqBlock(s, recipe)) continue;
       var name = recipe ? localizedItemName('craft', recipe) : tr('workshop.craft.recipe.unavailable');
-      html += '<li><span>' + escAttr(name) + '</span>';
-      if (SB.workshop.craftHasPrereqBlock(s, recipe)) {
-        html += '<small>' + tr('ui.workshop.automation_slots.locked_this_run') + '</small>';
-      }
-      html += '<button type="button" class="btn tog" data-aoff="' + escAttr(slot.id) + '" aria-label="' +
+      lockedRows += '<li><span>' + escAttr(name) + '</span><small>' + tr('ui.workshop.automation_slots.locked_this_run') +
+        '</small><button type="button" class="btn tog" data-aoff="' + escAttr(slot.id) + '" aria-label="' +
         escAttr(tr('ui.workshop.automation_slots.disable_named', { recipe: name })) + '">' +
         tr('ui.workshop.automation_slots.disable.button') + '</button></li>';
     }
-    return html + '</ul></section>';
+    if (!lockedRows) return html;
+    return html + '<section class="assigned-crafts"><strong>' + tr('ui.workshop.automation_slots.assigned') +
+      '</strong><ul>' + lockedRows + '</ul></section>';
   }
 
   function paneWorkshopLocked() {

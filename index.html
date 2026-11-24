@@ -17,13 +17,13 @@
     try { savedLoc = localStorage.getItem('shellbreak.locale') || ''; } catch (e) {}
     if (locEnabled) {
       window.ShellbreakLocaleUrls = {
-        'en-US': 'electron/locales/en-US.js?v=89',
-        'zh-TW': 'electron/locales/zh-TW.js?v=39'
+        'en-US': 'electron/locales/en-US.js?v=90',
+        'zh-TW': 'electron/locales/zh-TW.js?v=40'
       };
     }
-    var scripts = '<script src="src/locales/zh-CN.js?v=94"><\/script>';
+    var scripts = '<script src="src/locales/zh-CN.js?v=95"><\/script>';
     if (locEnabled && isElectron) {
-      scripts += '<script src="electron/locales/en-US.js?v=89"><\/script><script src="electron/locales/zh-TW.js?v=39"><\/script>';
+      scripts += '<script src="electron/locales/en-US.js?v=90"><\/script><script src="electron/locales/zh-TW.js?v=40"><\/script>';
     } else if (locEnabled && (savedLoc === 'en-US' || savedLoc === 'zh-TW')) {
       scripts += '<scr' + 'ipt src="' + window.ShellbreakLocaleUrls[savedLoc] + '"><\/scr' + 'ipt>';
     }
@@ -519,7 +519,7 @@
 <script src="src/ui/render-pane-wonder.js?v=16"></script>
 <script src="src/ui/render-pane-star-map.js?v=17"></script>
 <script src="src/ui/star-map-iframe.js?v=1"></script>
-<script src="src/ui/render-pane-workshop.js?v=33"></script>
+<script src="src/ui/render-pane-workshop.js?v=34"></script>
 <script src="src/ui/render-environment.js?v=30"></script>
 <script src="src/ui/render.js?v=330"></script>
 <!-- 帷幕之后 · 飞升路径界面（2026-11-17）：外层三路径卡 + 内层弹窗 + 硅基装配台。
