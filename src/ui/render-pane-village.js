@@ -98,30 +98,9 @@
   function paneVillage() {
     var s = SB.game.run(); let h = '';
     var buildingIconsShown = !!(SB.ui.render && SB.ui.render.buildingIconsShown && SB.ui.render.buildingIconsShown());
-    /* 猫国开局唯一产能是手动点 "Gather catnip"（点一下 +1 猫薄荷）。
-     * 本作对应物：点一下 +1 藻食——对齐 docs/DESIGN_v0.3.md §4「采集者 gatherer |
-     * 藻食（手动也能点）」。手动采集产珊瑚是错的：那会把采集接到材料线上，
-     * 珊瑚线从此由「采集」白送，珊瑚匠这个职业就没有存在理由了（见 config.js UNIT）。
-     * 【开局路径（2026-09-26 硬上限 + 撤回「凿珊瑚」免费之后）】首座住房吃珊瑚
-     *   （猫国 hut = wood），且人口是**硬上限** ⇒ 珊瑚那条线才是第一步：
-     *   手动点「采珊瑚」100 下（0.1/次）→ 建礁口巢 → 上限 1 变 3 → 才有空位生人；
-     *   生人同时还要口粮藻食 > GROW_KEEP。**先藻食后珊瑚那个顺序在硬上限下是错的**
-     *   （建了菌圃也不生人），旧注释照 2026-09-25 的软容量写的，已改。 */
-    /* 开局两条手动进项：藻食（食物线，攒够 15 建第一座深海菌圃）与珊瑚（材料线，
-     * 攒够 10 建第一座礁口巢）。珊瑚给 0.1/次是刻意的——它是起步的零钱不是产线，
-     * 真要用还得雇珊瑚匠（见 config.js 的 GATHER）。 */
-    /* ⚠️ 按钮上的读数直接取 SB.GATHER，不在这里写死「+1 / +0.1」——
-     * 写死的那一版曾经和 input.js 里真正入账的量对不上（那次是路径取错，
-     * 这次是常数取错），玩家点一下发现和按钮上写的不一样。同源了之后
-     * e2e 那条「读数与常数同源」断言才真的在守什么东西。 */
+    /* 按钮读数和实际采集收入共用 SB.GATHER。 */
     var GA = SB.GATHER || { kelp: 1, coral: 1 };
-    /* 自动点击角标（2026-10-28 用户：「只是提示正在自动点击」）。
-     * 自动点击现在是**静默**的——不重画面板、只加资源（见 src/autoplay.js 的 ⑤），
-     * 于是玩家唯一能感知它在跑的地方就是这一枚角标。读 s.perk.autoClick（0/1/2/3 = 次/秒），
-     * 与 state.rebuildPerks 里 autoClicker1/2/3 三档叠加的口径同源，不自己数商品。
-     * ⚠️ 刻意不加 animation / 呼吸灯：玩家报的问题就是「一直闪」，再给个动效等于换个方式闪。
-     * ★ 2026-10-28 补：设置里可以暂停（s.autoClickOn === false）⇒ 角标改成「已暂停」灰态。
-     *   若暂停时角标直接消失，玩家会以为 perks 丢了（买了东西却什么都没显示）。 */
+    /* 自动点击暂停时保留静态角标，让玩家能区分暂停和未解锁。 */
     var _acRate = (s.perk && s.perk.autoClick) || 0;
     var _acOn = _acRate > 0 && !(s.autoClickOn === false);
     var _acTag = _acRate <= 0 ? ''
@@ -130,18 +109,12 @@
           htmlText(tr('village.auto_click.active.status', { clicksPerSecond: _acRate }, '自动点击中 · ' + _acRate + ' 次/秒')) + '</span>'
         : '<span class="auto-click-tag is-off" title="' + htmlText(tr('village.auto_click.paused.tooltip', null, '已在 ⚙ 设置 → 自动 里暂停；手动点这两个按钮不受影响')) + '">' +
           htmlText(tr('village.auto_click.paused.status', null, '自动点击已暂停')) + '</span>');
-    /* ⚠️ 2026-10-16 用户「这里也统一一下」：两个采集按钮包进 .gather-btns，行加 .gather-row ——
-     *   旧状两钮是 .row 的裸 flex 子项、无宽度约束，被文本列挤成逐字竖排，且「+1 / +0.1」
-     *   宽窄不一。尺寸统一写进 CSS（见 50-module-polish）。 */
     var startupPopulation = SB.challenges && SB.challenges.startingPopulation ? SB.challenges.startingPopulation() : SB.CFG.POP_START;
     var nestBuilding = SB.habitat.buildingById('nest') || {};
     var kelpBuilding = SB.habitat.buildingById('kelp') || {};
     var coralCost = nestBuilding.cost && nestBuilding.cost.coral || 0;
     var kelpCost = kelpBuilding.cost && kelpBuilding.cost.kelp || 0;
-    /* 2026-11-07：开局人口上限必须与 economy.popCap 同源。旧写法取 houseBase=1，
-     * 挑战奖励生效时教程会变成「开局 6 人…人口上限 1 → 3」，与族民页的 6 / 6 打架。
-     * 这里只算**裸开局**上限（houseBase + 挑战奖励增量），不带玩家后来盖的房 ——
-     * 这句文案讲的是开局路径，不是当前状态；增量读的是同一个 startingPopulation()。 */
+    /* 教程按开局住房和挑战奖励计算人口上限。后来建成的住房只影响当前人口上限。 */
     var startingCap = (SB.BLD.houseBase || 0) + (startupPopulation - SB.CFG.POP_START);
     var startupHint = tr('village.startup.housing_food_hint', {
       startingPopulation: startupPopulation, passiveIncome: 0, coralCost: coralCost,
@@ -152,10 +125,6 @@
       '人口要涨得同时满足两条：住房没住满，且藻食高于 ' + SB.CFG.GROW_KEEP + '（低于此值会一直停摆）。');
     h += '<div class="row gather-row"><div><div class="nm">' + htmlText(tr('village.gather.manual.heading', null, '手动采集')) + _acTag + '</div>' +
       '<div class="ds">' + htmlText(startupHint) +
-      /* 2026-10-27 用户：「是不是应该说明藻食低于 20 人口就不会增长」——
-       * 这条规则原先只写在族民页的生育那一行，而玩家绝大多数时间待在巢穴页，
-       * 于是出现「建完菌圃以为就会生人、结果人数纹丝不动」的困惑。
-       * ⚠️ 门槛读 CFG.GROW_KEEP，不写死 20（改常数时文案自动跟）。 */
       '<b>' + htmlText(growthHint) + '</b></div></div>' +
       '<div class="gather-btns">' +
       '<button class="btn buy" data-gather="kelp">' + htmlText(tr('village.gather.kelp.button', { gatherAmount: GA.kelp }, '采藻食 +' + GA.kelp)) + '</button>' +
@@ -189,11 +158,7 @@
       for (var i = 0; i < SB.BUILDINGS.length; i++) {
         var b = SB.BUILDINGS[i];
         if (b.zone !== z.id) continue;
-        /* 没解锁的建筑整行不渲染——开局列表里只有深海菌圃一张脸，
-         * 其余随 unlockScheme / requiredTech / 科技 eff.unlockBuild 逐个出现。
-         * 露头是单向的：露过一次就永久可见（lv>0 或已记进 s.seen）。
-         * 否则玩家一花藻食把库存压回阈值以下，刚冒出来的采石场/导流堤会当场消失，
-         * 看着像「建筑自己跳出来又自己没了」——猫国 unlockable 同样只进不退。 */
+        /* 建筑首次解锁后记入 s.seen。花掉库存后仍显示已揭示的建筑。 */
         var lv = s.lvl[b.id] || 0;
         if (SB.habitat.retired && SB.habitat.retired(s, b)) continue;
         if (!(s.seen && s.seen[b.id])) {
@@ -226,20 +191,11 @@
           : tr(lv > 0 ? 'village.building.action.upgrade' : 'village.building.action.build', null, lv > 0 ? '升级' : '建造') + ' ' + SB.economy.buildCostTxt(s, b.id, c, true);
         if (canalCap) label = tr('village.building.lighthouse_level_required', { lighthouseLevel: s.lvl.lighthouse || 0 }, '需先升灯塔（现 ' + (s.lvl.lighthouse || 0) + ' 级）');
         if (maxReached) label = tr('village.building.level_cap', { maxLevel: b.maxLvl }, '已达上限 ' + b.maxLvl + ' 级');
-        /* 建造追踪（2026-10-29 · 玩家提议，用户拍板）：只在**这一级买不起**时出现。
-         * 买得起就消失——那时该做的是直接点建造，多一个钮只是噪声。
-         * 按钮是纯视图入口（只写 s.track），结算/成本一律不经过它。
-         * ⚠️ 点击走 document 级委托（input.js 的 d.track 分支）：本面板每 2 秒整块重画，
-         *    挂在按钮上的监听会随第一次重画失效，表现是「点不动但不报错」。
-         * ⚠️ 追踪串带 `@lv`：等级一变（含挂机自动升级、离线补算）track-dock 会自动解除，
-         *    否则挂机会把框永远钉在一个其实早已建成的目标上。 */
+        /* 缺料时可追踪当前等级。等级变化后，track-dock 根据 @lv 解除这项追踪。 */
         var trackBtn = '';
         if (!ok && !blocked && !canalCap && !maxReached) {
           var _tkey = 'bld:' + b.id + '@' + lv;
-          /* ⚠️ 2026-11-18（玩家报「同时追踪两个时按键又不变色」）：`s.track` 是**多目标串**
-           * （`a|b|c`，见 track-dock.js 头注），`===` 只在「只追一个」时成立 ⇒ 追第二个的
-           * 瞬间两颗按钮同时回落到未选中态。判定一律走 track.isTracked（自带 `@lv` 前缀匹配），
-           * 与工坊升级项那颗（render-pane-workshop.js）同源，才不会三处各写一套。 */
+          /* s.track 可以同时记录多个目标。与工坊面板共用 isTracked 判断选中状态。 */
           var _ton = (SB.ui.track && SB.ui.track.isTracked) ? SB.ui.track.isTracked('bld', b.id, s)
             : (s.track === _tkey);
           trackBtn = '<button type="button" class="btn track-toggle' + (_ton ? ' on' : '') + '"' +
@@ -253,23 +209,17 @@
         var autoBtn = '';
         if (SB.habitat.autoZoneUnlocked(s, z.id)) {
           var _au = !!(s.autoUpg && s.autoUpg[b.id]);
-          /* 状态/动作一律走词库：这里先前按 locale 硬编码了 'On/Off'、'disable it'，
-           * 等于在渲染器里养了第二套英文文案，既绕开登记表也会和术语表漂移。 */
           var _autoStatus = tr(_au ? 'village.automation.status.enabled' : 'village.automation.status.disabled',
             null, _au ? '已启用' : '已停用');
           var _autoAction = tr(_au ? 'village.automation.action.disable' : 'village.automation.action.enable',
             null, _au ? '停用' : '启用');
-          /* 和升级按钮并排组成紧凑按钮组；保留独立的 data-auto 点击区。 */
           autoBtn = '<button type="button" class="btn tog auto-upgrade-toggle' + (_au ? ' on' : '') + '" data-auto="' + b.id + '"' +
             ' aria-pressed="' + (_au ? 'true' : 'false') + '"' +
             ' aria-label="' + htmlText(tr('village.building.auto_toggle.aria_label', { automationStatus: _autoStatus }, '自动建造 / 升级' + _autoStatus)) + '"' +
             ' title="' + htmlText(tr('village.building.auto_toggle.tooltip', { automationStatus: _autoStatus, toggleAction: _autoAction }, '自动建造 / 升级' + _autoStatus + '，点击' + (_au ? '停用' : '启用'))) + '">' +
             htmlText(tr('ui.settings.automation.title', null, '自动')) + '</button>';
         }
-        /* 热泉炉「开几座」（2026-09-30 用户：「这行应该是选择开几个」）：建成（lv>0）后才出现。
-         * 炉子是「金属+暖石 → 精铁」的持续消耗口，玩家按原料供给决定开几座。
-         * 运行座数 = lv − 停用数（s.furnaceStop），结算在 economy.ironFlow。
-         * ± 按钮走 document 级委托，所以 pane 每 2 秒重画也不会丢点击。 */
+        /* 热泉炉的运行座数决定精铁产量及金属、暖石消耗。 */
         var furnBtn = '';
         if (b.id === 'furnace' && lv > 0) {
           var _frun = Math.max(0, lv - Math.max(0, s.furnaceStop || 0));
@@ -279,16 +229,11 @@
             '<b class="fnum">' + htmlText(tr('village.building.active_level_count', { activeCount: _frun, totalLevels: lv })) + '</b>' +
             '<button class="fbtn" data-furnace-inc="1" title="' + htmlText(tr('village.active_units.increase_one')) + '"' +
             (_frun >= lv ? ' disabled' : '') + '>＋</button>' +
-            /* 金属 + 暖石 两样都标（2026-10-17）：原来只标暖石，玩家会以为炉子只烧石头。 */
             SB.ui.drawTag(s, 'furnace') +
             '</span>';
         }
-        /* 砂矿坑「开几座」：矿坑本身是可停用建筑，按 furnaceStop 一类的停用数量控制。
-         * 运行矿坑数同时决定矿脉产出加成；装有自动化钻探时，还决定钛/铀加成与热液能需求。 */
+        /* 运行矿坑数决定矿脉加成，自动化钻探还按运行数计算耗能和钛、铀加成。 */
         var siltpitBtn = '';
-        /* 2026-10-26 修复：开关是《自动化钻探》(upg_autodrill) 的效果（config-content.js:560
-         *   「在巢穴面板启停砂矿坑」），未研究时不该出现——否则前期玩家停了矿坑只有亏
-         *   （基础矿脉加成零成本纯正收益），与热泉炉「建出来就有」的口径不同。 */
         if (b.id === 'siltpit' && lv > 0 && s.upgrades && s.upgrades.upg_autodrill) {
           var _spstop = Math.max(0, Math.min(lv, Math.floor(s.siltpitStop || 0)));
           var _sprun = lv - _spstop;
@@ -328,8 +273,6 @@
         }
         /* 工坊「开几座」：基础工艺效率、工业机器人加成与耗流都按运行的工坊数量计算。 */
         var workshopBtn = '';
-        /* 2026-10-26 修复：开关是《工业机器人》(upg_indrobot) 的效果（config-content.js:591
-         *   「在巢穴面板启停工坊」），未研究时不渲染——理由同砂矿坑（停用前零成本纯亏）。 */
         if (b.id === 'workshop' && lv > 0 && s.upgrades && s.upgrades.upg_indrobot) {
           var _wsstop = Math.max(0, Math.min(lv, Math.floor(s.workshopStop || 0)));
           var _wsrun = lv - _wsstop;
@@ -348,10 +291,7 @@
             (_wsrun >= lv ? ' disabled' : '') + '>＋</button>' + _wsExtra +
             '</span>';
         }
-        /* 热液汽轮机「开几座」（2026-10-07，与热泉炉 furnaceStop 同口径）：建成（lv>0）后才出现。
-         * 汽轮机每台恒烧暖石 5/s、产热液能流 1/s；玩家要省暖石（或没工坊/钻机吃流）时按下几座。
-         * 运行座数 = lv − 停用数（s.turbineStop），结算在 economy.hydroAlloc（供给）/ steelFlow（暖石扣费）。
-         * 复用 .furnctl 样式（−/＋/数字，绿=运转中），± 走 document 级委托防丢点击。 */
+        /* 运行汽轮机为 hydroAlloc 供能，steelFlow 据此扣减暖石。 */
         var turbBtn = '';
         if (b.id === 'hydroturbine' && lv > 0) {
           var _trun = Math.max(0, lv - Math.max(0, s.turbineStop || 0));
@@ -361,13 +301,10 @@
             '<b class="fnum">' + htmlText(tr('village.building.active_level_count', { activeCount: _trun, totalLevels: lv })) + '</b>' +
             '<button class="fbtn" data-turbine-inc="1" title="' + htmlText(tr('village.active_units.increase_one')) + '"' +
             (_trun >= lv ? ' disabled' : '') + '>＋</button>' +
-            /* 汽轮机只烧暖石，走同一条 drawTag（口径统一：以后它若多吃一样不用再改这里）。 */
             SB.ui.drawTag(s, 'hydroturbine') +
             '</span>';
         }
-        /* 热液工坊「开几座」（2026-10-07，与汽轮机 turbineStop / 热泉炉 furnaceStop 同口径）：建成（lv>0）后才出现。
-         * 工坊吃热液能流产钢；玩家要「把流让给天穹钻机」或不想产钢时按下几座。
-         * 运行座数 = lv − 停用数（s.hydroshopStop），结算在 economy.hydroAlloc（shopL）。复用 .furnctl 样式。 */
+        /* 停止热液工坊会释放分配给它的热液能流。 */
         var shopBtn = '';
         if (b.id === 'hydroshop' && lv > 0) {
           var _srun = Math.max(0, lv - Math.max(0, s.hydroshopStop || 0));
@@ -377,13 +314,10 @@
             '<b class="fnum">' + htmlText(tr('village.building.active_level_count', { activeCount: _srun, totalLevels: lv })) + '</b>' +
             '<button class="fbtn" data-shop-inc="1" title="' + htmlText(tr('village.active_units.increase_one')) + '"' +
             (_srun >= lv ? ' disabled' : '') + '>＋</button>' +
-            /* 工坊原先一个消耗都没标（用户 2026-10-17 截图指出）：它吃 热液能 + 金属 两样。 */
             SB.ui.drawTag(s, 'hydroshop') +
             '</span>';
         }
-        /* 轨道卫星「开几座」（2026-10-17 · spec §5，与 furnaceStop 同口径）：建成（lv>0）后才出现。
-         * 卫星每级 +5/s 星空探索、运转耗 1 热液能/秒（与空间站同口径，停产停耗与星空贡献）；玩家要省星空推进时按下几颗。
-         * 运行座数 = lv − 停用数（s.satelliteStop），结算在 economy.starRate。复用 .furnctl 样式。 */
+        /* 卫星和空间站的运行数同时影响星空产出与热液能消耗。 */
         var satBtn = '';
         if (b.id === 'satellite' && lv > 0) {
           var _satrun = Math.max(0, lv - Math.max(0, s.satelliteStop || 0));
@@ -393,15 +327,9 @@
             '<b class="fnum">' + htmlText(tr('village.building.active_level_count', { activeCount: _satrun, totalLevels: lv })) + '</b>' +
             '<button class="fbtn" data-satellite-inc="1" title="' + htmlText(tr('village.active_units.increase_one')) + '"' +
             (_satrun >= lv ? ' disabled' : '') + '>＋</button>' +
-            /* ERA7（2026-10-18 · 用户纠正补）：卫星每级耗 1 热液能/秒，与空间站同口径，
-             * 走 drawTag 显示总额（drawTag 读 BUILDING_CONSUME + consumeRates 同式）。 */
             SB.ui.drawTag(s, 'satellite') +
             '</span>';
         }
-        /* 空间站「开几座」（2026-10-17 · spec §5，与 satelliteStop 同口径）：建成（lv>0）后才出现。
-         * 空间站每级 +10/s 星空探索、耗 2 热液能/秒；玩家要省热液能（或不想推星空）时按下几座。
-         * 运行座数 = lv − 停用数（s.spacestationStop），结算在 economy.starRate（星空产出）+ hydroAlloc（热液耗）。
-         * 复用 .furnctl 样式，并标出它的热液能消耗（drawTag 走 consumeRates 同式）。 */
         var ssBtn = '';
         if (b.id === 'spacestation' && lv > 0) {
           var _ssrun = Math.max(0, lv - Math.max(0, s.spacestationStop || 0));
@@ -426,13 +354,7 @@
             (_blrun >= lv ? ' disabled' : '') + '>＋</button>' +
             SB.ui.drawTag(s, 'biomatlab') + '</span>';
         }
-        /* ERA10（2026-10-20 · 用户 ERA10 表「绝热材料」解锁1）：发射场制造模式切换。
-         * ERA10 市政（2026-10-20）：判据从写死 `europa_launch` 改成建筑上的 `launchpad` 标记
-         * ——泰拉/瑞亚两座新发射场自动获得同一个钮（三座共用一个 s.launchMode，
-         * 它们是同一套制造体系，分开切只会让玩家以为是两套规则）。
-         * 建成（lv>0）且完成《绝热材料》后才出钮（科技门与 economy-tick 2f 的 _nodeMode 同源）。
-         * 点它在「太阳帆 ⇄ 戴森球节点」间切（s.launchMode，state.js seed 默认 'sail'）。
-         * 复用 .furnctl 样式；按钮写当前制造品，并用 ⇄ 提示可切换。 */
+        /* 所有发射场共用 s.launchMode。研究绝热材料后可切换太阳帆和戴森球节点。 */
         var elBtn = '';
         var launchCtl = '';
         if (b.launchpad && lv > 0) {
@@ -479,8 +401,7 @@
           ? lv + '+' + SB.wonder.libBonus(s) : lv;
         /* ERA10 市政：带等级上限的建筑显示「当前/上限」，让玩家一眼看到还剩几级可建。 */
         if (b.maxLvl) lvValueTxt = lv + '/' + b.maxLvl;
-        /* tooltip 与可见标签是两种语义：`village.building.level.label` 是「等级 X」，
-         * 之前被同时拿去当 tooltip，接上词库后 tooltip 会从「建筑等级 X」掉成「等级 X」。 */
+        /* 等级标签和悬停提示各自使用对应的词条。 */
         var lvTitle = b.maxLvl ? tr('village.building.level.current_cap.label', null, '建筑等级（当前/上限）')
           : tr('village.building.level.tooltip', { levelText: lvValueTxt }, '建筑等级 ' + lvValueTxt);
         if (b.id === 'library' && SB.wonder && SB.wonder.libBonus(s) > 0 && !b.maxLvl) {
@@ -509,9 +430,7 @@
               }
             }
             if (_shortIsEnough) continue;
-            /* 差额是**活数值**（攒资源时每 tick 都在变）。文案走 renderCommon.shortfallItemText
-             * 这个唯一出口，再挂 data-live-short / data-live-need 让 paintLiveCost 原地改写；
-             * 不标记的话，只要有一行差额在动，整个巢穴页就每 2 秒整块重建（2026-11-16）。 */
+            /* shortfallItemText 和 paintLiveCost 共用差额标记，库存变化时只更新读数。 */
             var _sfFn = SB.ui && SB.ui.renderCommon && SB.ui.renderCommon.shortfallItemText;
             var _sfTxt = _sfFn ? _sfFn(s, _shortKey, c[_shortKey]) : '';
             var _sfItem = '<span class="bld-shortfall-item" data-live-short="' + _shortKey +
@@ -528,17 +447,12 @@
           }
           if (_shortfallItems.length) _shortfallHTML = '<div class="bld-shortfalls">' + _shortfallItems.join('') + '</div>';
         }
-        /* ERA10 市政（2026-10-20 · 虚境祭坛「每升一级按钮上就加一些血纹」）：
-         * 血纹是**纯 CSS 装饰**（不做结算、不进 save）：按等级给行加 `void-lv-N`，
-         * `60-star-map.css` 之外另开一块在 `40-atmosphere-theme.css`? 不——血纹放
-         * `50-module-polish.css` 的祭坛段，纯伪元素，不引图片、不影响点击热区。 */
+        /* void-lv-N 只控制祭坛的血纹装饰。 */
         if (b.id === 'void_altar') rowState += ' void-altar void-lv-' + lv;
         if (b.id === 'black_monolith') rowState += ' faith-monolith';
         var buildingIconHTML = buildingIconsShown && b.icon
           ? '<img class="building-icon" src="' + b.icon + '" alt="" aria-hidden="true" width="32" height="32">' : '';
         var launchProgressHTML = '';
-        /* 缺料徽标（2026-10-28）：只在 b.launchpad 分支里被赋值，其余建筑恒为空串。
-         * 声明在此处是因为它要拼进下面**名称行**的字符串里。 */
         var _lpLackHTML = '';
         if (b.launchpad && lv > 0) {
           var _lpNodeMode = SB.economy && SB.economy.launchNodeMode ? SB.economy.launchNodeMode(s) : false;
@@ -552,9 +466,7 @@
             tiplate: resourceName('tiplate', '钛合金板'),
             hydro: resourceName('hydro', '热液能')
           };
-          /* 2026-11-21 竣工自动停机（玩家反馈 A）：pct>=1 后三座发射场全停，
-           * 面板不能再按「N 级 × 每秒单耗」摆耗料（那笔料已经不扣了）。
-           * 判据只读 economy.dysonFull —— 与 tick 2f / rates / hydroAlloc / launchStatus 同源。 */
+          /* 戴森球竣工后发射场停止耗料。结算、耗流和面板共用 dysonFull 判定。 */
           var _lpStopped = (SB.economy && SB.economy.dysonFull) ? SB.economy.dysonFull(s) : false;
           var _lpCostRows = [
             { key: 'uranium', name: _lpNames.uranium, per: _lpCosts.uranium || 0 },
@@ -564,7 +476,6 @@
             { key: 'hydro', name: _lpNames.hydro, per: _lpHydroPer }
           ];
           var _lpCostShort = [], _lpCostFull = [];
-          /* 停机时不摆耗料清单：那笔料确实已经不扣了（与 tick 2f 跳过整段同源）。 */
           if (!_lpStopped) for (var _lpc = 0; _lpc < _lpCostRows.length; _lpc++) {
             var _lpCost = _lpCostRows[_lpc];
             if (_lpCost.per <= 0) continue;
@@ -576,26 +487,10 @@
             _lpCostShort.push(_lpRate);
             _lpCostFull.push(_lpRate);
           }
-          /* ── 缺料 / 断流状态徽标（2026-10-28）──────────────────────────
-           * 【为什么需要】三座发射场缺料时进度条就是不走，而「为什么」原本只写在
-           *   `.launch-consumption` 的 title 里 —— 手机端没有 hover，等于永远看不见。
-           *   与热泉炉那一批同一个病（JUDGMENTS 五点二十六），只是落点不同。
-           * 【判据不在这里算】全部来自 `economy.launchStatus`（与 rates 的 `_elRunR`、
-           *   tick 2f 的 && 链三处同源）。渲染层只负责把 lack 键翻成中文短名。
-           * 【正常时一个字符都不加】避免制造噪声。
-           * ⚠️ 徽标放在**操作列 .bld-ops**（flex），不是名称行 .bld-label ——
-           *   后者是 `grid-template-columns: minmax(0,1fr) 64px` 两列网格，塞第三个子元素
-           *   会占掉「第二行第一列」并被 1fr **拉成整条横幅**，同时把「制造太阳帆」按钮
-           *   挤到右列（实测截图就是这样，难看且会跳位）。操作列是 flex，按内容宽度排，
-           *   而且紧邻 −/＋ 与进度条，语义上更近。
-           * ⚠️ 也不要塞进 .launch-progress：那个在 >900px 是 `position:absolute; bottom:-14px`，
-           *   多一行会让它**向上**长高、压住本行文字。
-           * ⚠️ 必须在本段之前算好，因为下面的 title 要带着它一起拼。 */
+          /* 发射场缺料时，操作区显示 launchStatus 返回的原因，触屏玩家也能看到。 */
           var _lpLackName = '';
           var _lpSt = (SB.economy && SB.economy.launchStatus) ? SB.economy.launchStatus(s, b.id) : null;
           if (_lpStopped) {
-            /* 竣工停机徽标（2026-11-21）：优先于缺料徽标 —— 停机时 launchStatus 恒 null，
-             * 两者不可能同时成立；这里仍先判停机，防将来 launchStatus 语义变动后叠两条。 */
             _lpLackHTML = '<b class="lack-tag is-done" title="' + htmlText(tr('village.launch.auto_stop.tooltip', null, '戴森球已达标，三座发射场自动停机，不再消耗原料与热液能。')) + '">' +
               htmlText(tr('village.launch.auto_stop.badge', null, '已竣工 · 自动停机')) + '</b>';
           } else if (_lpSt && _lpSt.lack) {
@@ -603,8 +498,7 @@
               if (_lpCostRows[_lpl].key === _lpSt.lack) { _lpLackName = _lpCostRows[_lpl].name; break; }
             }
             if (_lpLackName) {
-              /* 发射场是**全有或全无**的门（够则满速、不够则整场停），所以恒为 is-stop；
-               * 不给「开工 N%」——那是比例型建筑（工坊/研究所）的说法，用在这里就是撒谎。 */
+              /* 任一必要原料不足时，整座发射场停机。 */
               _lpLackHTML = '<b class="lack-tag is-stop">' + htmlText(tr('village.launch.resource_shortage.badge', { resourceName: _lpLackName })) + '</b>';
             }
           }
@@ -612,7 +506,6 @@
             ? tr('village.launch.auto_stop.tooltip', null, '戴森球已达标，三座发射场自动停机，不再消耗原料与热液能。')
             : tr('village.launch.resource_demand.tooltip', { resourceCostList: _lpCostFull.join(' · ') });
           if (_lpLackName) _lpCostTitle += ' ' + tr('village.launch.resource_shortage.status', { missingResource: _lpLackName });
-          /* 停机时不再摆「N 级 × 每秒单耗」：那笔料确实不扣了，显示出来就是面板撒谎。 */
           var _lpCostHTML = _lpStopped ? ''
             : '<span class="launch-consumption" title="' + htmlText(_lpCostTitle) + '">' + htmlText(_lpCostShort.join(' · ')) + '</span>';
           var _lpTargetName = tr(_lpNodeMode ? 'village.launch.target.dyson_nodes.name' : 'village.launch.target.solar_sails.name');
@@ -621,12 +514,10 @@
             '<span class="launch-progress-label">' + htmlText(tr('village.launch.progress.label')) + '</span><div class="launch-progress-track"><i style="width:' + _lpPct + '%"></i></div>' +
             '<span class="launch-progress-value">' + _lpPct + '%</span>' + _lpCostHTML + '</div>';
         }
-        /* 角标必须包一层 wrapper：.bld-label 是「minmax(0,1fr) 64px」两列 grid，
-         * 直接塞第三个子元素会被 1fr 拉成整条横幅（本文件 :540-546 的既有病历）。 */
+        /* 角标另包一层，保持名称与等级的两列布局。 */
         var _coTagHTML = (SB.ui.renderCommon && SB.ui.renderCommon.challengeTag)
           ? SB.ui.renderCommon.challengeTag(s, b) : '';
-        /* 运行数量控制和建筑名/等级共用标题行，避免把控制器单独撑成一整行。
-         * 进度条/缺料状态仍留在 bld-ops；仅移动已有的 ± 控件，不更改事件委托。 */
+        /* 运行数量放在标题行，发射进度和缺料提示放在操作区。 */
         var _inlineRunControlsHTML = siltpitBtn + terraVatBtn + workshopBtn + furnBtn + turbBtn + shopBtn + satBtn + ssBtn + biomatlabBtn + launchCtl;
         var _bldOpsHTML = _lpLackHTML + launchProgressHTML;
         zRows += '<div class="row ' + rowState + '"><div class="bld-main' + (buildingIconHTML ? ' has-building-icon' : '') + '">' + buildingIconHTML +
@@ -647,10 +538,7 @@
         zShown++;
         totalShown++;
       }
-      /* 区标题按区着色（2026-09-30 晚）：--hc 交给 CSS 画左色条 + 同色文字，
-       * 与最外层 cardhd 同一套语言（见 ZONE_COLOR）。
-       * 2026-09-30 晚再补折叠：外包一层 .bzone，标题带 data-zfold（点击委托），
-       * 正文进 .bzbody；折叠态从 ZONE_FOLDED 重拼（pane 每 2 秒重画，落类会被冲掉）。 */
+      /* 区块重画时从持久化的折叠偏好恢复 folded。 */
       if (zShown > 0) {
         anyOwned = anyOwned || zoneOwned;
         anyReady = anyReady || zoneReady;
