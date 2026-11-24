@@ -32,8 +32,9 @@
   function isEnglishLocale() { return activeNonDefaultLocale() === 'en-US'; }
   function isLocalizedLocale() { return !!activeNonDefaultLocale(); }
   function hasLocaleKey(loc, key) {
+    var resolved = SB.i18n && SB.i18n.resolveKey ? SB.i18n.resolveKey(key) : key;
     var dict = loc && root.ShellbreakLocales && root.ShellbreakLocales[loc];
-    return !!(dict && typeof dict[key] === 'string');
+    return !!(dict && typeof dict[resolved] === 'string');
   }
   function hasActiveLocaleKey(key) { return hasLocaleKey(activeNonDefaultLocale(), key); }
   function tr(key, params, fallback) {
@@ -885,14 +886,16 @@
   }
 
   function bName(id) {
-    for (var i = 0; SB.BUILDINGS && i < SB.BUILDINGS.length; i++) {
-      if (SB.BUILDINGS[i].id === id) {
-        return SB.i18n && SB.i18n.buildingName
-          ? SB.i18n.buildingName(id, SB.BUILDINGS[i].name)
-          : localizedName('building.' + (id === 'rheamine' ? 'rhea_mine' : snakeCase(id)) + '.name', SB.BUILDINGS[i].name);
+    if (SB.BUILDINGS) {
+      for (var i = 0; i < SB.BUILDINGS.length; i++) {
+        if (SB.BUILDINGS[i].id === id) {
+          return SB.i18n && SB.i18n.buildingName
+            ? SB.i18n.buildingName(id, SB.BUILDINGS[i].name)
+            : localizedName('building.' + (id === 'rheamine' ? 'rhea_mine' : snakeCase(id)) + '.name', SB.BUILDINGS[i].name);
+        }
       }
     }
-    return '未知建筑';
+    return tr('tree.node.unknown_building', null, '未知建筑');
   }
   function upgradeName(id) {
     var upgrades = SB.UPGRADES || [];
@@ -901,26 +904,32 @@
       if (!hasActiveLocaleKey(key)) key = 'content.' + snakeCase(id) + '.name';
       return localizedName(key, upgrades[i].name);
     }
-    return '未知工坊升级';
+    return tr('tree.node.unknown_upgrade', null, '未知工坊升级');
   }
   function techName(id) {
     var item = byId(id);
-    return item ? localizedName('tech.' + id + '.name', item.name) : '未知科技';
+    return item ? localizedName('tech.' + id + '.name', item.name) : tr('tree.node.unknown_tech', null, '未知科技');
   }
   function civicName(id) {
     var civics = SB.CIVICS || [];
     for (var i = 0; i < civics.length; i++)
       if (civics[i].id === id) return localizedName('civic.data.' + id + '.name', civics[i].name);
-    return '未知市政';
+    return tr('tree.node.unknown_civic', null, '未知市政');
   }
   /* ERA10（2026-10-20）：政策卡 id → 中文名（`card` 条件用；与 civicName 同构）。
    * ⚠️ 别用 SB.civic.policyById —— 那是 civic 模块内部函数、不保证已加载；
    *   条件文案在渲染期调用，而 SB.POLICIES 是数据表、加载顺序更早，读它最稳。 */
   function policyName(id) {
     var ps = SB.POLICIES || [];
-    for (var i = 0; i < ps.length; i++)
-      if (ps[i].id === id) return localizedName('policy.card.' + id + '.name', ps[i].name);
-    return '未知政策卡';
+    var research = SB.ui && SB.ui.renderParts && SB.ui.renderParts.research;
+    for (var i = 0; i < ps.length; i++) {
+      if (ps[i].id === id) {
+        return research && typeof research.policyName === 'function'
+          ? research.policyName(ps[i])
+          : localizedName('policy.card.' + id + '.name', ps[i].name);
+      }
+    }
+    return tr('tree.node.unknown_policy', null, '未知政策卡');
   }
   /* `wonders` 条件的 id 列表 → 中文名列表。键是完整配置 id（wonder_xxx），
    * 面板不能把生 id 印给玩家（2026-10-07 截图里印成「shellcutter、presspipe」就是这病）。 */
@@ -1145,7 +1154,10 @@
   }
   function challengeOnlyReason(t) {
     var co = t && t.challengeOnly;
-    if (co === true || !co) return '仅限流浪泰拉挑战期间研究';
+    if (co === true || !co) {
+      var terra = challengeName('drift_terra', '流浪泰拉');
+      return tr('tech.challenge_only.blocked', { challengeNames: terra }, '仅限' + terra + '挑战期间研究');
+    }
     /* ⚠️ 字符串**必须先包成数组**（2026-11-02 e2e 当场抓到）：裸写 `co.length` 对
      *   'waterpollution' 得到 14，于是按**字符**逐个查挑战 ⇒ 文案渲染成
      *   「仅限w / a / t / e / r…挑战期间研究」。civics / habitat 两处同族函数
@@ -1154,9 +1166,10 @@
     var names = [];
     for (var i = 0; i < list.length; i++) {
       var c = (SB.challenges && SB.challenges.byId) ? SB.challenges.byId(list[i]) : null;
-      names.push(c ? c.name : list[i]);
+      names.push(challengeName(list[i], c ? c.name : list[i]));
     }
-    return '仅限' + names.join(' / ') + '挑战期间研究';
+    return tr('tech.challenge_only.blocked', { challengeNames: names.join(' / ') },
+      '仅限' + names.join(' / ') + '挑战期间研究');
   }
   function reqsMet(s, t) {
     if (!t.reqs) return true;
@@ -1449,8 +1462,13 @@
       }
       summary = out.join(isEnglishLocale() ? '; ' : '；') || tr('tech.effect.none', null, 'No direct effect.');
     }
-    if (includeUnlockDesc && t.unlockDesc && hasActiveLocaleKey('tech.' + t.id + '.unlock_desc')) {
-      var unlock = translatedTemplate('tech.' + t.id + '.unlock_desc', t.unlockDesc);
+    if (includeUnlockDesc && t.unlockDesc) {
+      var info = SB.ui && SB.ui.renderParts && SB.ui.renderParts.info;
+      var unlock = info && info.localizedTechUnlockDescription
+        ? info.localizedTechUnlockDescription(t)
+        : (hasActiveLocaleKey('tech.' + t.id + '.unlock_desc')
+          ? translatedTemplate('tech.' + t.id + '.unlock_desc', t.unlockDesc)
+          : '');
       if (unlock) summary += (isEnglishLocale() ? '; ' : '；') + unlock;
     }
     return summary || tr('tech.effect.no_direct_numeric_bonus', null, 'No direct numerical bonus.');

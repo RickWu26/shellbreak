@@ -217,7 +217,7 @@
         p.artifactCraftingEfficiencyBonusPercent = Math.round(policy.craftRatioRecipes[recipes[0]] * 100);
       }
     }
-    if (typeof policy.liveCompCivic === 'number' && s) p.populationCount = s.pop || 0;
+    if (typeof policy.liveCompCivic === 'number') p.populationCount = (s && s.pop) || 0;
     if (policy.serfKelpMul !== undefined || policy.serfWarmMul !== undefined) p.crossBuildingEffectBonusPercent = 1;
     if (policy.id === 'card_sovereign' && SB.BLD) p.faithOutputBonusPerCastleLevelPercent = Math.round((SB.BLD.castleFaithRatio || 0) * 100);
     if (policy.id === 'card_serfdom' && SB.BLD) p.crossBuildingEffectBonusPercent = Math.round((SB.BLD.serfCrossRatio || 0) * 100);
@@ -235,9 +235,9 @@
       if (guildCard && typeof guildCard.craftRatio === 'number')
         p.replacedCraftingEfficiencyBonusPercent = Math.round(guildCard.craftRatio * 100);
     }
-    if (policy.id === 'card_live_comp' && s) {
-      p.populationCount = s.pop || 0;
-      p.stadiumLevel = s.lvl && s.lvl.stadium || 0;
+    if (policy.id === 'card_live_comp') {
+      p.populationCount = (s && s.pop) || 0;
+      p.stadiumLevel = (s && s.lvl && s.lvl.stadium) || 0;
     }
     if (policy.id === 'card_no_god_here' && typeof policy.universityMul === 'number')
       p.researchInstituteResearchMultiplier = policy.universityMul;
@@ -418,7 +418,7 @@
   var ERA_LOCALE_SLUGS = {
     1: 'undercurrent', 2: 'coldfire', 3: 'sulfur_vent', 4: 'ocean_current',
     5: 'shellbreak', 6: 'emergence', 7: 'stars', 8: 'exploration',
-    9: 'seeking_light', 10: 'starforging'
+    9: 'seeking_light', 10: 'starforging', 11: 'alpha'
   };
   function techName(technology) {
     return tr('tech.' + technology.id + '.name', null, technology.name);
@@ -443,7 +443,7 @@
         };
       }
     }
-    return { id: n, name: n + ' 纪元', motto: '', color: '#6FE3D2', desc: '' };
+    return { id: n, name: tr('research.era.name.fallback', { eraId: n }, n + ' 纪元'), motto: '', color: '#6FE3D2', desc: '' };
   }
   /* ── 自动研究拨动开关（2026-11-01 用户：「把按钮改到科技、市政界面，做成拨动开关」）
    * 开关从「轮回商店 → 天赋树节点下方」搬到**用得着它的那一页**：玩家决定要不要开自动

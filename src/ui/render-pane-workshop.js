@@ -146,18 +146,24 @@
     for (i = 0; i < U.length; i++) K.push('u:' + U[i].id);
     return K;
   }
-  /* 总数与两段列表共用同一揭示门：已拥有内容始终计入；未拥有且 blocked 以「需要先」开头时隐藏。 */
-  function itemRevealed(owned, why) { return !!owned || !(why && /^需要先/.test(why)); }
+  /* 总数与两段列表共用同一揭示门：已拥有内容始终计入；未拥有且存在前置/工坊门槛时隐藏。 */
+  function itemRevealed(owned, why, kind, item, s) {
+    if (owned) return true;
+    var W = SB.workshop;
+    if (kind === 'tool' && W && W.toolHasPrereqBlock && W.toolHasPrereqBlock(s, item)) return false;
+    if (kind === 'upgrade' && W && W.upgradeHasPrereqBlock && W.upgradeHasPrereqBlock(s, item)) return false;
+    return !(why && /^需要先/.test(why));
+  }
   function revealedItemCount(s) {
     var W = SB.workshop, n = 0, i;
     for (i = 0; i < SB.TOOLS.length; i++) {
       var t = SB.TOOLS[i], ownedTool = !!(s.tools && s.tools[t.id]);
-      if (itemRevealed(ownedTool, ownedTool ? null : W.blocked(s, t.id))) n++;
+      if (itemRevealed(ownedTool, ownedTool ? null : W.blocked(s, t.id), 'tool', t, s)) n++;
     }
     var U = W ? W.upgrades() : [];
     for (i = 0; i < U.length; i++) {
       var u = U[i], ownedUpgrade = !!(s.upgrades && s.upgrades[u.id]);
-      if (itemRevealed(ownedUpgrade, ownedUpgrade ? null : W.upgradeBlocked(s, u.id))) n++;
+      if (itemRevealed(ownedUpgrade, ownedUpgrade ? null : W.upgradeBlocked(s, u.id), 'upgrade', u, s)) n++;
     }
     return n;
   }
@@ -174,10 +180,16 @@
   function upgradeTabMeta(s) {
     var done = doneCount(s);
     var total = revealedItemCount(s);
+    var curTab = (SB.game && SB.game.getTab) ? SB.game.getTab() : '';
+    var inUpgrades = (workshopView === 'upgrades') || (curTab === 'workshop-upgrades');
+    var unseen = unseenCount();
     return {
+      done: done,
+      total: total,
+      unseen: unseen,
       cnt: tr('ui.workshop.tab.upgrade_progress', { completedCount: done, revealedCount: total }, '已完成 ' + done + ' / 已揭晓 ' + total),
-      fresh: unseenCount() > 0 && workshopView !== 'upgrades',
-      avail: !!(SB.workshop && SB.workshop.hasPurchasable && SB.workshop.hasPurchasable(s)) && workshopView !== 'upgrades'
+      fresh: unseen > 0 && !inUpgrades,
+      avail: !!(SB.workshop && SB.workshop.hasPurchasable && SB.workshop.hasPurchasable(s)) && !inUpgrades
     };
   }
 
@@ -190,10 +202,9 @@
    *    · 每件只服务它指定那条职业线 —— 文案要写成「珊瑚匠凿珊瑚 +80%」这种，
    *      不能写成「全采集 +80%」（写宽了玩家会拿镰刀去量矿工）；
    *    · 叠加是**乘算** —— 三件齐了是 1.8×1.8×1.8 ≈ 5.83 倍，不是 +240%。 */
-  /* ⚠️ 工坊面板是**上下两块**（用户 2026-09-27 拍「照着猫国那种感觉来」），
-   * 对应猫国 `js/jsx/left.jsx.js:494-505` 的那两块：
-   *   「升级项」页签 = 买断一次就完事（职业工具 + 工坊升级）
-   *   下半「工艺制作」 = 可以反复制造（石梁）
+  /* ⚠️ 工坊面板已拆为两个一级页签：
+   *   「工坊制造」（workshop）：工艺制作（可反复制造 + 自动制作槽）
+   *   「工坊升级」（workshop-upgrades）：买断项（职业工具 + 工坊升级）
    * 顶部那一栏「工艺制作效率」是**一个全局数字**，与配方行共用同一条 craftMul 乘区链
    * （含 boomcraft / 王座 / 激光 / 工业机器人 / 我们的海 等乘区，见 workshop.craftMul），
    * 与「结算同式、面板===结算」纪律一致；仅不含配方专属加成（火箭引擎 / 物流卡定向），
@@ -201,13 +212,19 @@
   var craftOnlyReady = false;
   function toggleCraftOnlyReady() { craftOnlyReady = !craftOnlyReady; return craftOnlyReady; }
 
-  function paneWorkshop() {
+  function workshopOverview(s, sideHtml) {
+    return '<div class="workshop-overview"><div class="workshop-efficiency">' +
+      '<span class="workshop-mark" aria-hidden="true">⚒</span><div><small>' + tr('ui.workshop.crafting.eyebrow', null, 'CRAFT · 工坊') + '</small>' +
+      '<strong>' + tr('ui.workshop.crafting.efficiency_label', null, '工艺制作效率') + ' <b>+' + (((SB.workshop.craftMul(s, {id:'__global__'}) || 1) - 1) * 100).toFixed(0) + '%</b></strong></div>' +
+      (sideHtml ? '<div class="workshop-done-toggle">' + sideHtml + '</div>' : '') + '</div></div>';
+  }
+
+  function paneWorkshopCraft() {
     var s = SB.game.run();
     if (!s || !s.lvl || !(s.lvl.workshop > 0)) return paneWorkshopLocked();
-    var tm = upgradeTabMeta(s);
     var ret = (SB.ui.track && SB.ui.track.getReturnTarget) ? SB.ui.track.getReturnTarget() : null;
     var retBar = '';
-    if (ret && workshopView === 'making') {
+    if (ret) {
       var retText = ret.label
         ? tr('ui.workshop.craft.return_to_named', { target: ret.label }, '← 返回「' + ret.label + '」')
         : tr('ui.workshop.craft.return_to_prev', null, '← 返回刚才的建筑');
@@ -216,37 +233,32 @@
         '<button type="button" class="craft-return-dismiss" data-craft-return-dismiss="1" aria-label="' + escAttr(tr('ui.action.close', null, '关闭')) + '">×</button>' +
         '</div>';
     }
-    var tabs = '<div class="panel-subtabs workshop-subtabs" role="group" aria-label="' + tr('ui.workshop.subtabs.aria_label', null, '工坊分区') + '">' +
-      '<button type="button" class="subtab' + (workshopView === 'making' ? ' on' : '') +
-      '" data-workshop-view="making" aria-pressed="' + (workshopView === 'making') + '">' + tr('ui.workshop.tab.crafting', null, '制造') + '</button>' +
-      '<button type="button" class="subtab' + (workshopView === 'upgrades' ? ' on' : '') + (tm.avail ? ' avail' : '') +
-      '" data-workshop-view="upgrades" aria-pressed="' + (workshopView === 'upgrades') + '">' + tr('ui.workshop.tab.upgrades', null, '升级项') +
-      '<span class="subcnt">' + tm.cnt + '</span>' +
-      (tm.fresh ? '<span class="subnew" title="' + tr('ui.workshop.tab.upgrades.new_tooltip', null, '有升级项你还没看过') + '">NEW</span>' : '') +
-      '</button></div>';
-    /* 已完成数走 doneCount(s) 现算；控件仍使用原 data-hidedone 委托，不改变刷新行为。 */
-    var overview = '<div class="workshop-overview"><div class="workshop-efficiency">' +
-      '<span class="workshop-mark" aria-hidden="true">⚒</span><div><small>' + tr('ui.workshop.crafting.eyebrow', null, 'CRAFT · 工坊') + '</small>' +
-      '<strong>' + tr('ui.workshop.crafting.efficiency_label', null, '工艺制作效率') + ' <b>+' + (((SB.workshop.craftMul(s, {id:'__global__'}) || 1) - 1) * 100).toFixed(0) + '%</b></strong></div>' +
-      '<div class="workshop-done-toggle">' + hideDoneBtn(s) + '</div></div></div>';
-    if (workshopView === 'upgrades') {
-      return overview + tabs + '<section class="workshop-section"><header class="workshop-section-title"><b>' + tr('ui.workshop.tools.section_title', null, '职业工具') + '</b>' +
-        '<small>' + tr('ui.workshop.tools.section_note', null, '买断后持续生效；每件工具只作用于对应职业。') + '</small></header><div class="workshop-grid">' + paneToolRows(s) + '</div></section>' +
-        '<section class="workshop-section"><header class="workshop-section-title"><b>' + tr('ui.workshop.upgrades.section_title', null, '工坊升级') + '</b>' +
-        '<small>' + tr('ui.workshop.upgrades.section_note', null, '一次装填，永久生效。') + '</small></header><div class="workshop-grid">' + paneUpgradeRows(s) + '</div></section>' +
-        (hideDone() ? '<div class="note">' + tr('ui.workshop.hide_completed.upgrades_note', null, '已完成项目当前被隐藏。点上方「显示已完成」可显示其余项目。') + '</div>' : '') +
-        '<div class="note">' + tr('ui.workshop.upgrades.management_note', null, '工具、职业加成与容量等升级都在这里统一管理；已买断/装填的效果会持续生效。') + '</div>';
-    }
-    return retBar + overview + tabs + '<section class="workshop-section"><header class="workshop-section-title">' +
+    var overview = workshopOverview(s, '');
+    return retBar + overview + '<section class="workshop-section"><header class="workshop-section-title">' +
       '<div class="workshop-section-head-copy"><b>' + tr('ui.workshop.crafting.section_title', null, '工艺制作') + '</b>' +
       '<small>' + tr('ui.workshop.crafting.section_note', null, '查看每次投入、当前产出与批量选项。') + '</small></div>' +
       '<button type="button" class="pane-pill' + (craftOnlyReady ? ' on' : '') + '" data-craft-only-ready="1" aria-pressed="' + (craftOnlyReady ? 'true' : 'false') + '">' +
       tr('ui.workshop.crafting.only_ready', null, '只看可造') + '</button></header>' +
       autoSlotSummary(s) + '<div class="workshop-grid workshop-crafts">' + paneCraftRows(s) + '</div></section>' +
-      (hideDone() ? '<div class="note">' + tr('ui.workshop.hide_completed.crafting_note', {
-        completedCount: doneCount(s)
-      }, '已完成的项目当前被隐藏（' + doneCount(s) + ' 项）——点上方「显示已完成」把它们放回来。') + '</div>' : '') +
-      '<div class="note">' + tr('ui.workshop.crafting.context_note', null, '这里的配方可以反复制造，石梁是当前奇观的主要建材。工具与永久升级请切换到「升级项」。') + '</div>';
+      '<div class="note">' + tr('ui.workshop.crafting.context_note', null, '这里的配方可以反复制造，石梁是当前奇观的主要建材。工具与永久升级请前往「工坊升级」页签。') + '</div>';
+  }
+
+  function paneWorkshopUpgrades() {
+    var s = SB.game.run();
+    if (!s || !s.lvl || !(s.lvl.workshop > 0)) return paneWorkshopLocked();
+    var tm = upgradeTabMeta(s);
+    var side = '<span class="workshop-progress-pill">' + escAttr(tm.cnt) + '</span>' + hideDoneBtn(s);
+    var overview = workshopOverview(s, side);
+    return overview + '<section class="workshop-section"><header class="workshop-section-title"><b>' + tr('ui.workshop.tools.section_title', null, '职业工具') + '</b>' +
+      '<small>' + tr('ui.workshop.tools.section_note', null, '买断后持续生效；每件工具只作用于对应职业。') + '</small></header><div class="workshop-grid">' + paneToolRows(s) + '</div></section>' +
+      '<section class="workshop-section"><header class="workshop-section-title"><b>' + tr('ui.workshop.upgrades.section_title', null, '工坊升级') + '</b>' +
+      '<small>' + tr('ui.workshop.upgrades.section_note', null, '一次装填，永久生效。') + '</small></header><div class="workshop-grid">' + paneUpgradeRows(s) + '</div></section>' +
+      (hideDone() ? '<div class="note">' + tr('ui.workshop.hide_completed.upgrades_note', null, '已完成项目当前被隐藏。点上方「显示已完成」可显示其余项目。') + '</div>' : '') +
+      '<div class="note">' + tr('ui.workshop.upgrades.management_note', null, '工具、职业加成与容量等升级都在这里统一管理；已买断/装填的效果会持续生效。') + '</div>';
+  }
+
+  function paneWorkshop() {
+    return paneWorkshopCraft();
   }
 
   var workshopView = 'making';
@@ -282,7 +294,7 @@
        *   配方没有「已拥有」概念（是反复制造，不是买断）⇒ 不需要那条例外。
        *   ⚠️ 判据仍是 `craftBlocked` 返回值的 `/^需要先/` 前缀（门未开）vs
        *      「还缺…」（材料不足）—— 两者都在 `craftBlocked` 里，见 workshop.js。 */
-      if (why && /^需要先/.test(why)) continue;
+      if ((SB.workshop.craftHasPrereqBlock && SB.workshop.craftHasPrereqBlock(s, c)) || (why && /^需要先/.test(why))) continue;
       if (craftOnlyReady && why) continue;
       shown++;
       var mul = SB.workshop.craftMul(s, c);
@@ -461,7 +473,7 @@
        *   判据复用按钮文案已在用的 `/^需要先/` 前缀（未解锁 vs 买不起），不新立一套。
        *   例外：已买下的永远显示（否则玩家看不到自己买过什么）——
        *   ⚠️ 但 hideDone 开着时上面已经把「已买下」过滤掉了，这条例外在隐藏态不生效。 */
-      if (!itemRevealed(owned, why)) continue;
+      if (!itemRevealed(owned, why, 'tool', t, s)) continue;
       shown++;
       /* 按钮的文案要说清「现在是什么状态」，而不只是「买」——
        * 灰着还写「买」会让玩家以为点了会发生什么，实际什么都没发生。 */
@@ -509,7 +521,7 @@
       /* ⚠️ 2026-10-05：与工具同口径 —— ① hideDone 开着时跳过已装上的（先判开关）；
        *   ② 未解锁不显示，已装上的在显示态永远显示。 */
       if (hideDone() && on) continue;
-      if (!itemRevealed(on, why)) continue;
+      if (!itemRevealed(on, why, 'upgrade', u, s)) continue;
       shown++;
       /* 与工具同口径：灰着还写「装上」会让玩家以为点了会怎样，实际什么都没有。 */
       var cost = W.upgradeCost(s, u.id);
@@ -563,6 +575,9 @@
   }
 
   parts.paneWorkshop = paneWorkshop;
+  parts.paneWorkshopCraft = paneWorkshopCraft;
+  parts.paneWorkshopUpgrades = paneWorkshopUpgrades;
+  parts.upgradeTabMeta = upgradeTabMeta;
   parts.setWorkshopView = setWorkshopView;
   parts.toggleHideDone = toggleHideDone;
   parts.toggleCraftOnlyReady = toggleCraftOnlyReady;

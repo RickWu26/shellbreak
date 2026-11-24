@@ -16,7 +16,7 @@
    *   两者都是「文明认了什么」的轴（市政=制度，信仰=宗教），语义相邻。 */
   /* 2026-11-17 晚：「帷幕」（veil）是独立页签，不再是 meta 页里的入口卡 ——
    * 用户要求「点了就切换到帷幕页面，不是弹窗那种」。顺序与 index.html 的页签条一致。 */
-  var PANE_KEYS = ['village', 'folk', 'tech', 'civic', 'faith', 'diplomacy', 'workshop', 'wonder', 'star-map', 'company', 'meta', 'veil', 'challenges', 'achievements'];
+  var PANE_KEYS = ['village', 'workshop', 'folk', 'tech', 'civic', 'workshop-upgrades', 'star-map', 'wonder', 'diplomacy', 'faith', 'company', 'meta', 'veil', 'challenges', 'achievements'];
 
   function res() { return SB.game.run(); }
   function meta() { return SB.game.meta(); }
@@ -91,6 +91,7 @@
     civic:    { color: '#c4a2ff' },
     faith:    { color: '#e691b0' },
     workshop: { color: '#f0a45c' },
+    'workshop-upgrades': { color: '#f0a45c' },
     wonder:   { color: '#ffd166' },
     'star-map': { color: '#87a7ff' },
     challenges: { color: '#f0a45c' },
@@ -146,7 +147,8 @@
     var titleKeys = {
       res: 'ui.pane.resources.title', env: 'ui.pane.environment.title',
       folk: 'ui.pane.people.title', tech: 'ui.pane.research.title', civic: 'ui.pane.civics.title',
-      faith: 'ui.pane.faith.title', diplomacy: 'ui.pane.diplomacy.title', workshop: 'ui.workshop.title', wonder: 'ui.pane.wonders.title',
+      faith: 'ui.pane.faith.title', diplomacy: 'ui.pane.diplomacy.title', workshop: 'ui.tab.workshop_craft',
+      'workshop-upgrades': 'ui.tab.workshop_upgrades', wonder: 'ui.pane.wonders.title',
       'star-map': 'ui.pane.star_map.title', company: 'ui.pane.companies.title',
       challenges: 'ui.pane.challenges.title', achievements: 'ui.pane.achievements.title',
       meta: 'ui.pane.prestige_shop.title',
@@ -318,15 +320,17 @@
     labelWrap.appendChild(nameEl);
     detailsEl.appendChild(labelWrap);
 
-    var luxEl = null, luxOutEl = null, luxBurnEl = null;
+    var luxEl = null, luxOutPrefix = null, luxOutEl = null, luxBurnPrefix = null, luxBurnEl = null;
     if (k === 'luxury') {
       luxEl = d.createElement('i');
       luxEl.className = 'sd';
-      luxEl.appendChild(d.createTextNode('产 '));
+      luxOutPrefix = d.createTextNode(tr('ui.res.luxury.out_short', null, '产') + ' ');
+      luxEl.appendChild(luxOutPrefix);
       luxOutEl = d.createElement('span');
       luxOutEl.className = 'lux-out';
       luxEl.appendChild(luxOutEl);
-      luxEl.appendChild(d.createTextNode(' · 耗 '));
+      luxBurnPrefix = d.createTextNode(' · ' + tr('ui.res.luxury.burn_short', null, '耗') + ' ');
+      luxEl.appendChild(luxBurnPrefix);
       luxBurnEl = d.createElement('span');
       luxBurnEl.className = 'lux-burn';
       luxEl.appendChild(luxBurnEl);
@@ -353,11 +357,14 @@
 
     return {
       key: k, box: box, bEl: bEl, amtNode: amtNode, capEl: capEl,
-      detailsEl: detailsEl, nameEl: nameEl, luxEl: luxEl, luxOutEl: luxOutEl,
-      luxBurnEl: luxBurnEl, rateEl: rateEl, faithEl: faithEl, tipBtnEl: tipBtnEl,
+      detailsEl: detailsEl, nameEl: nameEl, luxEl: luxEl,
+      luxOutPrefix: luxOutPrefix, luxOutEl: luxOutEl,
+      luxBurnPrefix: luxBurnPrefix, luxBurnEl: luxBurnEl,
+      rateEl: rateEl, faithEl: faithEl, tipBtnEl: tipBtnEl,
       hasCap: false, hasRate: false, hasFaith: false, hasTip: false,
       lastCls: box.className, lastRaw: '', lastAmt: '', lastCap: '', lastCapCls: 'cap',
-      lastName: '', lastLuxOut: '', lastLuxBurn: '', lastLuxTip: '',
+      lastName: '', lastLuxOutPrefix: '', lastLuxBurnPrefix: '',
+      lastLuxOut: '', lastLuxBurn: '', lastLuxTip: '',
       lastRateTxt: '', lastRateCls: 'rate', lastFaithTxt: ''
     };
   }
@@ -435,6 +442,10 @@
             ? '按幸福 ' + LL.mechH.toFixed(2) + ' 计，已剔市政/奇观/卡的 ' + (LL.bonus > 0 ? '+' : '') + LL.bonus.toFixed(2)
             : '计价已到底线，已剔市政/奇观/卡的 ' + (LL.bonus > 0 ? '+' : '') + LL.bonus.toFixed(2));
         }
+        var outPfx = tr('ui.res.luxury.out_short', null, '产') + ' ';
+        var burnPfx = ' · ' + tr('ui.res.luxury.burn_short', null, '耗') + ' ';
+        if (cell.luxOutPrefix && cell.lastLuxOutPrefix !== outPfx) { setNodeText(cell.luxOutPrefix, outPfx); cell.lastLuxOutPrefix = outPfx; }
+        if (cell.luxBurnPrefix && cell.lastLuxBurnPrefix !== burnPfx) { setNodeText(cell.luxBurnPrefix, burnPfx); cell.lastLuxBurnPrefix = burnPfx; }
         var lo = LL.out.toFixed(2), lb = LL.burn.toFixed(2);
         if (cell.lastLuxOut !== lo) { setNodeText(cell.luxOutEl, lo); cell.lastLuxOut = lo; }
         if (cell.lastLuxBurn !== lb) { setNodeText(cell.luxBurnEl, lb); cell.lastLuxBurn = lb; }
@@ -475,7 +486,9 @@
           cell.hasFaith = showFaith;
         }
         if (showFaith) {
-          var fTxt = '全产+' + Math.round((fam - 1) * 100) + '%';
+          var fTxt = tr('ui.res.faith.all_prod_short', {
+            percent: Math.round((fam - 1) * 100)
+          }, '全产+' + Math.round((fam - 1) * 100) + '%');
           if (cell.lastFaithTxt !== fTxt) { setNodeText(cell.faithEl, fTxt); cell.lastFaithTxt = fTxt; }
         }
       }
@@ -574,12 +587,21 @@
     '王座': 'wonder.supreme_throne.name',
     '星炉献礼': 'faith.tenet.star_forge_offering.name',
     '政体': 'civic.government.heading',
-    '科技乘区': 'ui.economy.rate.source.technology_multiplier'
+    '科技乘区': 'ui.economy.rate.source.technology_multiplier',
+    '军契': 'ui.resource.detail.power.soldier_pact',
+    '克隆人的进攻': 'ui.resource.detail.power.clone_attack',
+    '已竣工停机': 'ui.economy.rate.source.launch_stopped'
   };
   function rdRateLabel(label) {
     if (!label) return '';
     var loc = SB.i18n && SB.i18n.getLocale ? SB.i18n.getLocale() : 'zh-CN';
     if (loc === 'zh-CN') return label;
+    var launchCycleMatch = String(label).match(/^(\d+)\s*级\s*÷\s*(\d+(?:\.\d+)?)s$/);
+    if (launchCycleMatch) {
+      return tr('ui.economy.rate.source.launch_cycle', {
+        levels: launchCycleMatch[1], seconds: launchCycleMatch[2]
+      }, label);
+    }
     if (!RES_DETAIL_RATE_LABEL_KEYS) RES_DETAIL_RATE_LABEL_KEYS = Object.create(null);
     var map = RES_DETAIL_RATE_LABEL_KEYS[loc];
     if (!map) {
@@ -1392,7 +1414,7 @@
   var metaShopView = 'rebirth';
   var PANES = { village: paneVillage, folk: paneFolk, tech: paneTech, civic: paneCivic,
     faith: SB.ui.renderParts.paneFaith, diplomacy: SB.ui.renderParts.paneWar,
-    workshop: SB.ui.renderParts.paneWorkshop, wonder: SB.ui.renderParts.paneWonder,
+    workshop: SB.ui.renderParts.paneWorkshop, 'workshop-upgrades': SB.ui.renderParts.paneWorkshopUpgrades, wonder: SB.ui.renderParts.paneWonder,
     'star-map': SB.ui.renderParts.paneStarMap, meta: paneMetaHub,
     challenges: SB.ui.renderParts.paneChallenges,
     /* 2026-10-24：成就独立页签。与 challenges 同一个渲染部件文件、同一道门
@@ -1692,13 +1714,205 @@
       /* 跨端约定：档位说明只在桌面 hover 可见 ⇒ 手机端补 ⓘ 点按等价物（文本同源，不复制第二份）。 */
       '<i class="hover-info-btn" title="' + exStepTip + '">ⓘ</i></div><div class="meta-shop-grid">' +
       '<article class="meta-perk-card"><div class="meta-perk-copy"><div class="nm">' + htmlText(tr('ui.stardust.exchange.prestige_to_stardust', exchangeParams, '{prestigePointsPerExchange} 轮回点 → {stardustPerExchange} 星屑')) + '</div><div class="ds">' + htmlText(tr('ui.stardust.exchange.prestige_to_stardust.description', exchangeParams, '消耗 {prestigePointsPerExchange} 轮回点，兑换 {stardustPerExchange} 星屑。')) + '</div>' +
-        '<div class="ds exchange-batch">' + exBatchT2S + '</div></div><button class="btn buy meta-buy" data-star-exchange="tide-to-stardust"' + (nT2S < 1 ? ' disabled title="' + exInsufficient + '"' : '') + '>' + exButtonText(nT2S) + '</button></article>' +
+        '<div class="ds exchange-batch">' + exBatchT2S + '</div></div><button class="btn buy meta-buy" data-star-exchange="tide-to-stardust" aria-haspopup="dialog"' + (nT2S < 1 ? ' disabled title="' + exInsufficient + '"' : '') + '>' + exButtonText(nT2S) + '</button></article>' +
       '<article class="meta-perk-card"><div class="meta-perk-copy"><div class="nm">' + htmlText(tr('ui.stardust.exchange.stardust_to_prestige', exchangeParams, '{stardustPerExchange} 星屑 → {prestigePointsPerExchange} 轮回点')) + '</div><div class="ds">' + htmlText(tr('ui.stardust.exchange.stardust_to_prestige.description', exchangeParams, '消耗 {stardustPerExchange} 星屑，兑换 {prestigePointsPerExchange} 轮回点。')) + '</div>' +
-        '<div class="ds exchange-batch">' + exBatchS2T + '</div></div><button class="btn buy meta-buy" data-star-exchange="stardust-to-tide"' + (nS2T < 1 ? ' disabled title="' + exInsufficient + '"' : '') + '>' + exButtonText(nS2T) + '</button></article>' +
+        '<div class="ds exchange-batch">' + exBatchS2T + '</div></div><button class="btn buy meta-buy" data-star-exchange="stardust-to-tide" aria-haspopup="dialog"' + (nS2T < 1 ? ' disabled title="' + exInsufficient + '"' : '') + '>' + exButtonText(nS2T) + '</button></article>' +
       '</div></section>' +
       '<div class="note meta-shop-note">' + htmlText(tr('ui.render.star_perk_name.stardust_is_granted_at_eligible_prestige_settlem', null, '星屑由合格轮回结算发放。强化与兑换后的余额均跨周目保留。')) + '</div>' +
       '</div>';
     return h;
+  }
+
+  function fmtExchangeNum(val) {
+    var n = Math.round((Number(val) || 0) * 100) / 100;
+    return String(n);
+  }
+
+  function openStarExchangeModal(direction) {
+    if (direction !== 'tide-to-stardust' && direction !== 'stardust-to-tide') return false;
+    if (!SB.prestige || !SB.prestige.exchangeRate || !SB.prestige.exchangeMaxCount) return false;
+    var m = meta();
+    var exRate = SB.prestige.exchangeRate();
+    var maxN = SB.prestige.exchangeMaxCount(m, direction);
+    if (!(maxN > 0)) {
+      if (SB.game && SB.game.log) SB.game.log(tr('ui.stardust.exchange.batch.insufficient', null, '余额不足，无法兑换'));
+      return false;
+    }
+    var box = el('modalBox'), modal = el('modal');
+    if (!box || !modal) return false;
+    var isT2S = direction === 'tide-to-stardust';
+    var initN = Math.max(1, Math.min(exchangeStep(), maxN));
+    var titleText = isT2S
+      ? tr('ui.star_exchange.modal.title_t2s', null, '轮回点 → 星屑 兑换')
+      : tr('ui.star_exchange.modal.title_s2t', null, '星屑 → 轮回点 兑换');
+    var rateText = tr('ui.star_exchange.modal.rate', {
+      prestigePointsPerExchange: exRate.tide,
+      stardustPerExchange: exRate.sd
+    }, '固定汇率：{prestigePointsPerExchange} 轮回点 = {stardustPerExchange} 星屑 · 无手续费');
+    var curTide = Number(m && m.tide) || 0;
+    var curSd = Number(m && m.stardust) || 0;
+    var tideUnit = tr('ui.star_exchange.modal.unit_tide', null, '轮回点');
+    var sdUnit = tr('content.stardust.name', null, '星屑');
+    var batchUnit = tr('ui.star_exchange.modal.unit_batches', null, '笔');
+
+    resetModalChrome();
+    if (modal.classList) modal.classList.add('exchange-modal');
+    if (box.classList) box.classList.add('modal-exchange');
+    if (box.setAttribute) {
+      box.setAttribute('role', 'dialog');
+      box.setAttribute('aria-modal', 'true');
+      box.setAttribute('aria-labelledby', 'starExchangeTitle');
+    }
+
+    box.innerHTML =
+      '<div class="modal-hd star-exchange-head">' +
+        '<div class="star-exchange-title-wrap">' +
+          '<b id="starExchangeTitle">' + htmlText(titleText) + '</b>' +
+          '<span class="star-exchange-rate">' + htmlText(rateText) + '</span>' +
+        '</div>' +
+        '<button type="button" class="modal-x" data-modal-close="1" aria-label="' + htmlText(tr('ui.action.close', null, '关闭')) + '">×</button>' +
+      '</div>' +
+      '<div class="star-exchange-balances">' +
+        '<div class="star-exchange-bal"><span>' + htmlText(tr('ui.star_exchange.modal.balance_tide', null, '当前轮回点')) + '</span><b>' + htmlText(fmtExchangeNum(curTide)) + '</b></div>' +
+        '<div class="star-exchange-bal"><span>' + htmlText(tr('ui.star_exchange.modal.balance_sd', null, '当前星屑')) + '</span><b>' + htmlText(fmtExchangeNum(curSd)) + '</b></div>' +
+        '<div class="star-exchange-bal"><span>' + htmlText(tr('ui.star_exchange.modal.max_available', null, '最多可兑')) + '</span><b>' + htmlText(String(maxN) + ' ' + batchUnit) + '</b></div>' +
+      '</div>' +
+      '<div class="star-exchange-controls">' +
+        '<div class="star-exchange-range-row">' +
+          '<input type="range" id="starExchangeRange" class="star-exchange-slider" min="1" max="' + maxN + '" step="1" value="' + initN + '" aria-label="' + htmlText(tr('ui.star_exchange.modal.slider_label', null, '兑换数量滑动条')) + '">' +
+          '<div class="star-exchange-num-wrap">' +
+            '<input type="number" id="starExchangeNum" class="star-exchange-num" min="1" max="' + maxN + '" step="1" inputmode="numeric" value="' + initN + '" aria-label="' + htmlText(tr('ui.star_exchange.modal.input_label', null, '兑换笔数')) + '">' +
+            '<span class="star-exchange-unit">' + htmlText(batchUnit) + '</span>' +
+          '</div>' +
+        '</div>' +
+        '<div class="star-exchange-presets" id="starExchangePresets">' +
+          '<button type="button" class="pane-pill" data-exchange-preset="1">×1</button>' +
+          '<button type="button" class="pane-pill" data-exchange-preset="25">25%</button>' +
+          '<button type="button" class="pane-pill" data-exchange-preset="50">50%</button>' +
+          '<button type="button" class="pane-pill" data-exchange-preset="max">' + htmlText(tr('ui.stardust.exchange.batch.step_all', null, '全部')) + '</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="star-exchange-preview" id="starExchangePreview"></div>' +
+      '<div class="foot star-exchange-actions">' +
+        '<button type="button" class="btn" id="starExchangeCancel" data-modal-close="1">' + htmlText(tr('save.action.cancel', null, '取消')) + '</button>' +
+        '<button type="button" class="btn buy" id="starExchangeConfirm">' + htmlText(tr('ui.star_exchange.modal.confirm', null, '确认兑换')) + '</button>' +
+      '</div>';
+
+    var rangeEl = el('starExchangeRange');
+    var numEl = el('starExchangeNum');
+    var previewEl = el('starExchangePreview');
+    var presetsEl = el('starExchangePresets');
+    var confirmEl = el('starExchangeConfirm');
+    var cancelEl = el('starExchangeCancel');
+    var currentN = initN;
+
+    function clampBatch(v) {
+      var n = Math.floor(Number(v));
+      if (!isFinite(n) || n < 1) return 1;
+      if (n > maxN) return maxN;
+      return n;
+    }
+
+    function presetVal(kind) {
+      if (kind === '1') return 1;
+      if (kind === '25') return Math.max(1, Math.min(maxN, Math.floor(maxN * 0.25)));
+      if (kind === '50') return Math.max(1, Math.min(maxN, Math.floor(maxN * 0.5)));
+      return maxN;
+    }
+
+    function renderPreview(clamped) {
+      var costAmt = clamped * (isT2S ? exRate.tide : exRate.sd);
+      var gainAmt = clamped * (isT2S ? exRate.sd : exRate.tide);
+      var afterTide = isT2S ? (curTide - costAmt) : (curTide + gainAmt);
+      var afterSd = isT2S ? (curSd + gainAmt) : (curSd - costAmt);
+      var line1 = isT2S
+        ? tr('ui.star_exchange.modal.preview_t2s', {
+            batchCount: clamped, tideCost: costAmt, stardustGain: gainAmt
+          }, '共 {batchCount} 笔：消耗 {tideCost} 轮回点 → 获得 {stardustGain} 星屑')
+        : tr('ui.star_exchange.modal.preview_s2t', {
+            batchCount: clamped, stardustCost: costAmt, tideGain: gainAmt
+          }, '共 {batchCount} 笔：消耗 {stardustCost} 星屑 → 获得 {tideGain} 轮回点');
+      var line2 = tr('ui.star_exchange.modal.after_balance', {
+        afterTide: fmtExchangeNum(afterTide),
+        afterStardust: fmtExchangeNum(afterSd)
+      }, '兑换后余额：轮回点 {afterTide} · 星屑 {afterStardust}');
+      if (previewEl) {
+        previewEl.innerHTML = '<strong>' + htmlText(line1) + '</strong><span>' + htmlText(line2) + '</span>';
+      }
+      if (presetsEl && presetsEl.querySelectorAll) {
+        var btns = presetsEl.querySelectorAll('[data-exchange-preset]');
+        for (var pi = 0; pi < btns.length; pi++) {
+          var pkind = btns[pi].getAttribute('data-exchange-preset');
+          var matched = presetVal(pkind) === clamped;
+          if (btns[pi].classList) btns[pi].classList.toggle('on', matched);
+          if (btns[pi].setAttribute) btns[pi].setAttribute('aria-pressed', matched ? 'true' : 'false');
+        }
+      }
+    }
+
+    function paintExchangePreview(n) {
+      currentN = clampBatch(n);
+      if (rangeEl && String(rangeEl.value) !== String(currentN)) rangeEl.value = String(currentN);
+      if (numEl && String(numEl.value) !== String(currentN)) numEl.value = String(currentN);
+      renderPreview(currentN);
+    }
+
+    paintExchangePreview(initN);
+
+    function confirmExchange() {
+      var liveMeta = meta();
+      var liveMax = SB.prestige.exchangeMaxCount(liveMeta, direction);
+      var wanted = Math.max(1, Math.min(liveMax, clampBatch(numEl && numEl.value ? numEl.value : currentN)));
+      var exchanged = (liveMax > 0)
+        ? (isT2S ? SB.prestige.exchangeTideForStardust(wanted) : SB.prestige.exchangeStardustForTide(wanted))
+        : 0;
+      hideModal();
+      if (exchanged > 0) {
+        if (SB.game && SB.game.log) {
+          var spentAmt = exchanged * (isT2S ? exRate.tide : exRate.sd);
+          var earnedAmt = exchanged * (isT2S ? exRate.sd : exRate.tide);
+          SB.game.log(tr('ui.star_exchange.modal.log_success', {
+            spentAmount: spentAmt,
+            spentUnit: isT2S ? tideUnit : sdUnit,
+            gainedAmount: earnedAmt,
+            gainedUnit: isT2S ? sdUnit : tideUnit
+          }, '兑换完成：消耗 {spentAmount} {spentUnit} → 获得 {gainedAmount} {gainedUnit}。'));
+        }
+        if (SB.game && SB.game.markDirty) SB.game.markDirty();
+        if (SB.game && SB.game.renderAll) SB.game.renderAll();
+      }
+    }
+
+    if (rangeEl) {
+      rangeEl.oninput = function () { paintExchangePreview(rangeEl.value); };
+    }
+    if (numEl) {
+      numEl.oninput = function () {
+        var raw = String(numEl.value || '').trim();
+        if (!raw) return;
+        var parsed = Math.floor(Number(raw));
+        if (!isFinite(parsed)) return;
+        currentN = clampBatch(parsed);
+        if (rangeEl) rangeEl.value = String(currentN);
+        renderPreview(currentN);
+      };
+      numEl.onchange = function () { paintExchangePreview(numEl.value); };
+      numEl.onkeydown = function (ev) { if (ev && ev.key === 'Enter') confirmExchange(); };
+    }
+    if (presetsEl && presetsEl.addEventListener) {
+      presetsEl.addEventListener('click', function (ev) {
+        var tgt = ev && ev.target;
+        var btn = tgt && tgt.closest ? tgt.closest('[data-exchange-preset]') : null;
+        if (!btn) return;
+        paintExchangePreview(presetVal(btn.getAttribute('data-exchange-preset')));
+      });
+    }
+    if (cancelEl) cancelEl.onclick = hideModal;
+    if (confirmEl) confirmEl.onclick = confirmExchange;
+
+    if (modal.classList) modal.classList.remove('hidden');
+    bodyModalClass(true);
+    return true;
   }
 
   /* ── pane 重写会换掉里面的元素，于是「活在 DOM 上的滚动位置」归零 ──
@@ -2088,17 +2302,22 @@
     if (vb) vb.disabled = !canVeil;
     if (vh && canVeil && SB.prestige && SB.prestige.veilPeriod) {
       var per = SB.prestige.veilPeriod(null, s);
-      var txt;
-      if (per.star < 1000) {
-        txt = '星屑 ' + Math.round(per.star) + ' / 1000，未满足《掀起帘幕》尤里卡'
-          + ' · 当前预估 ' + per.points.toFixed(2) + ' 飞升点';
-      } else {
-        txt = '当前掀幕预估：' + per.points.toFixed(2) + ' 飞升点（本周期 '
-          + Math.round(per.tide) + ' 轮回点 + ' + Math.round(per.star) + ' 星屑）';
-      }
+      var veilTxt = per.star < 1000
+        ? tr('ui.veil.hint.insufficient', {
+          currentStardust: Math.round(per.star),
+          thresholdStardust: 1000,
+          estimatedPoints: per.points.toFixed(2)
+        }, '星屑 ' + Math.round(per.star) + ' / 1000，未满足《掀起帘幕》尤里卡 · 当前预估 ' + per.points.toFixed(2) + ' 飞升点')
+        : tr('ui.veil.hint.preview', {
+          estimatedPoints: per.points.toFixed(2),
+          cycleTide: Math.round(per.tide),
+          cycleStar: Math.round(per.star)
+        }, '当前掀幕预估：' + per.points.toFixed(2) + ' 飞升点（本周期 ' + Math.round(per.tide) + ' 轮回点 + ' + Math.round(per.star) + ' 星屑）');
       /* 未结算的本局收益也计入 —— 明说一句，免得玩家以为「踢掉本局数字会变」是 bug。 */
-      if (per.pending && per.pending.active) txt += ' · 含本局未结算';
-      vh.textContent = txt;
+      if (per.pending && per.pending.active) {
+        veilTxt += tr('ui.veil.hint.pending_suffix', null, ' · 含本局未结算');
+      }
+      vh.textContent = veilTxt;
     }
 
     var breakPreview = opened && qual ? SB.prestige.breakReport(s) : null;
@@ -3131,10 +3350,11 @@
    *   不许再靠「记得删掉哪几个类」——漏删 offline-summary-modal 正是这样发生的。 */
   var MODAL_VARIANT_CLASSES = ['offline-summary-modal', 'tree-modal', 'tree-tech', 'tree-civic',
     'break-modal', 'void-ending-modal', 'terra-ending-modal', 'void-civic-modal', 'story-modal', 'gov-picker-modal',
+    'exchange-modal',
     /* 2026-11-17：补算闸门专用。见 showOfflineModal 里的 is-catchup 注 —— 它是唯一
      * 会在**每 250ms 改一次 DOM**的面板，必须能单独关掉 backdrop-filter。 */
     'is-catchup'];
-  var MODAL_BOX_VARIANT_CLASSES = ['tree-detail-box', 'story-box', 'steam-rank-box'];
+  var MODAL_BOX_VARIANT_CLASSES = ['tree-detail-box', 'story-box', 'steam-rank-box', 'modal-exchange'];
   function resetModalChrome() {
     var modal = el('modal'), box = el('modalBox'), i;
     if (modal && modal.classList) {
@@ -3321,13 +3541,22 @@
       civ.classList.toggle('locked', !cop);
       civ.title = cop ? '' : tr('ui.render.sync_tab_locks.unlock_after_building_the_council_hall_unlocked');
     }
-    /* 工坊页的灰态同样得单独判：它的门是「建成工坊」这座建筑本身，
-     * 与科技页的 5 座藻场、市政页的议事厅都不是一件事。 */
+    /* 工坊拆成「工坊制造」「工坊升级」两个一级页签，同源门槛 = 建成工坊。 */
     var wk = document.querySelector('.tab[data-tab="workshop"]');
     if (wk) {
       var wop = workshopTabOpen();
       wk.classList.toggle('locked', !wop);
       wk.title = wop ? '' : tr('ui.render.sync_tab_locks.build_a_workshop_to_unlock_this_tab');
+    }
+    var wku = document.querySelector('.tab[data-tab="workshop-upgrades"]');
+    if (wku) {
+      var wuop = workshopTabOpen();
+      wku.classList.toggle('locked', !wuop);
+      if (!wuop) {
+        wku.title = tr('ui.render.sync_tab_locks.build_a_workshop_to_unlock_this_tab');
+        var lockedNew = el('tabWorkshopUpgradesNew');
+        if (lockedNew) lockedNew.hidden = true;
+      }
     }
     /* 奇观页的灰态：**第三个独立门槛** —— 石工那项科技。
      * ⚠️ 它的门是「研究过石工」，与上面三个（5 座藻场 / 议事厅 / 建成工坊）都不相同，
@@ -3451,14 +3680,26 @@
       wt.classList.toggle('avail', wonderOn);
       if (wonderOn) wt.title = tr('ui.render.sync_tab_research_dots.a_wonder_is_ready_to_build');
     }
-    /* 工坊页签「升级项可购买」红点（2026-10-21 用户）：复用 hasPurchasable（与升级项
-     * 二级标签同源、与结算同式），仅工坊已建成（解锁）时亮。活指示，每次 PANE_REFRESH 重算。 */
+    /* 工坊升级页签「可购买」红点与 NEW 未读角标：归到独立一级页签「工坊升级」，
+     * 「工坊制造」页签不再承担升级红点。 */
     var wkt = doc.querySelector('.tab[data-tab="workshop"]');
-    if (wkt) {
-      var wkUnlocked = !!(s && s.lvl && s.lvl.workshop > 0);
-      var wkOn = wkUnlocked && SB.workshop && SB.workshop.hasPurchasable && SB.workshop.hasPurchasable(s);
-      wkt.classList.toggle('avail', wkOn);
-      if (wkOn) wkt.title = (wkt.title ? wkt.title + ' · ' : '') + tr('ui.tab.workshop.upgrades_available');
+    if (wkt && wkt.classList) wkt.classList.toggle('avail', false);
+    var wkut = doc.querySelector('.tab[data-tab="workshop-upgrades"]');
+    if (wkut) {
+      var wkUnlocked = workshopTabOpen();
+      var wkOn = !!(wkUnlocked && SB.workshop && SB.workshop.hasPurchasable && SB.workshop.hasPurchasable(s));
+      if (wkut.classList) wkut.classList.toggle('avail', wkOn);
+      var upgMeta = (wkUnlocked && SB.ui.renderParts && SB.ui.renderParts.upgradeTabMeta)
+        ? SB.ui.renderParts.upgradeTabMeta(s) : null;
+      var curTabNow = SB.game && SB.game.getTab ? SB.game.getTab() : '';
+      var newTag = doc.getElementById ? doc.getElementById('tabWorkshopUpgradesNew') : null;
+      if (newTag) newTag.hidden = !(upgMeta && upgMeta.fresh && curTabNow !== 'workshop-upgrades');
+      if (wkUnlocked) {
+        var wkTips = [];
+        if (upgMeta && upgMeta.cnt) wkTips.push(upgMeta.cnt);
+        if (wkOn) wkTips.push(tr('ui.tab.workshop.upgrades_available'));
+        wkut.title = wkTips.join(' · ');
+      }
     }
     syncNavShell();
   }
@@ -3472,12 +3713,12 @@
 
 
   var NAV_GROUPS = [
-    { id: 'colony', tabs: ['village', 'folk', 'tech', 'civic'] },
-    { id: 'industry', tabs: ['workshop', 'wonder'] },
-    { id: 'faith', tabs: ['faith', 'diplomacy', 'company'] },
-    { id: 'cycle', tabs: ['star-map', 'meta', 'challenges', 'achievements', 'veil'] }
+    { id: 'colony', tabs: ['village', 'workshop', 'folk', 'star-map'] },
+    { id: 'industry', tabs: ['tech', 'civic', 'workshop-upgrades', 'wonder'] },
+    { id: 'faith', tabs: ['diplomacy', 'faith', 'company'] },
+    { id: 'cycle', tabs: ['meta', 'veil', 'challenges', 'achievements'] }
   ];
-  var LAST_GROUP_TAB = { colony: 'village', industry: 'workshop', faith: 'faith', cycle: 'meta' };
+  var LAST_GROUP_TAB = { colony: 'village', industry: 'tech', faith: 'diplomacy', cycle: 'meta' };
   function groupOfTab(tabId) {
     for (var i = 0; i < NAV_GROUPS.length; i++) {
       if (NAV_GROUPS[i].tabs.indexOf(tabId) >= 0) return NAV_GROUPS[i].id;
@@ -3558,7 +3799,7 @@
       tabs[i].onclick = (function (node) {
         return function () {
           if (node.dataset.tab === 'tech' && !techTabOpen()) return;
-          if (node.dataset.tab === 'workshop' && !workshopTabOpen()) return;
+          if ((node.dataset.tab === 'workshop' || node.dataset.tab === 'workshop-upgrades') && !workshopTabOpen()) return;
           if (node.dataset.tab === 'meta' && !meta().shopUnlocked && !stardustShopOpen()) return;
           if (node.dataset.tab === 'challenges' && !meta().shopUnlocked) return;
           /* 成就页签与挑战同门（meta.shopUnlocked）——与 setTab 里那道是同一件事写两遍。 */
@@ -3715,7 +3956,7 @@
         var intro = el('introMask'), modal = el('modal');
         if (intro && !intro.classList.contains('hidden')) closeIntro();
         else if (modal && !modal.classList.contains('hidden') &&
-                 (modal.classList.contains('tree-modal') || modal.classList.contains('gov-picker-modal'))) hideModal();
+                 (modal.classList.contains('tree-modal') || modal.classList.contains('gov-picker-modal') || modal.classList.contains('exchange-modal'))) hideModal();
       } else if (e.key === 'Enter' || e.key === ' ') {
         var infoLink = e.target && e.target.closest ? e.target.closest('.inline-info-link') : null;
         if (infoLink) {
@@ -3814,7 +4055,9 @@
     armCard: armCard, disarmCard: disarmCard, armedCard: getArmedCard,
     cycleJobStep: cycleJobStep, jobStep: getJobStep, paintGrow: paintGrow,
     cycleExchangeStep: cycleExchangeStep, exchangeStep: exchangeStep, exchangeStepLabel: exchangeStepLabel,
+    openStarExchangeModal: openStarExchangeModal,
     setWorkshopView: SB.ui.renderParts.setWorkshopView,
+    toggleManualGatherFold: SB.ui.renderParts.toggleManualGatherFold,
     showBuildingInfo: showBuildingInfo,
     openWorkshopFromInfo: openWorkshopFromInfo,
     showWonderInfo: showWonderInfo,
@@ -3888,6 +4131,8 @@
     /* ⚠️ 2026-10-05：同理导出工坊三段的渲染函数，回归要直接验「未解锁不显示」。
      *   （走 renderPanes 那条路取不到属性：假 DOM 的 innerHTML 不回填 children。） */
     paneToolRows: SB.ui.renderParts.paneToolRows, paneCraftRows: SB.ui.renderParts.paneCraftRows, paneUpgradeRows: SB.ui.renderParts.paneUpgradeRows,
+    paneWorkshopCraft: SB.ui.renderParts.paneWorkshopCraft, paneWorkshopUpgrades: SB.ui.renderParts.paneWorkshopUpgrades,
+    upgradeTabMeta: SB.ui.renderParts.upgradeTabMeta,
     renderEvent: renderEvent
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -95,6 +95,21 @@
     return true;
   }
 
+  var manualGatherExpanded = null;
+  function isManualGatherCollapsed(s) {
+    var rate = (s && s.perk && s.perk.autoClick) || 0;
+    return manualGatherExpanded === null ? (rate > 0) : !manualGatherExpanded;
+  }
+  function toggleManualGatherFold() {
+    var s = (SB.game && SB.game.run) ? SB.game.run() : null;
+    manualGatherExpanded = isManualGatherCollapsed(s);
+    return manualGatherExpanded;
+  }
+  function resetManualGatherFold() { manualGatherExpanded = null; }
+  function manualGatherFoldState() {
+    return manualGatherExpanded === null ? 'a' : (manualGatherExpanded ? 'e' : 'c');
+  }
+
   function paneVillage() {
     var s = SB.game.run(); let h = '';
     var buildingIconsShown = !!(SB.ui.render && SB.ui.render.buildingIconsShown && SB.ui.render.buildingIconsShown());
@@ -109,27 +124,43 @@
           htmlText(tr('village.auto_click.active.status', { clicksPerSecond: _acRate }, '自动点击中 · ' + _acRate + ' 次/秒')) + '</span>'
         : '<span class="auto-click-tag is-off" title="' + htmlText(tr('village.auto_click.paused.tooltip', null, '已在 ⚙ 设置 → 自动 里暂停；手动点这两个按钮不受影响')) + '">' +
           htmlText(tr('village.auto_click.paused.status', null, '自动点击已暂停')) + '</span>');
-    var startupPopulation = SB.challenges && SB.challenges.startingPopulation ? SB.challenges.startingPopulation() : SB.CFG.POP_START;
-    var nestBuilding = SB.habitat.buildingById('nest') || {};
-    var kelpBuilding = SB.habitat.buildingById('kelp') || {};
-    var coralCost = nestBuilding.cost && nestBuilding.cost.coral || 0;
-    var kelpCost = kelpBuilding.cost && kelpBuilding.cost.kelp || 0;
-    /* 教程按开局住房和挑战奖励计算人口上限。后来建成的住房只影响当前人口上限。 */
-    var startingCap = (SB.BLD.houseBase || 0) + (startupPopulation - SB.CFG.POP_START);
-    var startupHint = tr('village.startup.housing_food_hint', {
-      startingPopulation: startupPopulation, passiveIncome: 0, coralCost: coralCost,
-      oldPopulationCap: startingCap, newPopulationCap: startingCap + (SB.BLD.house || 0), kelpCost: kelpCost
-    }, '开局 ' + startupPopulation + ' 人、0 自动收入，靠这个起步：先攒 5 珊瑚盖起礁口巢（人口上限 ' +
-      startingCap + ' → ' + (startingCap + (SB.BLD.house || 0)) + '），再攒 15 藻食建深海菌圃让口粮跟上。');
-    var growthHint = tr('village.population.growth.kelp_threshold', { kelpThreshold: SB.CFG.GROW_KEEP },
-      '人口要涨得同时满足两条：住房没住满，且藻食高于 ' + SB.CFG.GROW_KEEP + '（低于此值会一直停摆）。');
-    h += '<div class="row gather-row"><div><div class="nm">' + htmlText(tr('village.gather.manual.heading', null, '手动采集')) + _acTag + '</div>' +
-      '<div class="ds">' + htmlText(startupHint) +
-      '<b>' + htmlText(growthHint) + '</b></div></div>' +
-      '<div class="gather-btns">' +
-      '<button class="btn buy" data-gather="kelp">' + htmlText(tr('village.gather.kelp.button', { gatherAmount: GA.kelp }, '采藻食 +' + GA.kelp)) + '</button>' +
-      '<button class="btn buy" data-gather="coral">' + htmlText(tr('village.gather.coral.button', { gatherAmount: GA.coral }, '采珊瑚 +' + GA.coral)) + '</button>' +
-      '</div></div>';
+    var _gatherCollapsed = isManualGatherCollapsed(s);
+    if (_gatherCollapsed) {
+      h += '<div class="row gather-row is-collapsed">' +
+        '<div class="gather-collapsed-head">' +
+          '<div class="nm">' + htmlText(tr('village.gather.manual.heading', null, '手动采集')) + _acTag + '</div>' +
+          '<span class="gather-collapsed-note">' + htmlText(tr('village.gather.collapsed_hint', null, '已解锁自动采集，手动入口默认收起')) + '</span>' +
+        '</div>' +
+        '<button type="button" class="btn gather-fold-btn" data-gather-fold="1" aria-expanded="false">' +
+          htmlText(tr('village.gather.expand', null, '展开 ▾')) + '</button>' +
+        '</div>';
+    } else {
+      var startupPopulation = SB.challenges && SB.challenges.startingPopulation ? SB.challenges.startingPopulation() : SB.CFG.POP_START;
+      var nestBuilding = SB.habitat.buildingById('nest') || {};
+      var kelpBuilding = SB.habitat.buildingById('kelp') || {};
+      var coralCost = nestBuilding.cost && nestBuilding.cost.coral || 0;
+      var kelpCost = kelpBuilding.cost && kelpBuilding.cost.kelp || 0;
+      /* 教程按开局住房和挑战奖励计算人口上限。后来建成的住房只影响当前人口上限。 */
+      var startingCap = (SB.BLD.houseBase || 0) + (startupPopulation - SB.CFG.POP_START);
+      var startupHint = tr('village.startup.housing_food_hint', {
+        startingPopulation: startupPopulation, passiveIncome: 0, coralCost: coralCost,
+        oldPopulationCap: startingCap, newPopulationCap: startingCap + (SB.BLD.house || 0), kelpCost: kelpCost
+      }, '开局 ' + startupPopulation + ' 人、0 自动收入，靠这个起步：先攒 5 珊瑚盖起礁口巢（人口上限 ' +
+        startingCap + ' → ' + (startingCap + (SB.BLD.house || 0)) + '），再攒 15 藻食建深海菌圃让口粮跟上。');
+      var growthHint = tr('village.population.growth.kelp_threshold', { kelpThreshold: SB.CFG.GROW_KEEP },
+        '人口要涨得同时满足两条：住房没住满，且藻食高于 ' + SB.CFG.GROW_KEEP + '（低于此值会一直停摆）。');
+      var _foldBtn = _acRate > 0
+        ? '<button type="button" class="btn gather-fold-btn" data-gather-fold="1" aria-expanded="true">' +
+          htmlText(tr('village.gather.collapse', null, '收起 ▴')) + '</button>'
+        : '';
+      h += '<div class="row gather-row"><div><div class="nm">' + htmlText(tr('village.gather.manual.heading', null, '手动采集')) + _acTag + _foldBtn + '</div>' +
+        '<div class="ds">' + htmlText(startupHint) +
+        '<b>' + htmlText(growthHint) + '</b></div></div>' +
+        '<div class="gather-btns">' +
+        '<button class="btn buy" data-gather="kelp">' + htmlText(tr('village.gather.kelp.button', { gatherAmount: GA.kelp }, '采藻食 +' + GA.kelp)) + '</button>' +
+        '<button class="btn buy" data-gather="coral">' + htmlText(tr('village.gather.coral.button', { gatherAmount: GA.coral }, '采珊瑚 +' + GA.coral)) + '</button>' +
+        '</div></div>';
+    }
 
     /* 空分区随建筑解锁显示。运行耗材的种类与信息卡共用 consumeMeta。 */
     h += '<div class="pane-toolbar" role="toolbar" aria-label="' + htmlText(tr('village.toolbar.aria_label', null, '建筑筛选与视图')) + '">' +
@@ -217,7 +248,7 @@
             ' aria-pressed="' + (_au ? 'true' : 'false') + '"' +
             ' aria-label="' + htmlText(tr('village.building.auto_toggle.aria_label', { automationStatus: _autoStatus }, '自动建造 / 升级' + _autoStatus)) + '"' +
             ' title="' + htmlText(tr('village.building.auto_toggle.tooltip', { automationStatus: _autoStatus, toggleAction: _autoAction }, '自动建造 / 升级' + _autoStatus + '，点击' + (_au ? '停用' : '启用'))) + '">' +
-            htmlText(tr('ui.settings.automation.title', null, '自动')) + '</button>';
+            htmlText(tr('ui.workshop.automation.label', null, '自动')) + '</button>';
         }
         /* 热泉炉的运行座数决定精铁产量及金属、暖石消耗。 */
         var furnBtn = '';
@@ -563,4 +594,8 @@
   parts.syncVillageToolbar = paintVillageToolbar;
   parts.getVillageFilter = getVillageFilter;
   parts.getVillageDensity = getVillageDensity;
+  parts.isManualGatherCollapsed = isManualGatherCollapsed;
+  parts.toggleManualGatherFold = toggleManualGatherFold;
+  parts.resetManualGatherFold = resetManualGatherFold;
+  parts.manualGatherFoldState = manualGatherFoldState;
 })(typeof window !== 'undefined' ? window : globalThis);

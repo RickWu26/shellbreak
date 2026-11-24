@@ -183,7 +183,8 @@
      * 都**不许**点外面就关 —— 那是需要玩家明确选择的)。这条策略与搬动前完全一致，
      * 只换了位置，没改语义。 */
     if (t.id === 'modal' && t.classList &&
-        (t.classList.contains('tree-modal') || t.classList.contains('gov-picker-modal'))) {
+        (t.classList.contains('tree-modal') || t.classList.contains('gov-picker-modal') ||
+         t.classList.contains('exchange-modal'))) {
       SB.ui.render.hideModal();
       return;
     }
@@ -303,7 +304,7 @@
         SB.game.log(tr('ui.war.result.action', {
           actionName: tr(actionNameKey), outcomeName: tr(outcomeKey),
           scaleLoss: SB.economy.fmtAmt(actionResult.scaleLoss),
-          popLost: SB.economy.fmtAmt(actionResult.popLost),
+          soldiersLost: SB.economy.fmtAmt(actionResult.popLost),
           lootAmount: SB.economy.fmtAmt(actionResult.lootAmount),
           resourceName: localizedResourceName,
           populationCapAward: actionResult.populationCapAward
@@ -394,7 +395,9 @@
       return;
     }
     if (d.workshopView) {
-      if (SB.ui.render.setWorkshopView(d.workshopView)) SB.ui.render.renderPanes();
+      if (SB.ui.render.setWorkshopView) SB.ui.render.setWorkshopView(d.workshopView);
+      if (SB.game && SB.game.setTab) SB.game.setTab(d.workshopView === 'upgrades' ? 'workshop-upgrades' : 'workshop');
+      if (SB.ui.render.renderPanes) SB.ui.render.renderPanes();
       return;
     }
     var govPickerOpen = t.closest && t.closest('[data-gov-picker-open]');
@@ -1040,13 +1043,18 @@
       return;
     }
     if (d.starExchange) {
-      /* 档位只从视图态读一次；实际成交笔数由 prestige 层按各自方向的余额钳制，
-       * 不从 DOM 上的 data-* 读（防伪造 / 防余额已变时扣错）。 */
-      var exWant = SB.ui.render.exchangeStep();
-      var exchanged = d.starExchange === 'tide-to-stardust'
-        ? SB.prestige.exchangeTideForStardust(exWant)
-        : d.starExchange === 'stardust-to-tide' ? SB.prestige.exchangeStardustForTide(exWant) : 0;
-      if (exchanged > 0) { SB.game.markDirty(); SB.game.renderAll(); }
+      /* 点兑换不再立刻按固定步长扣款，而是弹出滑动条确认框，同时以当前档位作为滑块初值。 */
+      if (SB.ui.render && SB.ui.render.openStarExchangeModal) {
+        SB.ui.render.openStarExchangeModal(d.starExchange);
+      }
+      return;
+    }
+    var gatherFoldBtn = d.gatherFold !== undefined ? t : (t.closest && t.closest('[data-gather-fold]'));
+    if (gatherFoldBtn) {
+      if (SB.ui.render && SB.ui.render.toggleManualGatherFold) {
+        SB.ui.render.toggleManualGatherFold();
+        SB.ui.render.renderPanes();
+      }
       return;
     }
     if (d.challengeRelease) {

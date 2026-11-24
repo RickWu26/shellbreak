@@ -333,7 +333,7 @@ function makeDoc() {
          *        从「挑战与成就」拆出的新页签。三个都补上，表与 index.html 对齐。 */
         /* 2026-11-11 补 diplomacy：战争系统开发线新增页签时漏进这张硬编码表，
          * 于是 syncTabLocks 的外交锁态在 e2e 里永远测不到（夹具与 index.html 不同步）。 */
-        out = ['village', 'folk', 'tech', 'civic', 'faith', 'diplomacy', 'workshop', 'wonder', 'company', 'meta', 'challenges', 'star-map', 'achievements', 'veil'].map((t, i) => {
+        out = ['village', 'workshop', 'folk', 'tech', 'civic', 'workshop-upgrades', 'star-map', 'wonder', 'diplomacy', 'faith', 'company', 'meta', 'veil', 'challenges', 'achievements'].map((t, i) => {
           const e = mkEl('tab-' + t); e.dataset.tab = t; e._tab = i; return e;
         });
       } else if (sel === '.spd') {

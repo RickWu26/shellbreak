@@ -76,14 +76,37 @@
     }
   }
   locale = resolveLocale(preference);
+  if (root.document && root.document.documentElement) root.document.documentElement.lang = locale;
 
-  function valueFor(key) {
-    if (typeof key !== 'string' || !key) return undefined;
+  var KEY_ALIASES = {
+    'tech.scholarT.name': 'tech.scholar_t.name',
+    'tech.engineeringT.name': 'tech.engineering_t.name',
+    'tech.engineeringT.unlock_desc': 'tech.engineering_t.unlock_desc',
+    'tech.scaffoldT.name': 'tech.scaffold_t.name',
+    'tech.scaffoldT.unlock_desc': 'tech.scaffold_t.unlock_desc',
+    'tech.castle.name': 'tech.name.castle',
+    'tech.autodrill.name': 'automation.autodrill.name',
+    'tech.thermal.unlock_desc': 'tech.thermal.note'
+  };
+
+  function resolveKey(key) {
+    if (typeof key !== 'string' || !key) return '';
     var all = dicts();
     var active = all[locale];
     var baseline = all['zh-CN'];
-    if (active && Object.prototype.hasOwnProperty.call(active, key)) return active[key];
-    if (baseline && Object.prototype.hasOwnProperty.call(baseline, key)) return baseline[key];
+    if ((active && Object.prototype.hasOwnProperty.call(active, key)) ||
+        (baseline && Object.prototype.hasOwnProperty.call(baseline, key))) return key;
+    return KEY_ALIASES[key] || key;
+  }
+
+  function valueFor(key) {
+    var resolved = resolveKey(key);
+    if (!resolved) return undefined;
+    var all = dicts();
+    var active = all[locale];
+    var baseline = all['zh-CN'];
+    if (active && Object.prototype.hasOwnProperty.call(active, resolved)) return active[resolved];
+    if (baseline && Object.prototype.hasOwnProperty.call(baseline, resolved)) return baseline[resolved];
     return undefined;
   }
 
@@ -123,17 +146,48 @@
   function snakeCase(value) {
     return String(value || '').replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
   }
+  var BUILDING_NAME_ALIASES = {
+    rheamine: 'rhea_mine',
+    siltpit: 'sand_pit',
+    biomatlab: 'biomaterials_research_institute',
+    titancloud: 'titan_cloud_harvester'
+  };
+  var CONTENT_NAME_KEYS = {
+    upg_castle: 'building.upgrade.name.castle',
+    upg_autodrill: 'automation.autodrill.name',
+    craft_strongprop: 'resource.strong_propellant_rocket_engine.name',
+    craft_thinafilm: 'resource.theta_metal_adaptive_film.name',
+    wonder_albada: 'wonder.albada_hydrothermal_university.name',
+    wonder_fishvr: 'wonder.fish_vr.name',
+    wonder_geek: 'wonder.geek.name',
+    wonder_great_library: 'wonder.great_tidal_library.name',
+    wonder_presspipe: 'wonder.high_pressure_thermal_pipe.name',
+    wonder_jupitor_mas: 'wonder.jupiter_mass_accelerator.name',
+    wonder_khalifa: 'wonder.khalifa_space_telescope.name',
+    wonder_grand_exchange: 'wonder.kingdom_grand_exchange.name',
+    wonder_skydrill: 'wonder.skydrill.name',
+    wonder_terra_core: 'wonder.terra_core.name',
+    wonder_throne: 'wonder.supreme_throne.name',
+    wonder_void_stamp_fortress: 'wonder.void_stamp_fortress.name',
+    wonder_void_candle_hall: 'wonder.void_candle_hall.name',
+    wonder_void_mars_foundry: 'wonder.void_mars_foundry.name'
+  };
   function buildingName(id, fallback) {
-    var name = String(id || '') === 'rheamine' ? 'rhea_mine' : snakeCase(id);
+    var rawId = String(id || '');
+    var name = BUILDING_NAME_ALIASES[rawId] || snakeCase(rawId);
     return mappedName('building.' + name + '.name', fallback);
   }
   function zoneName(id, fallback) {
     return mappedName('building.zone.' + String(id || '') + '.name', fallback);
   }
   function contentName(id, fallback) {
-    var name = snakeCase(id);
-    var candidates = ['content.' + name + '.name'];
-    if (name.indexOf('upg_') !== 0) candidates.unshift('content.upg_' + name + '.name');
+    var rawId = String(id || '');
+    var name = snakeCase(rawId);
+    var candidates = [];
+    if (CONTENT_NAME_KEYS[rawId]) candidates.push(CONTENT_NAME_KEYS[rawId]);
+    if (name.indexOf('tool_') === 0) candidates.push('tool.' + name + '.name');
+    if (name.indexOf('upg_') !== 0) candidates.push('content.upg_' + name + '.name');
+    candidates.push('content.' + name + '.name', 'upgrade.' + name + '.name', 'wonder.' + name + '.name');
     for (var i = 0; i < candidates.length; i++) {
       if (typeof valueFor(candidates[i]) === 'string') return translate(candidates[i]);
     }
@@ -186,6 +240,7 @@
 
   function refresh() {
     locale = resolveLocale(preference);
+  if (root.document && root.document.documentElement) root.document.documentElement.lang = locale;
     apply(root.document);
     syncSelectorValue();
     dispatchLocaleChanged();
@@ -298,6 +353,7 @@
 
   var api = {
     t: translate,
+    resolveKey: resolveKey,
     resourceName: resourceName,
     buildingName: buildingName,
     zoneName: zoneName,

@@ -155,8 +155,8 @@ export async function run({ SB, check, sandbox, loadNoDom, g }) {
     const wOn = SB.store.prefGet('workshopHideDone'), dOn = SB.store.prefGet('wonderHideDone');
     check('两个「隐藏已完成」生产切换路径都真的改了偏好值',
       wOn === !before && dOn === !beforeW);
-    const wHtml = RP.paneWorkshop(), dHtml = RP.paneWonder();
-    check('工坊面板 HTML：开关状态写进标题行按钮（不是只改内存值）',
+    const wHtml = RP.paneWorkshopUpgrades(), dHtml = RP.paneWonder();
+    check('工坊升级面板 HTML：开关状态写进标题行按钮（不是只改内存值）',
       wHtml.indexOf('data-hidedone="1"') >= 0 &&
       wHtml.indexOf(wOn ? '显示已完成' : '隐藏已完成') >= 0, 'htmlLen=' + wHtml.length);
     check('奇观面板 HTML：开关状态写进标题行按钮',
@@ -172,5 +172,37 @@ export async function run({ SB, check, sandbox, loadNoDom, g }) {
     check('套件收尾：两个开关值与面板状态都还原',
       SB.store.prefGet('workshopHideDone') === before &&
       SB.store.prefGet('wonderHideDone') === beforeW);
+  }
+
+  /* ⑧ 解锁自动采集（autoClick > 0）后，巢穴页手动采集区默认自动收起；可手动展开/收起。 */
+  {
+    const RP = SB.ui.renderParts;
+    const s = SB.game.run();
+    const bakAc = s.perk && s.perk.autoClick;
+    if (RP.resetManualGatherFold) RP.resetManualGatherFold();
+    if (!s.perk) s.perk = {};
+    s.perk.autoClick = 0;
+    const vOpen = RP.paneVillage();
+    check('未解锁自动采集（autoClick=0）：手动采集默认展开并显示采集按钮',
+      vOpen.indexOf('gather-row is-collapsed') < 0 && vOpen.indexOf('data-gather="kelp"') >= 0);
+
+    s.perk.autoClick = 2;
+    const vAutoCollapsed = RP.paneVillage();
+    check('解锁自动采集（autoClick=2）：手动采集默认自动收起',
+      vAutoCollapsed.indexOf('gather-row is-collapsed') >= 0 && vAutoCollapsed.indexOf('data-gather-fold="1"') >= 0 &&
+      vAutoCollapsed.indexOf('data-gather="kelp"') < 0);
+
+    RP.toggleManualGatherFold();
+    const vExpanded = RP.paneVillage();
+    check('点「展开 ▾」后重新露出手动采集按钮且带「收起 ▴」切换',
+      vExpanded.indexOf('gather-row is-collapsed') < 0 && vExpanded.indexOf('data-gather="kelp"') >= 0 &&
+      vExpanded.indexOf('data-gather-fold="1"') >= 0);
+
+    RP.toggleManualGatherFold();
+    check('点「收起 ▴」后再次收起',
+      RP.paneVillage().indexOf('gather-row is-collapsed') >= 0);
+
+    if (RP.resetManualGatherFold) RP.resetManualGatherFold();
+    s.perk.autoClick = bakAc || 0;
   }
 }

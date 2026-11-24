@@ -50,6 +50,7 @@
     /* 工坊页的门是「建成工坊」这座建筑。与科技页同一套两道闸的写法，
      * 免得将来某条直达路径（比如工坊建造成功后的提示）绕过 tab onclick 把灰页签点亮。 */
     if (k === 'workshop' && S && !(S.lvl && S.lvl.workshop > 0)) return;
+    if (k === 'workshop-upgrades' && S && !(S.lvl && S.lvl.workshop > 0)) return;
     /* 奇观页的门是「研究过石工」那项科技（用户要的「第一个就让石工解锁」）。
      * ⚠️ 与上面两道闸同理：就算页签已经因为灰态切换被点亮，直达路径也进不去。 */
     if (k === 'wonder' && S && !(S.techs && S.techs.masonry)) return;
@@ -72,6 +73,10 @@
     if (k !== 'veil' && SB.ui.veilHub && SB.ui.veilHub.leave) SB.ui.veilHub.leave();
     var prevTab = tab;
     tab = k; dirty = true;
+    if (SB.ui.render && SB.ui.render.setWorkshopView) {
+      if (k === 'workshop-upgrades') SB.ui.render.setWorkshopView('upgrades');
+      else if (prevTab === 'workshop-upgrades') SB.ui.render.setWorkshopView('making');
+    }
     var keys = SB.ui.render.PANE_KEYS;
     for (var i = 0; i < keys.length; i++) {
       var node = document.getElementById('pane-' + keys[i]);
@@ -317,6 +322,7 @@
      * 否则「暂停」在破壳后会被静默重置成开。 */
     applyAutoClickPref(S);
     applyAudioPref(S);   // 背景音乐偏好跨周目继承（2026-10-31，同 autoClick 两层范式）
+    if (SB.ui.renderParts && SB.ui.renderParts.resetManualGatherFold) SB.ui.renderParts.resetManualGatherFold();
     SB.state.saveMeta(meta);
     clearLog();
     /* 2026-11-06：cycle 收紧为「合格轮回次数」⇒ 这句话不再能说「第 N 周目」（软重置不会推进
@@ -482,6 +488,7 @@
     S = SB.state.freshRun(false);
     applyAutoClickPref(S);   // meta 已重置 ⇒ 偏好归「开」，这里只是让本局与之一致
     applyAudioPref(S);   // 背景音乐偏好：meta 重置后归默认（开 + 满音量）
+    if (SB.ui.renderParts && SB.ui.renderParts.resetManualGatherFold) SB.ui.renderParts.resetManualGatherFold();
     clearLog();
     log(gameText('game.save.cleared.log', { cycleNumber: 1 },
       '存档已清空，回到第 {cycleNumber} 周目。轮回点与破层层级一并抹去。'));
@@ -3387,23 +3394,29 @@
     if (!pv) return;
     if (pv.cycleStar < 1000) {
       SB.ui.render.confirmPanel({
-        title: '尚不能掀起帘幕',
-        body: '<div class="warnbox">本帷幕周期累计星屑 ' + Math.round(pv.cycleStar)
-          + ' / 1000，尚未满足《掀起帘幕》的尤里卡。请继续积累星屑。</div>',
-        ok: '知道了'
+        title: gameText('ui.veil.confirm.insufficient.title', null, '尚不能掀起帘幕'),
+        body: '<div class="warnbox">' + gameText('ui.veil.confirm.insufficient.body', {
+          currentStardust: Math.round(pv.cycleStar),
+          thresholdStardust: 1000
+        }, '本帷幕周期累计星屑 ' + Math.round(pv.cycleStar) + ' / 1000，尚未满足《掀起帘幕》的尤里卡。请继续积累星屑。') + '</div>',
+        ok: gameText('ui.action.confirm_understood', null, '知道了')
       });
       return;
     }
     /* 本局未结算部分单列一行（2026-11-17）：掀幕发生在局内，这笔收益会被并入飞升点，
      * 但它同时是「将失去的资产」的一部分，不分开写玩家会算不平账。 */
     var pendingLine = pv.pendingActive
-      ? '<div class="note">其中本局尚未结算：<b>' + pv.pendingTide.toFixed(2) + ' 轮回点</b> + <b>'
-        + Math.round(pv.pendingStar) + ' 星屑</b>（掀幕时一并计入飞升点）。</div>'
+      ? '<div class="note">' + gameText('ui.veil.confirm.pending_line', {
+        pendingTide: pv.pendingTide.toFixed(2),
+        pendingStar: Math.round(pv.pendingStar)
+      }, '其中本局尚未结算：<b>' + pv.pendingTide.toFixed(2) + ' 轮回点</b> + <b>'
+        + Math.round(pv.pendingStar) + ' 星屑</b>（掀幕时一并计入飞升点）。') + '</div>'
       : '';
     var pathName = function (id) {
       var p = (SB.ui.veilHub && SB.ui.veilHub.PATHS ? SB.ui.veilHub.PATHS : []).filter(function (x) { return x.id === id; })[0];
       return p ? gameText('ui.veil.path.name.' + p.id, null, p.name) : id;
     };
+    var isEn = !!(SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US');
     /* 路径选择区（2026-11-18 用户拍板「玩家自己选，暂时只能选机械飞升」）：
      * 有可选 → 原生 radio 单选，默认选中第一项（当前只有 si）；其余未实装项置灰不可选。
      * 池空（第 2 次起，si 已开）→ 不开新路径、不放单选区，只写一行灰字说明，飞升点照给。*/
@@ -3422,25 +3435,31 @@
         .map(function (p) { return pathName(p.id); });
       var wipTip = wipNames.length
         ? '<div class="note" style="color:var(--dim);margin-top:2px">'
-          + gameText('ui.veil.hub.wip_paths_note', { pathNames: wipNames.join('、') }, '') + '</div>'
+          + gameText('ui.veil.hub.wip_paths_note', { pathNames: wipNames.join(isEn ? ', ' : '、') }, '') + '</div>'
         : '';
-      pickBlock = '<div class="note" style="margin-top:10px"><b>选择本次要开启的飞升路径：</b></div>'
+      pickBlock = '<div class="note" style="margin-top:10px"><b>' + gameText('ui.veil.confirm.pick_path_heading', null, '选择本次要开启的飞升路径：') + '</b></div>'
         + opts + wipTip;
     } else {
       pickBlock = '<div class="note" style="color:var(--dim);margin-top:10px">'
         + gameText('ui.veil.hub.no_openable_paths_note', null, '') + '</div>';
     }
-    var body = '<div class="warnbox">当幕布掀起，本重轮回的一切将归零重来：'
-      + '<b>' + pv.cycleTide.toFixed(2) + ' 轮回点</b>、<b>' + Math.round(pv.cycleStar)
-      + ' 星屑</b>，以及潮汐之树、星屑商店与四项旧日遗产。本局也从 ERA1 重开。</div>'
+    var body = '<div class="warnbox">' + gameText('ui.veil.confirm.reset_warning', {
+      cycleTide: pv.cycleTide.toFixed(2),
+      cycleStar: Math.round(pv.cycleStar)
+    }, '当幕布掀起，本重轮回的一切将归零重来：<b>' + pv.cycleTide.toFixed(2) + ' 轮回点</b>、<b>' + Math.round(pv.cycleStar)
+      + ' 星屑</b>，以及潮汐之树、星屑商店与四项旧日遗产。本局也从 ERA1 重开。') + '</div>'
       + pendingLine
-      + '<div class="note">你将获得 <b>' + pv.points.toFixed(2) + ' 飞升点</b>，进入第 <b>' + pv.count
-      + '</b> 重帷幕。</div>'
+      + '<div class="note">' + gameText('ui.veil.confirm.gain_summary', {
+        gainedPoints: pv.points.toFixed(2),
+        veilCount: pv.count
+      }, '你将获得 <b>' + pv.points.toFixed(2) + ' 飞升点</b>，进入第 <b>' + pv.count + '</b> 重帷幕。') + '</div>'
       + pickBlock
-      + '<div class="note">保留：成就、挑战记录、轮回次数、商店解锁、自动研究设置。</div>';
+      + '<div class="note">' + gameText('ui.veil.confirm.keep_summary', null, '保留：成就、挑战记录、轮回次数、商店解锁、自动研究设置。') + '</div>';
     SB.ui.render.confirmPanel({
-      title: '掀起帘幕 · 进入大轮回？',
-      body: body, ok: '掀起帘幕', danger: true,
+      title: gameText('ui.veil.confirm.title', null, '掀起帘幕 · 进入大轮回？'),
+      body: body,
+      ok: gameText('ui.veil.confirm.ok', null, '掀起帘幕'),
+      danger: true,
       onOk: function () {
         /* 在 hideModal 之前把选中值读出来 —— confirmPanel 的 okBtn.onclick 先 hideModal()
          * 再调 onOk()；虽然 hideModal 不清空 innerHTML，但显式先读更稳、也便于无 DOM 的桩。 */
@@ -3452,8 +3471,11 @@
           /* 掀幕后自动打开帷幕主界面，让玩家立刻看到新解锁的路径（下位稿 §7「掀幕后引导」）。 */
           if (r && SB.ui.veilHub && SB.ui.veilHub.open) SB.ui.veilHub.open();
         } catch (err) {
-          SB.ui.render.confirmPanel({ title: '掀幕失败', body: '<div class="warnbox">'
-            + String(err && err.message || err) + '</div>', ok: '知道了' });
+          SB.ui.render.confirmPanel({
+            title: gameText('ui.veil.confirm.failed_title', null, '掀幕失败'),
+            body: '<div class="warnbox">' + String(err && err.message || err) + '</div>',
+            ok: gameText('ui.action.confirm_understood', null, '知道了')
+          });
         }
       }
     });

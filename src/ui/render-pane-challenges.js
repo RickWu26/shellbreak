@@ -356,7 +356,7 @@
         }
       h += '<details class="challenge-tier-details"' + (CHALLENGE_TIER_OPEN[d.id] ? ' open' : '') +
         ' ontoggle="SB.ui.renderParts.setChallengeTierOpen(\'' + d.id + '\',this.open)"><summary>' + focusTierHTML +
-          '<span class="challenge-tier-expand">' + tr('ui.challenge.tiers.expand', {}, '') + '</span></summary>' +
+          '<span class="challenge-tier-expand">' + tr('ui.challenge.tiers.expand', {}, '查看全部档位') + '</span></summary>' +
           '<div class="challenge-tiers">' + otherTierHTML + '</div></details>';
       } else {
         h += '<div class="challenge-reward"><small>' + tr('ui.challenge.reward.permanent', {}, '永久奖励') +

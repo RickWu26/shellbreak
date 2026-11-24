@@ -113,7 +113,14 @@
     var values = [], numberRe = /(?:[+＋×xX−-]\s*)?\d[\d,]*(?:\.\d+)?\s*(?:%|[KMB])?/g;
     while ((match = numberRe.exec(String(source || '')))) values.push(match[0].trim());
     if (values.length !== numericNames.length) return null;
-    for (var j = 0; j < numericNames.length; j++) params[numericNames[j]] = formatDescriptionValue(numericNames[j], values[j]);
+    for (var j = 0; j < numericNames.length; j++) {
+      var paramName = numericNames[j];
+      var formatted = formatDescriptionValue(paramName, values[j]);
+      if (template.indexOf('{' + paramName + '}%') >= 0) formatted = formatted.replace(/%$/, '');
+      if (template.indexOf('×{' + paramName + '}') >= 0) formatted = formatted.replace(/^[×xX]/, '');
+      if (template.indexOf('+{' + paramName + '}') >= 0) formatted = formatted.replace(/^[+＋]/, '');
+      params[paramName] = formatted;
+    }
     return params;
   }
   function formatDescriptionValue(name, token) {
@@ -315,6 +322,14 @@
     var special = {};
     if (id === 'wonder_albada') special.populationPercent = String(Math.max(0, Number(s && s.pop) || 0)) + '%';
     if (id === 'wonder_shellcutter') special.observatoryLevelPercent = String(Math.max(0, Number(s && s.lvl && s.lvl.observatory) || 0)) + '%';
+    if (id === 'wonder_voyager' || id === 'wonder_khalifa') {
+      var useEnWonder = englishLocale();
+      special.thresholdPercent = '25%';
+      special.earlyExplorationRate = useEnWonder ? '100' : '+100';
+      special.lateExplorationRate = useEnWonder ? '25' : '+25';
+      if (id === 'wonder_voyager') special.scholarBonus = useEnWonder ? '10%' : '+10%';
+      else special.scribeBonus = useEnWonder ? '10%' : '+10%';
+    }
     var params = englishTemplateParams(key, fallback, special);
     return localizedContentDescription(key, fallback || '', params || {});
   }
@@ -373,6 +388,57 @@
       if (SB.CIVICS[i].id === id) return SB.CIVICS[i];
     }
     return null;
+  }
+  function localizedTechUnlockDescription(item) {
+    if (!item || !item.unlockDesc) return '';
+    if (!nonDefaultLocale()) return item.unlockDesc;
+    var key = 'tech.' + item.id + '.unlock_desc';
+    var enLoc = englishLocale(), special = {};
+    if (item.id === 'castle') {
+      special = enLoc
+        ? { capacityPerLevel: '50', eraCount: '3', civicRate: '0.05' }
+        : { capacityPerLevel: '+50', eraCount: '三', civicRate: '+0.05/秒' };
+    } else if (item.id === 'architect') {
+      special = enLoc
+        ? { capacityPerLevel: '200', eraCount: '7' }
+        : { capacityPerLevel: '+200', eraCount: '七' };
+    } else if (item.id === 'deepspace') {
+      special = {
+        thresholdPercent: '25%',
+        earlyExplorationRate: enLoc ? '100' : '+100',
+        lateExplorationRate: enLoc ? '25' : '+25',
+        scholarBonus: enLoc ? '10%' : '+10%'
+      };
+    } else if (item.id === 'protoai') {
+      special = { robotPopulation: '4', robotOutputBonus: '20%' };
+    } else if (item.id === 'ecological_restoration') {
+      special = { levelThreshold: enLoc ? '3' : '三' };
+    } else if (item.id === 'microwave_heat') {
+      special = {
+        cycleSeconds: enLoc ? '10s' : '10',
+        uraniumRate: '0.5',
+        engineRate: '0.3',
+        filmRate: '0.3',
+        hydrothermalRate: '4',
+        sailHydrothermalRate: '+0.05'
+      };
+    } else if (item.id === 'terraform') {
+      special = { terraformTime: '1h', levelThreshold: enLoc ? '5' : '五' };
+    } else if (item.id === 'interlog') {
+      special = {
+        effectPercent1: enLoc ? '20%' : '+20%',
+        cardMultiplier: '×1.3',
+        addedMultiplier: '0.2',
+        combinedMultiplier: '1.5'
+      };
+    } else if (item.id === 'heir_of_stars') {
+      special = {
+        stardustBonus: '+100%',
+        craftingBonusPerStardust: enLoc ? '1%' : 'x%'
+      };
+    }
+    var params = englishTemplateParams(key, item.unlockDesc, special);
+    return localizedContentDescription(key, item.unlockDesc, params || {});
   }
   function localizedCivicDescription(item) {
     if (!item) return '';
@@ -548,7 +614,13 @@
     function addName(name, id, type) {
       if (name) names.push({ name: name, id: id, type: type });
     }
-    if (linkWorkshopTab) addName('工坊', 'workshop', 'workshopTab');
+    if (linkWorkshopTab) {
+      addName('工坊', 'workshop', 'workshopTab');
+      if (nonDefaultLocale()) {
+        addName(tr('ui.tab.workshop', null, 'Workshop'), 'workshop', 'workshopTab');
+        addName(tr('ui.tab.workshop_craft', null, 'Crafting'), 'workshop', 'workshopTab');
+      }
+    }
     for (i = 0; i < list.length; i++) {
       addName(list[i].name, list[i].id, 'build');
       var localizedBuilding = localizedBuildingName(list[i].id, list[i].name);
@@ -699,8 +771,7 @@
       : item.desc;
     if (!tech) effect = localizedCivicDescription(item);
     var unlockText = tech && item.unlockDesc
-      ? localizedContentDescription('tech.' + id + '.unlock_desc', item.unlockDesc,
-        englishTemplateParams('tech.' + id + '.unlock_desc', item.unlockDesc))
+      ? localizedTechUnlockDescription(item)
       : '';
     var unlockSection = tech && item.unlockDesc
       ? '<section class="tree-detail-section"><h4>' + tr('tree.detail.heading.unlocks', null, '解锁内容') + '</h4><p>' +
@@ -967,9 +1038,77 @@
         Math.round((_robotAIMult - 1) * 100) + '%，且按人口数量产出信仰。耗热液能 ' +
         _robotBayHydro + '/秒/级。');
     }
-    var _staticDescription = tr('building.' + String(b.id || '').replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase() + '.description');
-    if (_staticDescription && _staticDescription.indexOf('{') < 0) return _staticDescription;
-    return b.desc || '';
+    if (!nonDefaultLocale()) return b.desc || '';
+    var _B = SB.BLD || {};
+    var _slug = String(b.id || '').replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
+    var _descKey = (_id === 'terra_launch' || _id === 'enceladus_launch')
+      ? 'building.planetary_launch_site.description'
+      : 'building.' + _slug + '.description';
+    var _explicitParams = null;
+    if (_id === 'hall') {
+      _explicitParams = { resourceCapacityPerLevel: '50', maxCappedEra: englishLocale() ? '3' : '三' };
+    } else if (_id === 'caravanserai') {
+      _explicitParams = { luxuryUpkeepReductionPerLevel: '1' };
+    } else if (_id === 'satellite') {
+      _explicitParams = {
+        starExplorationPerSecond: _B.satelliteStar != null ? _B.satelliteStar : 5,
+        scholarOutputBonusPerLevel: Math.round((_B.satelliteScholar != null ? _B.satelliteScholar : 0.25) * 100),
+        hydroEnergyConsumptionPerSecond: _B.satelliteHydro != null ? _B.satelliteHydro : 1
+      };
+    } else if (_id === 'spacestation') {
+      _explicitParams = {
+        starExplorationPerSecond: _B.stationStar != null ? _B.stationStar : 10,
+        hydroEnergyConsumptionPerSecond: _B.stationHydro != null ? _B.stationHydro : 2
+      };
+    } else if (_id === 'biomatlab') {
+      _explicitParams = {
+        thetaMetalOutputPerSecond: _B.biomatlabOutRate != null ? _B.biomatlabOutRate : 0.0625,
+        kelpCostPerLevel: _B.biomatlabKelp != null ? _B.biomatlabKelp : 100,
+        ironCostPerLevel: _B.biomatlabIron != null ? _B.biomatlabIron : 4,
+        titaniumCostPerLevel: _B.biomatlabTi != null ? _B.biomatlabTi : 2,
+        uraniumCostPerLevel: _B.biomatlabU != null ? _B.biomatlabU : 0.35,
+        hydroEnergyConsumptionPerSecond: _B.biomatlabHydro != null ? _B.biomatlabHydro : 3
+      };
+    } else if (_id === 'rheamine') {
+      _explicitParams = {
+        stoneBeamOutputPerSecond: _B.rheamineBeam != null ? _B.rheamineBeam : 2.5,
+        hardenedCoralOutputPerSecond: _B.rheamineCoral != null ? _B.rheamineCoral : 2.5,
+        uraniumOutputPerSecond: _B.rheamineUranium != null ? _B.rheamineUranium : 0.25
+      };
+    } else if (_id === 'titancloud') {
+      _explicitParams = {
+        hydroEnergyOutputPerSecond: _B.titancloudHydro != null ? _B.titancloudHydro : 6,
+        fuelOutputPerSecond: _B.titancloudFuel != null ? _B.titancloudFuel : 5
+      };
+    } else if (_id === 'mars_workshop') {
+      _explicitParams = {
+        titaniumComponentOutputPerSecond: _B.marsTiplate != null ? _B.marsTiplate : 3,
+        titaniumOutputPerSecond: _B.marsTitanium != null ? _B.marsTitanium : 2
+      };
+    } else if (_id === 'void_altar') {
+      var _vc = b.popCostByLevel || [30, 75, 200];
+      _explicitParams = {
+        firstLevelPopulationCost: _vc[0] != null ? _vc[0] : 30,
+        secondLevelPopulationCost: _vc[1] != null ? _vc[1] : 75,
+        thirdLevelPopulationCost: _vc[2] != null ? _vc[2] : 200,
+        altarLevelCount: b.maxLvl || _vc.length || 3
+      };
+    } else if (_id === 'europa_launch' || _id === 'terra_launch' || _id === 'enceladus_launch') {
+      _explicitParams = {
+        uraniumPerLevel: 0.5,
+        enginePerLevel: 0.3,
+        filmPerLevel: 0.3,
+        hydroEnergyPerLevel: 4,
+        nodeUraniumPerLevel: 5,
+        nodeEnginePerLevel: 3,
+        nodeFilmPerLevel: 3,
+        titaniumPlatePerLevel: 30,
+        nodeHydroEnergyPerLevel: 4,
+        baseCostLevel: 1
+      };
+    }
+    var _descParams = englishTemplateParams(_descKey, b.desc, _explicitParams);
+    return localizedContentDescription(_descKey, b.desc || '', _descParams || {});
   }
 
   /* 建筑信息卡「效果」段：把每座建筑的「每级基础量 × 当前等级 = 当前总量」写清楚，
@@ -1602,6 +1741,7 @@
     localizedWorkshopItemDescription: localizedWorkshopItemDescription,
     localizedWorkshopRequirement: localizedWorkshopRequirement,
     workshopHasRequirementBlock: workshopHasRequirementBlock,
+    localizedTechUnlockDescription: localizedTechUnlockDescription,
     englishTemplateParams: englishTemplateParams
   };
 })(typeof window !== 'undefined' ? window : globalThis);

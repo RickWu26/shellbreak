@@ -102,7 +102,7 @@
     /* 常驻行复用现有完整日志文案（已含全部字段），不另造一条口径 */
     var lastText = tr('ui.war.result.action', {
       actionName: actionName(result.action), outcomeName: outcomeName(result.outcome),
-      scaleLoss: fmt(result.scaleLoss), popLost: fmt(popLost),
+      scaleLoss: fmt(result.scaleLoss), soldiersLost: fmt(popLost),
       lootAmount: fmt(lootAmount), resourceName: resourceName(result.resourceId),
       populationCapAward: popCap
     }, '');

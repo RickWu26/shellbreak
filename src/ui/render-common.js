@@ -312,23 +312,20 @@
     if (!co) return [];
     return (co === true) ? ['drift_terra'] : (typeof co === 'string' ? [co] : co);
   }
-  function challengeTag(s, item) {
-    var list = challengeTagIds(item);
-    if (!list.length) return '';
-    var cur = s && s.challenge && s.challenge.id;
-    if (!cur) return '';
-    var allowed = false, i;
-    for (i = 0; i < list.length; i++) if (list[i] === cur) allowed = true;
-    if (!allowed) return '';
-    var names = [];
+  function localizedChallengeName(id, fallback) {
+    var key = id === 'waterpollution' ? 'challenge.water_pollution.name'
+      : 'challenge.definition.' + id + '.name';
+    return tr(key, null, fallback || id || '');
+  }
+  function buildChallengeTagMarkup(list, tipKey, tipFallback) {
+    var names = [], i;
     for (i = 0; i < list.length; i++) {
       var c = (SB.challenges && SB.challenges.byId) ? SB.challenges.byId(list[i]) : null;
-      names.push(c ? c.name : list[i]);
+      names.push(localizedChallengeName(list[i], c ? c.name : list[i]));
     }
-    var name = names.join(' / '), p = { challengeName: name };
+    var p = { challengeName: names.join(' / ') };
     var badge = tr('content.tag.challenge_only', p, '{challengeName}限定');
-    var tip = tr('content.tag.challenge_only.tip', p,
-      '{challengeName} · 挑战专属内容，仅在当前周目出现；通关或重开后不再保留。');
+    var tip = tr(tipKey, p, tipFallback);
     function esc(v) {
       return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/"/g, '&quot;')
         .replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -338,6 +335,14 @@
       '<i class="hover-info-btn co-info" title="' + t + '"' +
       ' onclick="event.preventDefault();event.stopPropagation();SB.ui.showHoverInfo(this.getAttribute(\'title\'))">ⓘ</i>';
   }
+  function challengeTag(s, item) {
+    var list = challengeTagIds(item);
+    if (!list.length) return '';
+    var cur = s && s.challenge && s.challenge.id;
+    if (!cur || list.indexOf(cur) < 0) return '';
+    return buildChallengeTagMarkup(list, 'content.tag.challenge_only.tip',
+      '{challengeName} · 挑战专属内容，仅在当前周目出现；通关或重开后不再保留。');
+  }
 
   /* 静态角标：与 challengeTag 同款视觉/文案，但**不判当前周目**。
    * 用于科技「解锁建筑」等跨上下文列表 —— 基游戏（没打挑战）也要提示「此建筑还需先打某挑战」，
@@ -345,23 +350,8 @@
   function challengeTagStatic(item) {
     var list = challengeTagIds(item);
     if (!list.length) return '';
-    var names = [], i;
-    for (i = 0; i < list.length; i++) {
-      var c = (SB.challenges && SB.challenges.byId) ? SB.challenges.byId(list[i]) : null;
-      names.push(c ? c.name : list[i]);
-    }
-    var name = names.join(' / '), p = { challengeName: name };
-    var badge = tr('content.tag.challenge_only', p, '{challengeName}限定');
-    var tip = tr('content.tag.challenge_only.tip', p,
+    return buildChallengeTagMarkup(list, 'content.tag.challenge_only.tip',
       '{challengeName} · 挑战专属内容，仅在对应挑战周目可在建筑页建造；通关或重开后不再保留。');
-    function esc(v) {
-      return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/"/g, '&quot;')
-        .replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    }
-    var t = esc(tip);
-    return '<span class="co-tag" title="' + t + '">' + esc(badge) + '</span>' +
-      '<i class="hover-info-btn co-info" title="' + t + '"' +
-      ' onclick="event.preventDefault();event.stopPropagation();SB.ui.showHoverInfo(this.getAttribute(\'title\'))">ⓘ</i>';
   }
   common.challengeTag = challengeTag;
   common.challengeTagStatic = challengeTagStatic;

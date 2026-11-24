@@ -1389,8 +1389,11 @@
     s.cards = out;
     s.card = out[0] || null;              // 仅第 0 号槽镜像，勿读（2026-10-14 钉）
     if (emit && (moved || dropped.length)) {
-      emit(tr('civic.policy.reseat.log', {
-        movedCount: moved, droppedCount: dropped.length, droppedNames: dropped.join('、')
+      var key = dropped.length ? 'civic.policy.reseat.with_dropped.log' : 'civic.policy.reseat.log';
+      emit(tr(key, {
+        movedCount: moved,
+        droppedCount: dropped.length,
+        droppedNames: dropped.join((SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US') ? ', ' : '、')
       }, '政策卡已按新槽位自动归位' + (moved ? '（调整 ' + moved + ' 张）' : '') +
         (dropped.length ? '；' + dropped.join('、') + ' 无对口槽，已免费卸回卡池' : '') + '。'));
     }

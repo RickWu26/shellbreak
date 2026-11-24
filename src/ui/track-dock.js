@@ -199,7 +199,7 @@
       if (!c) return null;
       if (SB.workshop.craftBlocked) {
         var why2 = SB.workshop.craftBlocked(s, id);
-        if (why2 && /^需要先/.test(why2)) return null;     // 未解锁
+        if ((SB.workshop.craftHasPrereqBlock && SB.workshop.craftHasPrereqBlock(s, c)) || (why2 && /^需要先/.test(why2))) return null;     // 未解锁
       }
       var rowsC = costRows(s, c.in);
       var craftInfo = infoParts();
@@ -221,7 +221,7 @@
       if (!u) return null;
       if (s.upgrades && s.upgrades[id]) return null;            // 已装上
       var uwhy = SB.workshop.upgradeBlocked ? SB.workshop.upgradeBlocked(s, id) : null;
-      if (uwhy && /^需要先/.test(uwhy)) return null;          // 未解锁（科技 / 市政）
+      if ((SB.workshop.upgradeHasPrereqBlock && SB.workshop.upgradeHasPrereqBlock(s, u)) || (uwhy && /^需要先/.test(uwhy))) return null;          // 未解锁（科技 / 市政）
       var rowsU = costRows(s, SB.workshop.upgradeCost(s, id));
       var readyU = allOk(rowsU);
       var upInfo = infoParts();
@@ -696,13 +696,13 @@
       return;
     }
     if (info.kind === 'upgrade') {
-      if (SB.game && SB.game.setTab) SB.game.setTab('workshop');
-      /* 升级项在「升级项」子视图，停在「制造」时切过去，否则滚不到对应行、像点了没反应。 */
+      if (SB.game && SB.game.setTab) SB.game.setTab('workshop-upgrades');
+      /* 升级项已拆到一级页签「工坊升级」，同时保持 setWorkshopView('upgrades') 让未读与回退口径一致。 */
       if (SB.ui.render && SB.ui.render.setWorkshopView) {
         try { SB.ui.render.setWorkshopView('upgrades'); } catch (e2) {}
       }
       if (SB.ui.render && SB.ui.render.renderPanes) SB.ui.render.renderPanes();
-      raf(function () { raf(function () { scrollTo('#pane-workshop [data-upgrade="' + info.id + '"]'); }); });
+      raf(function () { raf(function () { scrollTo('#pane-workshop-upgrades [data-upgrade="' + info.id + '"]'); }); });
       return;
     }
     if (info.kind === 'tech' || info.kind === 'civic') {

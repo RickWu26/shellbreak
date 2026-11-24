@@ -380,15 +380,202 @@ html[data-ui-theme="day"] .nav-group-btn.on {
   color: #145c63;
 }
 
-/* 只保留当前分组的二级页签：开局单组时直接显示聚落页签，多组解锁后切组联动 */
-body:not(.has-multi-nav-groups) .tabs .tab:not([data-nav-group="colony"]) {
-  display: none;
+/* 移动端四组导航折叠规则：桌面端 (>=761px) 改为按操作频率全量平铺直达，不再强制点两组。 */
+@media (max-width: 760px) {
+  body:not(.has-multi-nav-groups) .tabs .tab:not([data-nav-group="colony"]) {
+    display: none;
+  }
+  body.has-multi-nav-groups .tabs[data-active-group="colony"] .tab:not([data-nav-group="colony"]),
+  body.has-multi-nav-groups .tabs[data-active-group="industry"] .tab:not([data-nav-group="industry"]),
+  body.has-multi-nav-groups .tabs[data-active-group="faith"] .tab:not([data-nav-group="faith"]),
+  body.has-multi-nav-groups .tabs[data-active-group="cycle"] .tab:not([data-nav-group="cycle"]) {
+    display: none;
+  }
 }
-body.has-multi-nav-groups .tabs[data-active-group="colony"] .tab:not([data-nav-group="colony"]),
-body.has-multi-nav-groups .tabs[data-active-group="industry"] .tab:not([data-nav-group="industry"]),
-body.has-multi-nav-groups .tabs[data-active-group="faith"] .tab:not([data-nav-group="faith"]),
-body.has-multi-nav-groups .tabs[data-active-group="cycle"] .tab:not([data-nav-group="cycle"]) {
-  display: none;
+
+/* 桌面端平铺频率导航：隐藏多余的手机分组栏，已解锁高频页签排前，未解锁预览统一后置。 */
+.tabs .tab.locked {
+  order: 99;
+}
+@media (min-width: 761px) {
+  .app-nav-groups {
+    display: none !important;
+  }
+  .tabs .tab[data-nav-tier="core"]:not(.locked):not(.on) {
+    color: var(--txt);
+    border-color: rgba(105, 226, 223, .16);
+  }
+  .tabs .tab[data-nav-tier="meta"]:not(.locked):not(.on) {
+    opacity: .84;
+    font-size: 12px;
+  }
+  .tabs .tab.locked {
+    opacity: .34;
+    padding: 6px 18px 6px 9px;
+    font-size: 12px;
+  }
+}
+html[data-ui-theme="day"] .tabs .tab[data-nav-tier="core"]:not(.locked):not(.on) {
+  border-color: rgba(31, 127, 135, .18);
+  color: #1c3d46;
+}
+
+/* ── 星屑炼金：双向兑换滑动条弹窗 ────────────────────────────────── */
+.modal-exchange {
+  width: min(470px, calc(100vw - 24px));
+  max-width: 470px;
+}
+.star-exchange-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.star-exchange-rate {
+  font-size: 11px;
+  color: var(--cyan);
+  font-weight: 600;
+}
+.star-exchange-balances {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 12px 0;
+}
+.star-exchange-bal {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  border: 1px solid var(--line-soft);
+  background: rgba(11, 29, 46, .62);
+}
+.star-exchange-bal span {
+  font-size: 11px;
+  color: var(--dim);
+}
+.star-exchange-bal b {
+  font-size: 15px;
+  color: var(--txt);
+  font-variant-numeric: tabular-nums;
+}
+.star-exchange-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(8, 22, 37, .65);
+}
+.star-exchange-range-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.star-exchange-slider {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 26px;
+  accent-color: var(--cyan);
+  cursor: pointer;
+}
+.star-exchange-num-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+}
+.star-exchange-num {
+  width: 82px;
+  min-height: 34px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel2);
+  color: var(--txt);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.star-exchange-unit {
+  font-size: 12px;
+  color: var(--dim);
+}
+.star-exchange-presets {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.star-exchange-presets .pane-pill {
+  min-height: 30px;
+  padding: 4px 6px;
+  text-align: center;
+}
+.star-exchange-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(77, 216, 230, .35);
+  background: rgba(18, 58, 82, .42);
+}
+.star-exchange-preview strong {
+  font-size: 14px;
+  color: var(--cyan);
+  font-variant-numeric: tabular-nums;
+}
+.star-exchange-preview span {
+  font-size: 12px;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+.star-exchange-actions {
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+html[data-ui-theme="day"] .star-exchange-rate {
+  color: #176d75;
+}
+html[data-ui-theme="day"] .star-exchange-bal {
+  background: #edf5f3;
+  border-color: #c2d7d4;
+}
+html[data-ui-theme="day"] .star-exchange-controls {
+  background: #f4f9f7;
+  border-color: #bfd5d2;
+}
+html[data-ui-theme="day"] .star-exchange-slider {
+  accent-color: #246e76;
+}
+html[data-ui-theme="day"] .star-exchange-num {
+  background: #fff;
+  border-color: #aac5c2;
+  color: #17323f;
+}
+html[data-ui-theme="day"] .star-exchange-preview {
+  background: #e3f2f0;
+  border-color: #8bc2be;
+}
+html[data-ui-theme="day"] .star-exchange-preview strong {
+  color: #145c63;
+}
+@media (max-width: 520px) {
+  .star-exchange-balances {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .star-exchange-bal {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
 }
 
 /* ── 单行日志播报条 + 折叠历史 ───────────────────────────────────── */
@@ -577,6 +764,11 @@ html[data-ui-theme="day"] .ui-settings-tab.on {
   }
   .brandline h1 {
     font-size: 16px;
+    letter-spacing: .06em;
+  }
+  html[lang^="en"] .brandline h1 {
+    font-size: 15.5px;
+    letter-spacing: .01em;
   }
   .brandline .sub {
     display: none;

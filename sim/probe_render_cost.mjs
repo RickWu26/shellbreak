@@ -170,7 +170,7 @@ bench('renderTick', () => renderTick(), 400);
 // 遥测计数：统计单次 renderAll 对隐藏面板 innerHTML 的写入次数，以及 renderTick 对 #res 子节点的变更次数
 const PANE_IDS = [
   'pane-village-body', 'pane-folk', 'pane-tech', 'pane-civic', 'pane-faith-body',
-  'pane-diplomacy', 'pane-workshop', 'pane-wonder', 'pane-company-body', 'pane-meta',
+  'pane-diplomacy', 'pane-workshop', 'pane-workshop-upgrades', 'pane-wonder', 'pane-company-body', 'pane-meta',
   'pane-veil', 'pane-challenges', 'pane-star-map', 'pane-achievements'
 ];
 let paneWriteTotal = 0;
@@ -179,7 +179,7 @@ let paneWriteHidden = 0;
 const curTab = SB.game.getTab ? SB.game.getTab() : 'village';
 const paneIdByTab = {
   village: 'pane-village-body', folk: 'pane-folk', tech: 'pane-tech', civic: 'pane-civic',
-  faith: 'pane-faith-body', diplomacy: 'pane-diplomacy', workshop: 'pane-workshop',
+  faith: 'pane-faith-body', diplomacy: 'pane-diplomacy', workshop: 'pane-workshop', 'workshop-upgrades': 'pane-workshop-upgrades',
   wonder: 'pane-wonder', company: 'pane-company-body', meta: 'pane-meta', veil: 'pane-veil',
   challenges: 'pane-challenges', 'star-map': 'pane-star-map', achievements: 'pane-achievements'
 };
