@@ -685,16 +685,20 @@
       if (_illegal.length) out.techVer = (out.techVer | 0) + 1;   // ⚠️ tech.mul 缓存契约
     }
 
+    var rawAd = raw.ad, adMs = rawAd && rawAd.ms;
+    var adCapMs = ((SB.CFG.AD && SB.CFG.AD.BOOST_CAP_MIN) || 360) * 60000;
+    out.ad = {
+      ms: Number.isFinite(adMs) && adMs > 0 ? Math.min(adMs, adCapMs) : 0,
+      on: !rawAd || rawAd.on !== false
+    };
+
     var pumpPeriod = (SB.CFG && SB.CFG.OFFLINE_CATCHUP_PUMP > 0) ? SB.CFG.OFFLINE_CATCHUP_PUMP : 8;
+    var maxWallSeconds = Number.MAX_SAFE_INTEGER / 1000;
     var rawCp = raw.offlineCheckpoint;
     if (rawCp && typeof rawCp === 'object' && !Array.isArray(rawCp) && (rawCp.v === 1 || rawCp.v === 2)
         && typeof rawCp.left === 'number' && isFinite(rawCp.left) && rawCp.left > 0
-        && typeof rawCp.secs === 'number' && rawCp.secs > 0 && rawCp.secs <= Number.MAX_SAFE_INTEGER / 1000
-        && typeof rawCp.cap === 'number' && isFinite(rawCp.cap) && rawCp.cap > 0
+        && typeof rawCp.secs === 'number' && rawCp.secs > 0 && rawCp.secs <= maxWallSeconds
         && rawCp.left <= rawCp.secs + 1e-6
-        /* 旧版恢复时只约束 left，写出的 secs = 已完成 + left 可能超过单段上限。 */
-        && (rawCp.v === 2 || rawCp.left <= rawCp.cap + 1e-6)
-        && typeof rawCp.uncountedSecs === 'number' && isFinite(rawCp.uncountedSecs) && rawCp.uncountedSecs >= 0
         && typeof rawCp.bPop === 'number' && isFinite(rawCp.bPop) && rawCp.bPop >= 0
         && typeof rawCp.bShell === 'number' && isFinite(rawCp.bShell) && rawCp.bShell >= 0
         && typeof rawCp.bFam === 'number' && isFinite(rawCp.bFam) && rawCp.bFam >= 0
@@ -706,21 +710,25 @@
         cleanBefore[bKey] = (typeof bv === 'number' && isFinite(bv) && bv >= 0) ? bv : out.res[bKey];
       }
       var tpVal = (typeof rawCp.tp === 'number' && isFinite(rawCp.tp) && rawCp.tp >= 0 && rawCp.tp < pumpPeriod) ? rawCp.tp : 0;
+      /* 存档中的 cap 只是上次报告的口径。采用现行上限，只裁剪还未推进的秒数。 */
+      var cap = SB.CFG.OFFLINE_CAP;
       var rawLeft = Math.min(rawCp.left, rawCp.secs);
-      var clampedLeft = Math.min(rawLeft, rawCp.cap);
-      var extraUncounted = Math.max(0, rawLeft - clampedLeft);
-      var clampedSecs = Math.max(clampedLeft, rawCp.secs - extraUncounted);
+      var left = Math.min(rawLeft, cap);
+      var excess = rawLeft - left;
+      var total = excess > 0 ? rawCp.secs - rawLeft + left : rawCp.secs;
+      var previousUncounted = Number.isFinite(rawCp.uncountedSecs) && rawCp.uncountedSecs > 0 ? rawCp.uncountedSecs : 0;
+      var uncounted = Math.min(maxWallSeconds, previousUncounted + excess);
       out.offlineCheckpoint = {
         v: 2,
-        left: clampedLeft,
-        total: clampedSecs,
-        secs: clampedSecs,
-        cap: rawCp.cap,
-        wallAt: rawCp.v === 2 && typeof rawCp.wallAt === 'number' && isFinite(rawCp.wallAt) && rawCp.wallAt > 0
+        left: left,
+        total: total,
+        secs: total,
+        cap: cap,
+        wallAt: rawCp.v === 2 && typeof rawCp.wallAt === 'number' && rawCp.wallAt > 0 && rawCp.wallAt <= Number.MAX_SAFE_INTEGER
           ? rawCp.wallAt : 0,
         tp: tpVal,
         adActive: rawCp.adActive === true,
-        uncountedSecs: rawCp.uncountedSecs + extraUncounted,
+        uncountedSecs: uncounted,
         before: cleanBefore,
         bPop: rawCp.bPop,
         bShell: rawCp.bShell,
@@ -728,7 +736,7 @@
         bFrost: rawCp.bFrost,
         bBroke: rawCp.bBroke === true,
         brokeDuring: rawCp.brokeDuring === true,
-        silent: rawCp.silent === true
+        silent: rawCp.silent === true && uncounted === 0
       };
     } else {
       out.offlineCheckpoint = null;

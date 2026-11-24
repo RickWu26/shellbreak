@@ -573,9 +573,9 @@ if (process.argv.includes('--redeem-only')) {
 }
 
 /* 破壳后推进专项（2026-11-03）：玩家报「破壳后卡着不动」的回归锁。
- * 只跑源码判据 + 两条行为判据，秒级迭代；**不复制实现**。 */
+ * 单独运行破壳后的推进和存档检查。 */
 if (process.argv.includes('--break-only')) {
-  runBreakContinue({ SB, check });
+  runBreakContinue({ SB, check, doc });
   const failedBreak = checks.filter(c => !c.ok);
   console.log(`\n破壳后推进：${checks.length - failedBreak.length}/${checks.length} 通过`);
   process.exit(failedBreak.length || errors.length ? 1 : 0);
@@ -3211,7 +3211,7 @@ runChallenges({ SB, check, noop });
  * 但仍放在全量尾部，避免影响前面「整局时长 / 成就」这类共享状态的断言。 */
 runWaterPollution({ SB, check, noop, dom: g });
 /* 2026-11-03：破壳后推进/存档回归锁。放尾部：它会临时把主 fixture 置 broken 再还原。 */
-runBreakContinue({ SB, check });
+runBreakContinue({ SB, check, doc });
 runAiStrategy({ SB, check, noop });
 /* 2026-11-05：星屑商店「天外重压」。放全量最尾部——它会临时改 meta.starPerks
  * 与当前局的 perk.thin / iceShell，虽然自带 finally 还原，也别压在整局 bot 前面。 */

@@ -321,6 +321,38 @@ export function run({ SB, check, loadAll }) {
       return !r.SB.game.runtimeStatus().catchupActive;
     }
 
+    /* 普通存档没有检查点，启动入口根据存档时间认领离线间隙。 */
+    {
+      const store = new Map(), clock = { v: 0 };
+      const r1 = bootIsolated(store, clock), s = seedMidRun(r1.SB);
+      const cap = r1.SB.CFG.OFFLINE_CAP, skipped = 7200;
+      const adMs = r1.SB.CFG.AD.BOOST_CAP_MIN * 60000;
+      s.ad = { ms: adMs, on: true };
+      const raw = r1.SB.game.snapshot(s);
+      r1.SB.state.saveRun(raw);
+
+      clock.v += (cap + skipped) * 1000;
+      const r2 = bootIsolated(store, clock), pending = savedRun(r2, store);
+      const cp = pending.offlineCheckpoint;
+      const duration = (secs) => r2.SB.i18n.t('game.duration.hours_minutes', {
+        hours: Math.floor(secs / 3600), minutes: Math.floor((secs % 3600) / 60)
+      });
+      const modalBox = r2.doc.getElementById('modalBox');
+      const capNotice = r2.SB.i18n.t('game.offline.catchup.cap_notice', {
+        capDuration: duration(cap), uncountedDuration: duration(skipped)
+      });
+      check('普通冷启动只认领上限内的时间，进度窗列明被截掉的时间',
+        !raw.offlineCheckpoint && cp?.left === cap && cp.total === cap && cp.cap === cap &&
+        Math.abs(cp.uncountedSecs - ((cp.wallAt - raw._ts) / 1000 - cap)) < 1e-9 &&
+        pending.ad.ms === adMs && modalBox.innerHTML.includes(capNotice));
+      const closed = finish(r2), after = savedRun(r2, store);
+      const reportNotice = r2.SB.i18n.t('game.offline.settlement.uncounted_note', { uncountedDuration: duration(skipped) });
+      check('冷启动结算按已认领的秒数扣广告并展示未计入时长',
+        closed && Math.abs(after.t - raw.t - cap - adMs / 1000) < 1e-5 && after.ad.ms === 0 &&
+        !after.offlineCheckpoint && modalBox.innerHTML.includes('offline-report') && modalBox.innerHTML.includes(reportNotice),
+        'advanced=' + (after.t - raw.t).toFixed(5));
+    }
+
     /* 远小于 60s 的重启只恢复已有时段，读档自愈不能覆盖检查点。 */
     {
       const store = new Map(), clock = { v: 0 };
@@ -411,29 +443,50 @@ export function run({ SB, check, loadAll }) {
         Math.abs(cp3.left - cap) < 1e-6 && Math.abs(cp3.total - (done2 + cap)) < 1e-6 &&
         cp3.uncountedSecs >= 36000 - (done2 - done1) - 5,
         'left=' + cp3?.left + ' total=' + cp3?.total);
-      const storeTamper = new Map(), clockTamper = { v: 0 };
-      const rBoot = bootIsolated(storeTamper, clockTamper);
-      const sTamper = seedMidRun(rBoot.SB);
-      sTamper.offlineCheckpoint = {
-        v: 2, left: cap * 3, secs: cap * 3, total: cap * 3, cap: cap * 3,
-        wallAt: Date.now(), tp: 0, uncountedSecs: 0, before: {}, bPop: 120, bShell: 1000, bFam: 0, bFrost: 0
-      };
-      rBoot.SB.state.saveRun(Object.assign(rBoot.SB.game.snapshot(sTamper), { offlineCheckpoint: sTamper.offlineCheckpoint }));
-      const rTamperedBoot = bootIsolated(storeTamper, clockTamper);
-      const cpBoot = savedRun(rTamperedBoot, storeTamper).offlineCheckpoint;
-      const migCap = r3.SB.state.migrateRun({
-        t: 100,
-        offlineCheckpoint: {
-          v: 2, left: cap * 3, secs: cap * 3, total: cap * 3, cap,
-          wallAt: 0, tp: 0, uncountedSecs: 0, before: {}, bPop: 1, bShell: 1000, bFam: 0, bFrost: 0
-        }
-      }).offlineCheckpoint;
-      check('篡改检查点放大 cap 与 left 时在迁移层与启动恢复层均受真实上限钳制',
-        migCap.left === cap && migCap.uncountedSecs === cap * 2 &&
-        cpBoot.left === cap && cpBoot.uncountedSecs >= cap * 2);
       check('封顶队列补算完成后总推进精确收口并清除检查点',
         finish(r3) && Math.abs((savedRun(r3, store).t - tStart) - cp3.total) < 1e-5 &&
         savedRun(r3, store).offlineCheckpoint == null);
+    }
+
+    {
+      const store = new Map(), clock = { v: 0 };
+      const rBoot = bootIsolated(store, clock);
+      const s = seedMidRun(rBoot.SB);
+      const cap = rBoot.SB.CFG.OFFLINE_CAP, done = 32, extra = 900;
+      rBoot.SB.game.planCatchUp(s, cap, false);
+      const raw = rBoot.SB.game.snapshot(s), cp = raw.offlineCheckpoint;
+      Object.assign(cp, { left: cap + extra, secs: cap + extra + done, total: cap + extra + done,
+        cap: cap * 3, uncountedSecs: 120, silent: true });
+      raw.perk.offline = 1e300;
+      const migrated = rBoot.SB.state.migrateRun(raw).offlineCheckpoint;
+      rBoot.SB.state.saveRun(raw);
+      const r2 = bootIsolated(store, clock);
+      const booted = savedRun(r2, store).offlineCheckpoint;
+      check('旧 v2 待补超限时按现行上限裁剪，保留已推进的时长并显示超限报告',
+        [migrated, booted].every(item => item?.cap === cap && item.left === cap &&
+          item.total - item.left === done && item.uncountedSecs === 120 + extra && !item.silent) &&
+        r2.doc.getElementById('modalBox').innerHTML.includes('id="offPr"') && r2.SB.game.run().t === raw.t);
+
+      Object.assign(cp, { left: cap - done, secs: cap, total: cap, cap: cap / 2, uncountedSecs: 0 });
+      const underreported = rBoot.SB.state.migrateRun(raw).offlineCheckpoint;
+      check('旧检查点较小的 cap 不会裁掉现行上限内的待补时间',
+        underreported?.cap === cap && underreported.left === cap - done &&
+        underreported.total === cap && underreported.uncountedSecs === 0);
+
+      Object.assign(cp, { cap: Infinity, wallAt: Number.MAX_VALUE, uncountedSecs: Infinity });
+      raw.ad = { ms: Infinity, on: true };
+      const invalid = rBoot.SB.state.migrateRun(raw);
+      raw.ad = { ms: Number.MAX_VALUE, on: false };
+      const oversized = rBoot.SB.state.migrateRun(raw);
+      check('损坏的诊断数值不丢弃待补时长，广告余额受现行上限且保留关闭状态',
+        invalid.offlineCheckpoint?.left === cap - done && invalid.offlineCheckpoint.cap === cap &&
+        invalid.offlineCheckpoint.wallAt === 0 && invalid.offlineCheckpoint.uncountedSecs === 0 && invalid.ad.ms === 0 &&
+        oversized.ad.ms === rBoot.SB.CFG.AD.BOOST_CAP_MIN * 60000 && oversized.ad.on === false);
+      rBoot.SB.game.resetRun();
+      for (const gap of [NaN, Infinity, Number.MAX_VALUE, -1, '600']) {
+        rBoot.SB.game.planCatchUp(rBoot.SB.game.run(), gap, false);
+      }
+      check('无效或无法用墙钟毫秒表示的离线间隙不会启动补算', !rBoot.SB.game.runtimeStatus().catchupActive);
     }
 
     /* 旧版在 8h 补算中重启，再次写盘后可能出现 secs=28832、left=28768。 */
@@ -482,7 +535,8 @@ export function run({ SB, check, loadAll }) {
       const store = new Map(), clock = { v: 0 };
       const r = bootIsolated(store, clock), s = seedMidRun(r.SB);
       const interval = r.sb._intervals[0], n = r.sb._timeouts.length;
-      r.SB.game.planCatchUp(s, 120, true);
+      const cap = r.SB.CFG.OFFLINE_CAP;
+      r.SB.game.planCatchUp(s, cap, false);
       clock.bumpPerRead = 2;
       try { interval(); } finally { clock.bumpPerRead = 0; }
       const nextSlice = r.sb._timeouts[n];
@@ -495,20 +549,47 @@ export function run({ SB, check, loadAll }) {
       const reopenedStore = new Map(store);
       const reopened = bootIsolated(reopenedStore, clock);
       const reopenedCp = savedRun(reopened, reopenedStore).offlineCheckpoint;
+      const room = cap - before.left;
       check('后台长间隙先保存再被杀，仍可从上次计时处补算',
         !!before && whileSuspended.offlineCheckpoint?.wallAt === before.wallAt &&
         whileSuspended._ts - before.wallAt >= 600000 &&
-        reopenedCp?.total >= before.total + 600 && reopenedCp.total < before.total + 602);
+        reopenedCp?.left === cap && Math.abs(reopenedCp.total - before.total - room) < 1e-6 &&
+        Math.abs(reopenedCp.uncountedSecs - (reopenedCp.wallAt - before.wallAt) / 1000 + room) < 1e-6);
       r.doc.hidden = false;
       r.doc.dispatch('visibilitychange');
       clock.bumpPerRead = 2;
       try { nextSlice(); interval(); } finally { clock.bumpPerRead = 0; }
       const resumed = r.SB.game.snapshot(s).offlineCheckpoint;
-      check('同进程恢复先执行补算回调时，新间隙也只入账一次',
-        resumed?.total >= before.total + 600 && resumed.total < before.total + 602 &&
-        savedRun(r, store).offlineCheckpoint?.total === resumed.total,
+      const accepted = savedRun(r, store).offlineCheckpoint;
+      check('同进程回前台先触发补算回调时，间隙只入账一次且待补时长封顶',
+        accepted?.left === cap && resumed?.total === accepted.total &&
+        Math.abs(resumed.total - before.total - room) < 1e-6 &&
+        Math.abs(resumed.uncountedSecs - (accepted.wallAt - before.wallAt) / 1000 + room) < 1e-6,
         'total=' + resumed?.total);
-      finish(r);
+    }
+
+    {
+      const store = new Map(), clock = { v: 0 };
+      const r = bootIsolated(store, clock);
+      seedMidRun(r.SB);
+      const interval = r.sb._intervals[0];
+      interval();
+      r.doc.hidden = true;
+      r.doc.dispatch('visibilitychange');
+      const before = savedRun(r, store);
+      clock.v += 120000;
+      r.doc.dispatch('pagehide');
+      const exiting = savedRun(r, store);
+      const reopened = bootIsolated(new Map(store), clock);
+      const cold = reopened.SB.game.snapshot(reopened.SB.game.run()).offlineCheckpoint;
+      r.doc.hidden = false;
+      r.doc.dispatch('visibilitychange');
+      interval();
+      const closed = finish(r);
+      const returned = savedRun(r, store);
+      check('暂停时尚无任务，先触发退出保存也能在冷启动或原页面恢复短离线且只补一次',
+        closed && !before.offlineCheckpoint && exiting.t === before.t && cold?.total >= 120 && cold.total < 122 && cold.silent &&
+        Math.abs(returned.t - before.t - cold.total) < 1e-6 && !returned.offlineCheckpoint);
     }
 
     /* 换周目、云端接管和导入各自只使用本周目的检查点与时间。 */

@@ -1514,6 +1514,7 @@
    * 单一来源同 OFFLINE_STEP：只读 src/config.js 的 CFG.OFFLINE_SETTLE_MIN；
    * e2e 沙箱里 SB.CFG 可能未注入全，兜底 1800 与 config 保持一字不差。 */
   var OFFLINE_SETTLE_MIN = (SB.CFG && SB.CFG.OFFLINE_SETTLE_MIN != null) ? SB.CFG.OFFLINE_SETTLE_MIN : 1800;
+  var MAX_WALL_SECONDS = Number.MAX_SAFE_INTEGER / 1000; // 墙钟时间以毫秒记入存档
   /* 时间真值有两个：
    *   ① 墙钟（Date.now）→ 用来判断「玩家离开过多久」，补算离线收益；
    *   ② 帧钟（performance.now）→ 用来决定这一帧推进多少逻辑时间。
@@ -1600,7 +1601,7 @@
      * ⚠️ 为什么不用 s.t：那是逻辑秒，吃倍速（广告 2× 等），拿它当「最快通关」
      *   等于奖励氪金与挂机。
      * ⚠️ 离线也照涨（游戏本就支持离线补算）；要「有效游玩时长」得再扣离线段，那是另一口径。
-     * ⚠️ 补算期间（loop.job）同样要涨 —— 墙钟确实在走，且 offlineCap 已封顶。 */
+     * ⚠️ 补算期间（loop.job）同样要涨 —— 墙钟确实在走。 */
     /* 排行榜墙钟计时：破壳后照走（同一批拆门：破壳不是本局终点）。 */
     if (S && loop._wtPrev) {
       var wtGap = (wall - loop._wtPrev) / 1000;
@@ -1769,11 +1770,6 @@
     }
   }
 
-  function offlineCap(s) {
-    var step = SB.CFG.OFFLINE_PERK_STEP || 0;
-    var lv = (s && s.perk && s.perk.offline) || 0;
-    return SB.CFG.OFFLINE_CAP * (1 + step * lv);
-  }
   function gameText(key, params, fallback) {
     var value = SB.i18n && SB.i18n.t ? SB.i18n.t(key, params) : '';
     if (value) return value;
@@ -1801,52 +1797,42 @@
   function RESS_KEYS() { return SB.RESS ? Object.keys(SB.RESS) : []; }
 
   function offlineGap(wall, from) {
-    return typeof from === 'number' && isFinite(from) && from > 0
-      ? Math.max(0, (wall - from) / 1000) : 0;
+    if (typeof from !== 'number' || !(from > 0 && from <= Number.MAX_SAFE_INTEGER)) return 0;
+    var gap = (wall - from) / 1000;
+    return gap > 0 && gap <= MAX_WALL_SECONDS ? gap : 0;
   }
   function accountOfflineGap(wall, acceleratedBackgroundAI) {
     var gap = offlineGap(wall, loop._lastWall);
     loop._lastWall = wall;
-    if (!S || acceleratedBackgroundAI || gap < CFG.OFFLINE_MIN) return;
+    if (!S || acceleratedBackgroundAI || gap < CFG.OFFLINE_MIN) return false;
     if (loop.job) {
       extendCatchUp(loop.job, gap);
       showCatchUpProgress(loop.job);
     } else {
       planCatchUp(S, gap, gap < OFFLINE_SETTLE_MIN);
     }
-    if (loop.job) {
-      loop._lastSave = root.performance && root.performance.now ? root.performance.now() : wall;
-      SB.state.saveRun(snapshot(S));
-    }
+    if (!loop.job) return false;
+    loop._lastSave = root.performance && root.performance.now ? root.performance.now() : wall;
+    SB.state.saveRun(snapshot(S));
+    return true;
   }
 
-  /* 合并新离线间隙时仍把待补总剩余时长约束在单次离线上限 cap 内，防止多次中断叠加刷时长。 */
+  /* 新间隙只能填补待补余额腾出的空间，已经推进的时长留在结算中。 */
   function extendCatchUp(j, gap) {
-    var cap = offlineCap(j.s);
-    j.cap = cap;
-    var curLeft = Math.max(0, j.left || 0);
-    if (curLeft > cap) {
-      var excess = curLeft - cap;
-      j.left = cap;
-      j.total = Math.max(cap, (j.total || cap) - excess);
-      j.uncountedSecs = (j.uncountedSecs || 0) + excess;
-      curLeft = cap;
-    }
-    if (gap < CFG.OFFLINE_MIN || !(gap > 0) || !isFinite(gap)) return;
-    var room = Math.max(0, cap - curLeft);
-    var add = Math.min(gap, room);
-    j.left = curLeft + add;
-    j.total = (j.total || curLeft) + add;
-    j.uncountedSecs = (j.uncountedSecs || 0) + Math.max(0, gap - add);
-    j.silent = j.silent && gap < OFFLINE_SETTLE_MIN && j.uncountedSecs <= 0 && gap <= add;
+    if (gap < CFG.OFFLINE_MIN) return;
+    var add = Math.min(gap, j.cap - j.left);
+    var uncounted = gap - add;
+    j.left = Math.min(j.cap, j.left + add);
+    j.total = Math.min(MAX_WALL_SECONDS, j.total + add);
+    j.uncountedSecs = Math.min(MAX_WALL_SECONDS, j.uncountedSecs + uncounted);
+    j.silent = j.silent && gap < OFFLINE_SETTLE_MIN && j.uncountedSecs === 0;
     j.adActive = j.adActive || adMul() > 1;
   }
 
   function planCatchUp(s, gap, silent) {
-    if (!s || s !== S || loop.job) return;
-    var cap = offlineCap(s);
+    if (!s || s !== S || loop.job || typeof gap !== 'number' || !(gap > 0 && gap <= MAX_WALL_SECONDS)) return;
+    var cap = CFG.OFFLINE_CAP;
     var secs = Math.min(gap, cap);
-    if (!(secs > 0) || !isFinite(gap)) return;
     var before = {}, k;
     for (k in s.res) before[k] = s.res[k];
     loop.job = {
@@ -1858,7 +1844,7 @@
        *   bBroke = 进入补算时是否已经破壳（已经破的老档不该再补播一次破壳动画）
        *   brokeDuring = 本次补算期间是否破了壳（补算结束后据此补播动画与结果面板） */
       bBroke: !!s.broken, brokeDuring: false,
-      silent: !!silent
+      silent: !!silent && secs === gap
     };
     showCatchUpProgress(loop.job);
   }
@@ -3268,7 +3254,16 @@
      * 具体丢掉的是生育计时 _grow 这类累加量——进度条看着像「刷新归零」。
      * ⚠️ 2026-11-03：去掉 `!S.broken`。破壳后 broken 长期为真 ⇒ 这一条曾让「破壳后的
      *   ERA10 进度」在切后台 / 关页面时整体丢失（自动存档那条同批拆门）。 */
-    function flush() { if (!suppressExitSave && S) SB.state.saveRun(snapshot(S)); }
+    function flush() {
+      if (suppressExitSave || !S) return;
+      /* 挂起后退出事件可能先于主循环。无检查点时先认领长间隙，避免新存档时间盖掉它。 */
+      if (!loop.job) {
+        var wall = Date.now();
+        if (offlineGap(wall, loop._lastWall) >= CFG.OFFLINE_MIN &&
+            !((document.hidden || loop._lastAiHidden) && isAiRunning()) && accountOfflineGap(wall, false)) return;
+      }
+      SB.state.saveRun(snapshot(S));
+    }
     function flushAndVerifyXhs() {
       var storage = root.shellbreakXhsStorage;
       if (!storage || !storage.flushAndVerify) return;
