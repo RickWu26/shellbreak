@@ -17,13 +17,13 @@
     try { savedLoc = localStorage.getItem('shellbreak.locale') || ''; } catch (e) {}
     if (locEnabled) {
       window.ShellbreakLocaleUrls = {
-        'en-US': 'electron/locales/en-US.js?v=86',
-        'zh-TW': 'electron/locales/zh-TW.js?v=36'
+        'en-US': 'electron/locales/en-US.js?v=87',
+        'zh-TW': 'electron/locales/zh-TW.js?v=37'
       };
     }
-    var scripts = '<script src="src/locales/zh-CN.js?v=91"><\/script>';
+    var scripts = '<script src="src/locales/zh-CN.js?v=92"><\/script>';
     if (locEnabled && isElectron) {
-      scripts += '<script src="electron/locales/en-US.js?v=86"><\/script><script src="electron/locales/zh-TW.js?v=36"><\/script>';
+      scripts += '<script src="electron/locales/en-US.js?v=87"><\/script><script src="electron/locales/zh-TW.js?v=37"><\/script>';
     } else if (locEnabled && (savedLoc === 'en-US' || savedLoc === 'zh-TW')) {
       scripts += '<scr' + 'ipt src="' + window.ShellbreakLocaleUrls[savedLoc] + '"><\/scr' + 'ipt>';
     }
@@ -449,7 +449,7 @@
      模块初始化期的异常，而初始化失败是最难从玩家截图看出来的那一类。
      错误进内存缓冲，玩家点「存档管理 → 复制诊断信息」时由 save-storage 拼进文本。 -->
 <script src="src/ui/error-log.js?v=1"></script>
-<script src="src/config.js?v=246"></script>
+<script src="src/config.js?v=247"></script>
 <script src="src/config-catalog.js?v=21"></script>
 <script src="src/config-content.js?v=43"></script>
 <script src="src/config-buildings.js?v=51"></script>

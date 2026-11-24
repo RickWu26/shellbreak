@@ -175,8 +175,8 @@ assert "VERSION: 'Ver1.3.2'" in _cfg, '包内 config.js 版本号不是 Ver1.3.2
 #（Electron 专属，按规范不进包，故从 REPO 读）。旧守卫逐字搜中文串，
 # key 化后必然失效，这里改成「结构 + key + 双语资源」四重校验：
 #   ① 27 个版本都在（Ver1.3.2 + Ver1.3.1 + Ver1.3.0 + Ver1.2.4 + Ver1.2.3 + Ver1.2.2 + Ver1.2.1 + Ver1.2.0 + Ver1.1.1 + Ver1.1.0 + Ver1.0.17…Ver1.0.1），CHANGELOG 段剥注释后不含任何汉字（无中文硬编码回潮）；
-#   ② 恰 162 条语义 key、互不重复；
-#   ③ 包内 zh-CN 与仓库 en-US 都含这 162 个 key 且译文非空；
+#   ② 共 164 条语义 key，互不重复；
+#   ③ 包内 zh-CN 与仓库 en-US 均含全部条目且译文非空；
 #   ④ 中英文都没有未烘焙的 {placeholder}，且废弃的机械 key 不再被引用。
 import re as _re
 import json as _json
@@ -205,8 +205,9 @@ _chg_code = _re.sub(r'//[^\n]*', '', _chg_code)
 assert not _re.search(r'[\u4e00-\u9fff]', _chg_code), \
     '包内 config.js 的 CHANGELOG 仍残留中文硬编码条目（应先登记再引用 key）'
 _chg_keys = _re.findall(r"'((?:changelog|ui\.footer)\.[a-z0-9_.]+)'", _chg_body)
-assert len(_chg_keys) == 162, '包内 config.js 更新日志 key 数应为 162，实为 %d' % len(_chg_keys)
-assert len(set(_chg_keys)) == 162, '包内 config.js 更新日志有重复 key'
+_expected_changelog_keys = 164
+assert len(_chg_keys) == _expected_changelog_keys, '包内 config.js 更新日志 key 数应为 %d，实为 %d' % (_expected_changelog_keys, len(_chg_keys))
+assert len(set(_chg_keys)) == len(_chg_keys), '包内 config.js 更新日志有重复 key'
 
 def _strip_js_block_comments(_txt):
     """词库是 JS 对象字面量，允许 /* */ 注释；json.loads 不接受。
@@ -278,7 +279,7 @@ for _old_key in ['ui.render.anonymous_function.leaderboard',
 for _new_key in ['ui.footer.leaderboard_button', 'ui.footer.changelog_button']:
     assert _new_key in _idx, '包内 index.html 缺页脚语义 key: ' + _new_key
 assert '活动礼包码直接领取' not in _cfg, '包内 config.js 仍残留礼包码那条公开日志（用户要求删）'
-print('更新日志本地化守卫: OK (27 版本 / 162 key / zh-CN + en-US 双语齐全 / 无占位符 / 无废弃 key)')
+print('更新日志本地化守卫: OK (%d 版本 / %d key / zh-CN + en-US 双语齐全 / 无占位符 / 无废弃 key)' % (len(_expected_versions), len(_chg_keys)))
 
 # ---------- 存档诊断 + 三个 P0（2026-10-29 / Ver1.0.4）----------
 # 这一批全是「玩家报存档没了」的对策，任何一条漏进包里都等于白改，所以逐条钉死。

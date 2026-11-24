@@ -18,16 +18,15 @@
     /* 玩家打开更新日志后写入 meta.seenVersion，清除当前版本的未读提示。 */
     CHANGELOG: [
       { v: 'Ver1.3.2', date: '2026-11-24', items: [
-        // —— 性能与省电 ——
+        'changelog.performance.offline_checkpoint',
         'changelog.performance.boot_and_assets',
         'changelog.performance.power_save_and_render',
-        'changelog.performance.offline_checkpoint',
-        // —— 界面与操作 ——
         'changelog.ui.responsive_shell_and_nav',
         'changelog.ui.filters_and_craft_roundtrip',
         'changelog.ui.mobile_research_list',
-        // —— 修复 ——
-        'changelog.fix.craft_jump_touch_and_toast'
+        'changelog.ui.stardust_exchange_confirmation',
+        'changelog.fix.craft_jump_touch_and_toast',
+        'changelog.i18n.web_and_desktop'
       ] },
       /* Ver1.3.1（2026-11-19 建段）：2026-11-20/21 改动合集。
        * 2026-11-21 定稿：图标换新、六项新飞升挑战（第一批三项 + 第二批三项，用户指出不能只写后三项）、
