@@ -429,7 +429,7 @@ html[data-ui-theme="day"] .log-ticker-bar {
   position: fixed;
   inset: 0;
   background: rgba(3, 8, 16, .68);
-  z-index: 94;
+  z-index: 114;
 }
 .ui-settings[open] > .ui-settings-popover {
   position: fixed;
@@ -437,7 +437,7 @@ html[data-ui-theme="day"] .log-ticker-bar {
   left: 50%;
   right: auto;
   transform: translate(-50%, -50%);
-  z-index: 95;
+  z-index: 115;
   width: min(460px, calc(100vw - 24px));
   max-height: min(84vh, 700px);
   padding: 0;
@@ -767,7 +767,7 @@ html[data-ui-theme="day"] .ui-settings-tab.on {
     position: fixed;
     inset: 0;
     background: rgba(3, 8, 16, .72);
-    z-index: 64;
+    z-index: 104;
   }
   .shell-overview-drawer {
     position: fixed;
@@ -775,7 +775,7 @@ html[data-ui-theme="day"] .ui-settings-tab.on {
     right: 10px;
     top: 10px;
     bottom: calc(10px + env(safe-area-inset-bottom, 0px));
-    z-index: 65;
+    z-index: 105;
     padding: 12px;
     border-radius: 14px;
     border: 1px solid var(--line);

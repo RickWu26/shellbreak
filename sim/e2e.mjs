@@ -2819,6 +2819,8 @@ check('首次轮回后 setTab(achievements) 可进入（pane-achievements 不再
  * ⚠️ 断言必须在**活着的这一局**上 render（pane 画的是 SB.game.run()），跑完还原 lvl/seen。 */
 {
   const sVc = SB.game.run();
+  const tabBak = SB.game.getTab();
+  SB.game.setTab('village');
   const lvBak = Object.assign({}, sVc.lvl), seenBak = Object.assign({}, sVc.seen);
   sVc.lvl.nest = 1; sVc.lvl.kelp = 1;    // core / food 各露一座
   if (!SB.ui.render.buildingIconsShown()) SB.ui.render.toggleBuildingIcons();
@@ -2856,6 +2858,7 @@ check('首次轮回后 setTab(achievements) 可进入（pane-achievements 不再
     /<div class="bzone folded" data-zone="food">/.test(vFold) === foodBefore, '');
   SB.ui.render.toggleZoneFold('core');   // 翻回原状，别把状态漏给后面的断言
   sVc.lvl = lvBak; sVc.seen = seenBak;
+  if (tabBak) SB.game.setTab(tabBak);
   SB.game.markDirty(); SB.ui.render.renderPanes();
 }
 
@@ -2866,6 +2869,8 @@ check('首次轮回后 setTab(achievements) 可进入（pane-achievements 不再
  * ⚠️ 别改成测 predicate：坏掉的正是「没人把升级门接进模板」。 */
 {
   const sSp = SB.game.run();
+  const tabBak = SB.game.getTab();
+  SB.game.setTab('village');
   const lvBak = Object.assign({}, sSp.lvl);
   const upBak = Object.assign({}, sSp.upgrades || {});
   sSp.lvl.siltpit = 2; sSp.lvl.workshop = 2;      // 与真实建成态一致（lv>0 才渲染整行）
@@ -2885,6 +2890,7 @@ check('首次轮回后 setTab(achievements) 可进入（pane-achievements 不再
     offWs && hOn.indexOf('data-workshop-inc') >= 0,
     '无升级仍出现=' + !offWs + ' 有升级未出现=' + (hOn.indexOf('data-workshop-inc') < 0));
   sSp.lvl = lvBak; sSp.upgrades = upBak;
+  if (tabBak) SB.game.setTab(tabBak);
   SB.game.markDirty(); SB.ui.render.renderPanes();
 }
 
