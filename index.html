@@ -17,13 +17,13 @@
     try { savedLoc = localStorage.getItem('shellbreak.locale') || ''; } catch (e) {}
     if (locEnabled) {
       window.ShellbreakLocaleUrls = {
-        'en-US': 'electron/locales/en-US.js?v=87',
-        'zh-TW': 'electron/locales/zh-TW.js?v=37'
+        'en-US': 'electron/locales/en-US.js?v=88',
+        'zh-TW': 'electron/locales/zh-TW.js?v=38'
       };
     }
-    var scripts = '<script src="src/locales/zh-CN.js?v=92"><\/script>';
+    var scripts = '<script src="src/locales/zh-CN.js?v=93"><\/script>';
     if (locEnabled && isElectron) {
-      scripts += '<script src="electron/locales/en-US.js?v=87"><\/script><script src="electron/locales/zh-TW.js?v=37"><\/script>';
+      scripts += '<script src="electron/locales/en-US.js?v=88"><\/script><script src="electron/locales/zh-TW.js?v=38"><\/script>';
     } else if (locEnabled && (savedLoc === 'en-US' || savedLoc === 'zh-TW')) {
       scripts += '<scr' + 'ipt src="' + window.ShellbreakLocaleUrls[savedLoc] + '"><\/scr' + 'ipt>';
     }
