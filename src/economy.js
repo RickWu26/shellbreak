@@ -1494,7 +1494,7 @@
    *                                                            因此 **不被季节打折**
    *   3711  perTick *= 1 + getEffect("catnipRatio")           ← 喷口导流堤放大两条来源
    * 把季节挪到「(建筑+职业)×季节」会让采集者在寒流季集体饿死，与原作不符。 */
-  function foodRate(s, cold, relief) {
+  function foodRate(s, cold, relief, effectiveJobs) {
     /* relief：暖石开关这一瞬间顶回来的部分（tick 里算好传进来）。
      * ⚠️ 只顶建筑侧那只季节乘区（seasonMul），与「职业侧不吃季节」是同一条纪律——
      *    把暖石的效果做成全局乘区，寒流季的采集者会跟着一起被抬高，
@@ -1510,7 +1510,7 @@
      *    ⚠️ **不能再乘 folkOutputMul**：effJobs 内部已经乘过一次（folk.js:355），再乘就是双重放大。
      *    ⚠️ folk.js 在 index.html 里排在 economy.js 之后（222 vs 232）⇒ 加载期读不到 SB.folk，
      *       必须运行期取值并带守卫；万一 folk 未就绪，回落到旧式算式（行为与改前逐位相同）。 */
-    var _ejF = (SB.folk && SB.folk.effJobs) ? SB.folk.effJobs(s) : null;
+    var _ejF = effectiveJobs || ((SB.folk && SB.folk.effJobs) ? SB.folk.effJobs(s) : null);
     var byJob = (_ejF ? (_ejF.gather || 0) : (s.jobs.gather * folkOutputMul(s)))
       * SB.UNIT.kelp * farmMul(s) * algaeCropMul(s) * geneMul('geneAgilityMul');  // 职业侧：不吃季节；farm 乘区 + 基因敏捷
     /* 只放大食物，别把 gatherMul（礁石平台/深潜/洋流增益）乘进来——
@@ -2914,7 +2914,7 @@
    *   —— 这里只推进 happy 与奢侈品存量，「不」动 _happySnap（_happySnap 由调用方在每次
    *      重采样前自行置为当前 s.happy，与 tick 开头 line 43 同纪律）。
    *   —— 抽出后 tick 的 step 4c 直接调它，行为逐位不变（纯重构）。 */
-  function happyStep(s, dt) {
+  function happyStep(s, dt, effectiveJobs) {
     var _gb = (SB.civic ? SB.civic.govHappyBonus(s) : 0)
       + (SB.wonder ? SB.wonder.happyBonus(s) : 0)
       + (SB.civic ? SB.civic.cardHappyOffset(s) : 0)
@@ -2938,7 +2938,7 @@
      *    改读 effJobs 后两侧同口径；同样**不能**再乘 folkOutputMul（effJobs 内部已乘）。
      *    ⚠️ scribe（市政点）那行**不改**：robotJobAllowed 明确剔除 scribe/scholar，
      *       effJobs 不会给它们加机器人口，两种写法逐位等价，改了只是多一次对象分配。 */
-    var _ejM = (SB.folk && SB.folk.effJobs) ? SB.folk.effJobs(s) : null;
+    var _ejM = effectiveJobs || ((SB.folk && SB.folk.effJobs) ? SB.folk.effJobs(s) : null);
     var _S = (_ejM ? (_ejM.merchant || 0) : ((s.jobs.merchant || 0) * folkOutputMul(s)))
       * SB.UNIT.luxury * _tMer * baseMul(s) * unifiedMul(s)
       * (SB.civic ? SB.civic.govLuxuryMul(s) : 1) * (1 + _uLux) * _lp * merchantGeneMul(s) * _bank

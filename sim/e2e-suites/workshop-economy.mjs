@@ -357,11 +357,16 @@ console.log('\n=== 工坊：青铜工具 ===');
   /* ⑧ 工坊界面 —— 用户拍板的是「建成工坊**开工坊界面**」，
    *    所以面板必须真的存在、真的会跟着状态翻，不能只是数据层对。 */
   wt.tools = {}; wt.lvl.workshop = 0;
+  SB.game.setTab('village');
+  const lockedPaneBefore = doc.getElementById('pane-workshop').innerHTML;
+  const lockedTab = doc.querySelector('.tab[data-tab="workshop"]');
   SB.game.setTab('workshop');
   check('没建工坊时进不去（灰页签就是点不动，不是装饰）',
     SB.game.getTab() !== 'workshop', 'tab=' + SB.game.getTab());
   check('没建工坊时面板写着「尚未建成」，不给玩家一块空白',
-    /尚未建成/.test(doc.getElementById('pane-workshop').innerHTML));
+    lockedTab && lockedTab.classList.contains('locked') && /工坊/.test(lockedTab.title) &&
+    /尚未建成/.test(SB.ui.renderParts.paneWorkshop()) &&
+    doc.getElementById('pane-workshop').innerHTML === lockedPaneBefore);
 
   wt.lvl.workshop = 1;
   SB.ui.render.setWorkshopView('upgrades');

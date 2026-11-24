@@ -385,9 +385,7 @@
   function paint(s, rate) {
     LAST_S = s || LAST_S;
     LAST_RATE = rate || LAST_RATE;
-    if (!LAST_S) return;
-    build();
-    if (!BUILT || !isOpen()) return;
+    if (!LAST_S || !BUILT || !isOpen()) return;
     syncJumps();   // 主 tab 的锁态/高亮会变（解锁、切页），每帧镜像
     addPowerCell(LAST_S);
     var need = E().foodUse ? E().foodUse(LAST_S) : 0;
@@ -415,7 +413,6 @@
       root.addEventListener('shellbreak:locale-changed', function () { if (BUILT) labels(); });
       root.addEventListener('resize', function () { if (isOpen()) applyPos(); });
     }
-    build();
   }
 
   ui.walkPanel = {

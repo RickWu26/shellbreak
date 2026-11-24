@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import base64
 import argparse
+import hashlib
 import io
 import json
 import re
@@ -118,36 +119,19 @@ def extract_star_map(source: str) -> tuple[str, str, str]:
         raise SystemExit("The extracted star-map markup contains a blocked element or inline handler")
 
     scripts = re.findall(r"<script\b[^>]*>([\s\S]*?)</script\s*>", source, re.IGNORECASE)
-    runtime = next((script for script in scripts if "_PLANET_SPEEDS" in script and "_smApplyGameData" in script), None)
+    runtime = next((script for script in scripts if "function _smMount(" in script), None)
     if runtime is None:
         raise SystemExit("Could not locate the complete star-map runtime")
-    if "window.parent.postMessage(" not in runtime:
-        raise SystemExit("Expected the star-map parent messaging bridge")
-
-    runtime = runtime.replace("window.parent.postMessage(", "window.postMessage(")
-    runtime, n = re.subn(
-        r"if\(!_smActive\|\|document\.hidden\)\{_smRafId=0;last=now;_lastDraw=now;return;\}",
-        "if(!_smActive||document.hidden||!document.getElementById('star-map-mock')||!document.getElementById('star-map-mock').getClientRects().length){_smRafId=0;last=now;_lastDraw=now;return;}",
-        runtime,
-        count=1,
-    )
-    if n != 1:
-        raise SystemExit("Could not pause star-map rendering while its pane is hidden")
-    runtime, n = re.subn(
-        r"_smEnsureAnim\(\)\}\)\(\);\s*$",
-        "_smEnsureAnim();window._smResize=_smResize})();\n",
-        runtime,
-        count=1,
-    )
-    if n != 1:
-        raise SystemExit("Could not expose the star-map resize handler")
+    runtime, separator, _ = runtime.partition("\n// Web iframe entry point\n")
+    if not separator:
+        raise SystemExit("Could not separate the shared star-map runtime from the iframe entry point")
 
     wrapped = (
-        "(function(root){'use strict';var SB=root.SB||(root.SB={});SB.ui=SB.ui||{};"
-        "SB.ui.renderParts=SB.ui.renderParts||{};var mounted=false;"
-        "SB.ui.renderParts.mountXhsStarMap=function(){"
-        "if(mounted||!root.document.getElementById('star-map-mock'))return;mounted=true;"
-        "(function(){\n" + runtime + "\n}).call(root);};})(window);\n"
+        "(function (parts) {\n'use strict';\n"
+        + runtime.strip()
+        + "\nparts.inlineStarMapMarkup = " + json.dumps(markup, ensure_ascii=False) + ";\n"
+        "parts.mountInlineStarMap = _smMount;\n"
+        "})(window.SB.ui.renderParts);\n"
     )
     return markup, css, wrapped
 
@@ -159,65 +143,15 @@ def build_native_star_map() -> dict[str, int]:
 
     pane_path = PACKAGE / "src" / "ui" / "render-pane-star-map.js"
     pane = pane_path.read_text(encoding="utf-8")
-    pane = pane.replace(
-        "if (!iframe || event.source !== iframe.contentWindow || !data) return;",
-        "var inlineMap = !iframe && event.source === root && root.document.getElementById('star-map-mock');\n"
-        "    if ((!inlineMap && (!iframe || event.source !== iframe.contentWindow)) || !data) return;",
+    pane, n = re.subn(
+        r'''    var map = parts\.inlineStarMapMarkup \|\| '<div class="starmap-frame-wrap">' \+[\s\S]*?\n(?=    return map \+)''',
+        "    var map = parts.inlineStarMapMarkup;\n",
+        pane,
+        count=1,
     )
-    pane = pane.replace(
-        "iframe.style.height = Math.max(600, Math.min(1200, Number(data.height) || 780)) + 'px';",
-        "if (iframe) iframe.style.height = Math.max(600, Math.min(1200, Number(data.height) || 780)) + 'px';",
-    )
-    pattern = re.compile(r"  function paneStarMap\(\) \{[\s\S]*?\n  \}\n\n  parts\.paneStarMap = paneStarMap;")
-    replacement = (
-        "  function starMapUnlocked(s) {\n"
-        "    return !!(s && (s.shellOpened || s.breakSettled) && s.shell <= 0);\n"
-        "  }\n\n"
-        "  function paneStarMap() {\n"
-        "    var s = SB.game && SB.game.run ? SB.game.run() : null;\n"
-        "    if (!starMapUnlocked(s)) return '<div class=\"note\">' + escapeHtml(tr('ui.star_map.locked_hint')) + '</div>';\n"
-        "    return '" + json.dumps(markup, ensure_ascii=False) + "' +\n"
-        "      '<div id=\"star-map-buildings\" class=\"star-map-buildings\"></div>';\n"
-        "  }\n\n"
-        "  function syncStarMapVisibility(s) {\n"
-        "    var map = root.document && root.document.getElementById('star-map-mock');\n"
-        "    var panel = root.document && root.document.getElementById('star-map-buildings');\n"
-        "    if (!starMapUnlocked(s)) { if (panel) panel.style.display = 'none'; return; }\n"
-        "    if (panel && starMapView !== 'phase2') renderSelectedBody(s);\n"
-        "    if (map && map.getClientRects().length && root._smResize) root._smResize();\n"
-        "  }\n\n"
-        "  parts.paneStarMap = paneStarMap;\n"
-        "  parts.syncStarMapVisibility = syncStarMapVisibility;"
-    )
-    pane, n = pattern.subn(lambda _match: replacement, pane, count=1)
-    if n != 1 or "parts.syncStarMapVisibility = syncStarMapVisibility" not in pane:
-        raise SystemExit("Could not adapt the star-map pane to the single-page container")
+    if n != 1 or re.search(r"<\s*(?:iframe|object)\b", pane, flags=re.IGNORECASE):
+        raise SystemExit("Could not remove the Web iframe markup from the single-page star map")
     pane_path.write_text(pane, encoding="utf-8", newline="")
-
-    render_path = PACKAGE / "src" / "ui" / "render.js"
-    render = render_path.read_text(encoding="utf-8")
-    old_html = "if (smHtml !== lastStarMapHTML) { node.innerHTML = smHtml; lastStarMapHTML = smHtml; }"
-    new_html = (
-        "if (smHtml !== lastStarMapHTML) { node.innerHTML = smHtml; lastStarMapHTML = smHtml; "
-        "if (SB.ui.renderParts.mountXhsStarMap) SB.ui.renderParts.mountXhsStarMap(); }\n"
-        "        if (SB.ui.renderParts.syncStarMapVisibility) SB.ui.renderParts.syncStarMapVisibility(SB.game && SB.game.run ? SB.game.run() : null);"
-    )
-    if old_html not in render:
-        raise SystemExit("Could not find the star-map pane refresh point")
-    render = render.replace(old_html, new_html, 1)
-    old_target = "var _ifr = node.querySelector('iframe');\n          if (_ifr && _ifr.contentWindow) {"
-    new_target = (
-        "var _ifr = node.querySelector('iframe');\n"
-        "          var _smTarget = _ifr && _ifr.contentWindow ? _ifr.contentWindow : root;\n"
-        "          if (_smTarget && _smTarget.postMessage) {"
-    )
-    if old_target not in render:
-        raise SystemExit("Could not locate the star-map state bridge")
-    render = render.replace(old_target, new_target, 1)
-    render = render.replace("_ifr.contentWindow.postMessage({\n              type: 'sb-spacecraft',", "_smTarget.postMessage({\n              type: 'sb-spacecraft',", 1)
-    if "_smTarget.postMessage" not in render or "syncStarMapVisibility" not in render:
-        raise SystemExit("The single-page star-map state bridge is incomplete")
-    render_path.write_text(render, encoding="utf-8", newline="")
 
     index_path = PACKAGE / "index.html"
     index = index_path.read_text(encoding="utf-8")
@@ -226,7 +160,8 @@ def build_native_star_map() -> dict[str, int]:
         index, n = re.subn(r'(<link[^>]+href="css/main\.css[^>]*>\s*)', lambda m: m.group(1) + css_tag, index, count=1)
         if n != 1:
             raise SystemExit("Could not link the XHS star-map stylesheet")
-    script_tag = '<script src="src/ui/xhs-star-map.js"></script>\n'
+    version = hashlib.sha256(runtime.encode("utf-8")).hexdigest()[:12]
+    script_tag = f'<script src="src/ui/xhs-star-map.js?v={version}"></script>\n'
     if "src/ui/xhs-star-map.js" not in index:
         index, n = re.subn(
             r'(<script\s+src="src/ui/render-pane-star-map\.js(?:\?[^\"]*)?"\s*></script>\s*)',
@@ -258,10 +193,6 @@ def enable_test_only_star_map_unlock() -> dict[str, bool]:
             ),
         ],
         "src/ui/render.js": [
-            (
-                "if (_smS && (_smS.shellOpened || _smS.breakSettled) && _smS.shell <= 0) {",
-                "if (_smS && ((root.shellbreakPlatform && root.shellbreakPlatform.testUnlockStarMap === true) || ((_smS.shellOpened || _smS.breakSettled) && _smS.shell <= 0))) {",
-            ),
             (
                 "var ss = res(), sop = !!(ss && (ss.shellOpened || ss.breakSettled) && ss.shell <= 0);",
                 "var ss = res(), sop = !!((root.shellbreakPlatform && root.shellbreakPlatform.testUnlockStarMap === true) || (ss && (ss.shellOpened || ss.breakSettled) && ss.shell <= 0));",

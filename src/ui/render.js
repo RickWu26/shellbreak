@@ -1711,8 +1711,7 @@
    *    只会让「滑到一半被拽回左边」静默复发，所以 e2e 有一条断言盯着这个 id。
    * ⚠️ 新内容比旧的短时浏览器会自己把 scrollLeft 夹到上限，不需要在这里 clamp。 */
   var techScrollLeft = 0, techShown = false;
-  /* 星图是 iframe 动画组件：记上一次写进 pane-star-map 的 HTML，只有内容真的变化
-   * （未破壳的提示 ↔ 已破壳的星图）才重写，否则每 2 秒 PANE_REFRESH 会把 iframe 重载。 */
+  /* 星图挂载后只同步状态。面板内容切换时才重建星图。 */
   var lastStarMapHTML = null;
   /* 轮回/星屑商店（pane-meta）：与 star-map 同构。内容（余额/节点状态/轮回联动徽标）在两次
    * PANE_REFRESH 之间几乎不变，但每 2 秒壁钟 + 任意交互置脏都会整块 innerHTML 重写 ⇒ 约 101 张
@@ -1821,13 +1820,56 @@
   function scheduleTechJumpTo(px) { techJumpTo = px; }
 
   function notifyStarMapActive(active) {
-    var pane = el('pane-star-map');
-    var ifr = pane && pane.querySelector ? pane.querySelector('iframe.starmap-frame') : null;
-    if (!ifr || !ifr.contentWindow) return;
+    var send = SB.ui.renderParts.sendStarMapMessage;
+    if (!send) return;
     var powerSave = !!(SB.ui && SB.ui.theme && SB.ui.theme.isPowerSave && SB.ui.theme.isPowerSave());
-    try {
-      ifr.contentWindow.postMessage({ type: 'sb-star-map-active', active: !!active, powerSave: powerSave }, '*');
-    } catch (e) {}
+    send({ type: 'sb-star-map-active', active: !!active, powerSave: powerSave });
+  }
+
+  function syncStarMapGameData(s) {
+    s = s || res();
+    if (!s || !SB.ui.renderParts.starMapUnlocked(s)) return;
+    var levels = s.lvl || {};
+    var spacecraft = (s.spacecraft || []).map(function (craft) {
+      if (!craft || !SB.i18n || !SB.i18n.t) return craft;
+      var match = typeof craft.name === 'string'
+        ? (craft.type === 'station' ? /^空间站 (\d+)$/.exec(craft.name)
+          : craft.type === 'satellite' ? /^卫星 (\d+)$/.exec(craft.name) : null) : null;
+      var legacyGeneratedName = !Object.prototype.hasOwnProperty.call(craft, 'generatedName') && !!match;
+      if (craft.generatedName !== true && !legacyGeneratedName) return craft;
+      if (!match) return craft;
+      var nameKey = craft.type === 'station' ? 'game.spacecraft.station_name' : 'game.spacecraft.satellite_name';
+      var copy = {}, key;
+      for (key in craft) copy[key] = craft[key];
+      copy.name = SB.i18n.t(nameKey, { number: Number(match[1]) }) || craft.name || '';
+      return copy;
+    });
+    SB.ui.renderParts.sendStarMapMessage({
+      type: 'sb-spacecraft',
+      locale: SB.i18n && SB.i18n.getLocale ? SB.i18n.getLocale() : 'zh-CN',
+      strings: starMapLocaleStrings(),
+      list: spacecraft,
+      bodies: SB.STAR_MAP_BODIES || [],
+      star: { value: (s.res && s.res.starExplore) || 0,
+        cap: SB.challenges && SB.challenges.starCap ? SB.challenges.starCap(s) : ((SB.CFG && SB.CFG.STAR_CAP) || 0) },
+      era: s.era || 1,
+      sunSails: s.sunSails || 0,
+      sunSailCap: SB.challenges && SB.challenges.dysonSailCap ? SB.challenges.dysonSailCap(s) : ((SB.CFG && SB.CFG.DYSON_SAIL_CAP) || 10000),
+      dysonNodes: s.dysonNodes || 0,
+      dysonNodeCap: SB.challenges && SB.challenges.dysonNodeCap ? SB.challenges.dysonNodeCap(s) : ((SB.CFG && SB.CFG.DYSON_NODE_CAP) || 1000),
+      dysonPct: SB.economy && SB.economy.dysonPct ? SB.economy.dysonPct(s) : 0,
+      adiabatic: !!(s.techs && s.techs.adiabatic),
+      solarRingLevel: levels.solar_ring || 0,
+      launchMode: s.launchMode === 'node' ? 'node' : 'sail',
+      launchCycle: SB.economy && SB.economy.launchCycleOf
+        ? SB.economy.launchCycleOf(s)
+        : (SB.CFG && SB.CFG.LAUNCH_CYCLE) || 10,
+      launchpads: {
+        europa: levels.europa_launch || 0,
+        terra: levels.terra_launch || 0,
+        enceladus: levels.enceladus_launch || 0
+      }
+    });
   }
 
   function renderPanes() {
@@ -1870,57 +1912,15 @@
     if (k && node && PANES[k]) {
       if (k === 'star-map') {
         var smHtml = cardHeadHTML(k) + PANES[k]();
-        if (smHtml !== lastStarMapHTML) { node.innerHTML = smHtml; lastStarMapHTML = smHtml; }
-        var _smS = SB.game && SB.game.run ? SB.game.run() : null;
-        if (_smS && (_smS.shellOpened || _smS.breakSettled) && _smS.shell <= 0) {
-          var _ifr = node.querySelector('iframe');
-          if (_ifr && _ifr.contentWindow) {
-            var _smLvl = _smS.lvl || {};
-            var _smSpacecraft = (_smS.spacecraft || []).map(function (craft) {
-              if (!craft || !SB.i18n || !SB.i18n.t) return craft;
-              var match = typeof craft.name === 'string'
-                ? (craft.type === 'station' ? /^空间站 (\d+)$/.exec(craft.name)
-                  : craft.type === 'satellite' ? /^卫星 (\d+)$/.exec(craft.name) : null) : null;
-              var legacyGeneratedName = !Object.prototype.hasOwnProperty.call(craft, 'generatedName') && !!match;
-              if (craft.generatedName !== true && !legacyGeneratedName) return craft;
-              if (!match) return craft;
-              var nameKey = craft.type === 'station' ? 'game.spacecraft.station_name' : 'game.spacecraft.satellite_name';
-              var copy = {}, key;
-              for (key in craft) copy[key] = craft[key];
-              copy.name = SB.i18n.t(nameKey, { number: Number(match[1]) }) || craft.name || '';
-              return copy;
-            });
-            var _smDysonPct = SB.economy && SB.economy.dysonPct ? SB.economy.dysonPct(_smS) : 0;
-            _ifr.contentWindow.postMessage({
-              type: 'sb-spacecraft',
-              locale: SB.i18n && SB.i18n.getLocale ? SB.i18n.getLocale() : 'zh-CN',
-              strings: starMapLocaleStrings(),
-              list: _smSpacecraft,
-              bodies: SB.STAR_MAP_BODIES || [],
-              star: { value: (_smS.res && _smS.res.starExplore) || 0,
-                cap: SB.challenges && SB.challenges.starCap ? SB.challenges.starCap(_smS) : ((SB.CFG && SB.CFG.STAR_CAP) || 0) },
-              era: _smS.era || 1,
-              sunSails: _smS.sunSails || 0,
-              sunSailCap: SB.challenges && SB.challenges.dysonSailCap ? SB.challenges.dysonSailCap(_smS) : ((SB.CFG && SB.CFG.DYSON_SAIL_CAP) || 10000),
-              dysonNodes: _smS.dysonNodes || 0,
-              dysonNodeCap: SB.challenges && SB.challenges.dysonNodeCap ? SB.challenges.dysonNodeCap(_smS) : ((SB.CFG && SB.CFG.DYSON_NODE_CAP) || 1000),
-              dysonPct: _smDysonPct,
-              adiabatic: !!(_smS.techs && _smS.techs.adiabatic),
-              solarRingLevel: _smLvl.solar_ring || 0,
-              launchMode: _smS.launchMode === 'node' ? 'node' : 'sail',
-              launchCycle: SB.economy && SB.economy.launchCycleOf
-                ? SB.economy.launchCycleOf(_smS)
-                : (SB.CFG && SB.CFG.LAUNCH_CYCLE) || 10,
-              launchpads: {
-                europa: _smLvl.europa_launch || 0,
-                terra: _smLvl.terra_launch || 0,
-                enceladus: _smLvl.enceladus_launch || 0
-              }
-            }, '*');
-            notifyStarMapActive(!(root.document && root.document.hidden));
-          }
-          if (SB.ui.renderParts.refreshStarMapBuildings) SB.ui.renderParts.refreshStarMapBuildings(_smS);
+        if (smHtml !== lastStarMapHTML) {
+          node.innerHTML = smHtml;
+          lastStarMapHTML = smHtml;
+          SB.ui.renderParts.mountStarMap(node);
         }
+        var smState = res();
+        notifyStarMapActive(!document.hidden);
+        syncStarMapGameData(smState);
+        SB.ui.renderParts.refreshStarMapBuildings(smState);
       } else if (k === 'folk' && SB.ui.input && SB.ui.input.isFolkControlPointerActive &&
                  SB.ui.input.isFolkControlPointerActive()) {
         // Skip rebuild during pointer tap window on folk controls
@@ -1955,7 +1955,7 @@
       var _now = _se.scrollTop;
       if (typeof _now === 'number' && isFinite(_now) && Math.abs(_now - _sy) > 1) _se.scrollTop = _sy;
     }
-    SB.ui.renderCommon.paintHappy(res());
+    if (activeTab === 'folk') SB.ui.renderCommon.paintHappy(res());
     if (activeTab === 'tech' || activeTab === 'civic') {
       try {
         if (SB.ui.renderParts && SB.ui.renderParts.research && SB.ui.renderParts.research.paintLive) {
@@ -2192,7 +2192,7 @@
         remainingSeconds: st.left, progressPercent: (st.p * 100).toFixed(0)
       }, '下一名族民还需 {remainingSeconds} 秒（{progressPercent}%）。');
     }
-    paintGrow(s);
+    if (SB.game.getTab() === 'folk') paintGrow(s);
   }
 
   /* 「族民」tab 的闲置角标（2026-09-30 用户拍）：有闲置时页签写「族民（N）」，没有就还原「族民」。
@@ -2364,7 +2364,8 @@
   }
   function renderTick() {
     var s = res();
-    if (SB.ui.renderParts.refreshLaunchProgress) SB.ui.renderParts.refreshLaunchProgress(s);
+    var activeTab = SB.game.getTab();
+    if (activeTab === 'village' && SB.ui.renderParts.refreshLaunchProgress) SB.ui.renderParts.refreshLaunchProgress(s);
     applyEraSkin(s);
     renderChallengeNotice(s);
     renderRes(); renderShell(); renderBreakBtn(); clock(); renderGrowBar();
@@ -2372,7 +2373,8 @@
     SB.ui.renderParts.renderGeek(s);
     SB.ui.renderParts.renderHydro(s);
     if (SB.ui.renderParts.renderPollution) SB.ui.renderParts.renderPollution(s);
-    renderIdleTag(); renderEvent(s); SB.ui.renderCommon.paintHappy(s);
+    renderIdleTag(); renderEvent(s);
+    if (activeTab === 'folk') SB.ui.renderCommon.paintHappy(s);
     /* 建造追踪小框（2026-10-29）：常驻节点（index.html 的 #trackDock），
      * 内部自带 200ms 节流 + 字符串指纹，数字没变不写 DOM —— 逐帧调它等于白调。
      * ⚠️ 用 `&&` 守卫而不是要求模块必在：e2e 的假 DOM 里这个节点不存在，
@@ -3825,6 +3827,7 @@
     setSettingsTab: setSettingsTab,
     PANE_KEYS: PANE_KEYS,
     notifyStarMapActive: notifyStarMapActive,
+    syncStarMapGameData: syncStarMapGameData,
     paneTech: SB.ui.renderParts.research && SB.ui.renderParts.research.paneTech,
     /* ⚠️ 2026-10-05：导出 `paneWonder` 供回归直接断言「未解锁的奇观不显示」。
      *   为什么单独导它而不让 e2e 走 renderPanes：那一路是把 HTML 写进假 DOM 的

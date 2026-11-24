@@ -1552,11 +1552,8 @@ console.log('\n=== 市政 ===');
     loop.spacecraft = [{ id: 'europa-1', type: 'satellite', body: 'europa', name: '欧罗巴一号', launchedAt: 42 },
       { id: 'saturn-1', type: 'station', body: 'saturn', name: '土星站', launchedAt: 84 }];
     const mapHTML = SB.ui.renderParts.paneStarMap();
-    /* 2026-10-17 星图改版：视觉换成 GPT 制作的 iframe 动画星图（star-map-frame.html），
-     * 发射记录尚未接入 frame（占位期）⇒ 断言改为「iframe 挂载 + 记录不被清空」；
-     * 待 frame 接入游戏状态后，把「发射记录上屏」的展示断言加回来。 */
-    check('星图：破壳后挂载 iframe 动画星图（star-map-frame.html?v=2）',
-      mapHTML.indexOf('<iframe') >= 0 && mapHTML.indexOf('star-map-frame.html?v=2') >= 0,
+    check('星图：破壳后挂载带版本号的 iframe 动画星图',
+      /<iframe\b[^>]*\bsrc="src\/ui\/star-map-frame\.html\?v=\d+"/.test(mapHTML),
       'snip=' + mapHTML.slice(0, 120));
     check('星图：本周目发射记录仍在（frame 接入后上屏）',
       loop.spacecraft.length === 2 && loop.spacecraft[0].name === '欧罗巴一号' && loop.spacecraft[1].name === '土星站');

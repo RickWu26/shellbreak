@@ -687,11 +687,13 @@
 
     var pumpPeriod = (SB.CFG && SB.CFG.OFFLINE_CATCHUP_PUMP > 0) ? SB.CFG.OFFLINE_CATCHUP_PUMP : 8;
     var rawCp = raw.offlineCheckpoint;
-    if (rawCp && typeof rawCp === 'object' && !Array.isArray(rawCp) && rawCp.v === 1
+    if (rawCp && typeof rawCp === 'object' && !Array.isArray(rawCp) && (rawCp.v === 1 || rawCp.v === 2)
         && typeof rawCp.left === 'number' && isFinite(rawCp.left) && rawCp.left > 0
-        && typeof rawCp.secs === 'number' && isFinite(rawCp.secs) && rawCp.secs > 0
+        && typeof rawCp.secs === 'number' && rawCp.secs > 0 && rawCp.secs <= Number.MAX_SAFE_INTEGER / 1000
         && typeof rawCp.cap === 'number' && isFinite(rawCp.cap) && rawCp.cap > 0
-        && rawCp.secs <= rawCp.cap + 1e-6 && rawCp.left <= rawCp.secs + 1e-6
+        && rawCp.left <= rawCp.secs + 1e-6
+        /* 旧版恢复时只约束 left，写出的 secs = 已完成 + left 可能超过单段上限。 */
+        && (rawCp.v === 2 || rawCp.left <= rawCp.cap + 1e-6)
         && typeof rawCp.uncountedSecs === 'number' && isFinite(rawCp.uncountedSecs) && rawCp.uncountedSecs >= 0
         && typeof rawCp.bPop === 'number' && isFinite(rawCp.bPop) && rawCp.bPop >= 0
         && typeof rawCp.bShell === 'number' && isFinite(rawCp.bShell) && rawCp.bShell >= 0
@@ -705,11 +707,13 @@
       }
       var tpVal = (typeof rawCp.tp === 'number' && isFinite(rawCp.tp) && rawCp.tp >= 0 && rawCp.tp < pumpPeriod) ? rawCp.tp : 0;
       out.offlineCheckpoint = {
-        v: 1,
+        v: 2,
         left: Math.min(rawCp.left, rawCp.secs),
         total: rawCp.secs,
         secs: rawCp.secs,
         cap: rawCp.cap,
+        wallAt: rawCp.v === 2 && typeof rawCp.wallAt === 'number' && isFinite(rawCp.wallAt) && rawCp.wallAt > 0
+          ? rawCp.wallAt : 0,
         tp: tpVal,
         adActive: rawCp.adActive === true,
         uncountedSecs: rawCp.uncountedSecs,

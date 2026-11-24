@@ -36,6 +36,7 @@ const sandbox2 = {
   setTimeout(fn) { sandbox2._timeouts.push(fn); return sandbox2._timeouts.length; },
   clearTimeout() {}
 };
+sandbox2.window = sandbox2;
 let SB2;
 try {
   const loaded = await loadAll(sandbox2);

@@ -190,11 +190,12 @@
       if (closed) return;
       closed = true;
       var at = active.indexOf(el);
-      if (at >= 0) active.splice(at, 1);
+      if (at < 0) return; // 堆满或清空时已经移除。
+      active.splice(at, 1);
       if (el.classList && el.classList.add) el.classList.add('is-out');
       /* vm 沙箱可能不注入 setTimeout；守卫后组件退化为「常驻不自动退」，绝不抛错。 */
       if (root.setTimeout) root.setTimeout(function () {
-        if (stack && stack.removeChild) stack.removeChild(el);
+        if (el.parentNode === stack && stack.removeChild) stack.removeChild(el);
       }, 320);
     }
     if (close.addEventListener) close.addEventListener('click', dismiss);
@@ -217,7 +218,8 @@
       if (root.setTimeout) {
         root.setTimeout(function () {
           var at = pendingOffline.indexOf(model);
-          if (at >= 0) pendingOffline.splice(at, 1);
+          if (at < 0) return;
+          pendingOffline.splice(at, 1);
           render(model);
         }, OFFLINE_DELAY);
       }

@@ -197,6 +197,7 @@ for (const pid of PANE_IDS) {
 let resMutations = 0;
 sandbox.document.getElementById('res')._onMut = () => { resMutations++; };
 // 触发一次真实状态变化（解锁/升级），测量单次脏态 renderAll 实际重写的面板数
+SB.ui.renderParts.setVillageDensity('compact');
 run.era = 6;
 run.lvl.coral = (run.lvl.coral || 0) + 1;
 run.res.kelp = (run.res.kelp || 0) + 100;
@@ -207,10 +208,6 @@ const resBeforeTick = resMutations;
 renderTick();
 console.log(`稳态单次 renderTick #res DOM 结构变更 (innerHTML/appendChild/removeChild): ${resMutations - resBeforeTick}`);
 
-// 频率换算（硬事实）
-const PANE=2000, loopMs=250; // B 后主循环 250ms
-console.log('\n=== 频率换算（墙钟） ===');
-console.log(`renderAll: 每 ${PANE}ms 一次 = ${(1000/PANE).toFixed(2)} Hz → 单帧 ${''}`);
-console.log(`  ⇒ 若 renderAll ≈ 8ms，则占单核 ${(8/(PANE/1000)*100).toFixed(2)}% 时间（0.4%）`);
-console.log(`renderTick: 每 ${loopMs}ms 一次 = ${(1000/loopMs).toFixed(2)} Hz（B 后 4Hz；B 前 10Hz）`);
-console.log(`  ⇒ B 后 renderTick 调用次数 = B 前的 ${(250/100).toFixed(1)} 分之一（同一 renderTick 成本下，JS 调用开销直降 ${(1-100/250)*100}%）`);
+if (paneWriteActive < 1 || paneWriteHidden || resMutations !== resBeforeTick) {
+  throw new Error('变动态必须刷新当前面板，隐藏面板与稳态资源格应保持原状');
+}

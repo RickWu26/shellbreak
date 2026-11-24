@@ -153,7 +153,24 @@ export function run({ SB, check, loadAll }) {
       'ok=' + ok + ' err=' + err + ' 末3帧=' + seq.slice(-3).map(p => (100 * p).toFixed(2) + '%').join('→'));
   }
 
-  /* ── 6–9. 离线补算检查点落盘与跨重启续算（Item 02） ── */
+  {
+    const s = fixture(0);
+    s.t = s.seasonLengths[0] + s.seasonLengths[1] + 60;
+    s.frozen = true;
+    Object.assign(s.lvl, { furnace: 5, hydroturbine: 4, siltpit: 3 });
+    s.turbineStop = 2;
+    s.jobs.miner = 15;
+    s.res.silt = 300;
+    const match = [0.05, 20, 400].every(warmstone => {
+      s.res.warmstone = warmstone;
+      const breakdown = SB.economy.ratesParts(s);
+      const net = breakdown.parts.warmstone.reduce((sum, part) => sum + part.v, 0);
+      return SB.economyRateParts.warmstoneRate(s) === breakdown.rate.warmstone && net === breakdown.rate.warmstone;
+    });
+    check('暖石单项速率与面板分项、净值一致，覆盖缺料、保温和设备扣料', match);
+  }
+
+  /* ── 检查点从落盘、载入、后台恢复及换档的入口验证 ── */
   if (typeof loadAll === 'function') {
     const RealDate = Date;
     function bootIsolated(store, offsetMsRef) {
@@ -186,7 +203,7 @@ export function run({ SB, check, loadAll }) {
         Object.defineProperty(el, 'innerHTML', { get() { return el._html; }, set(v) { el._html = String(v); } });
         return el;
       }
-      const els = new Map(), q = {};
+      const els = new Map(), q = {}, listeners = {};
       const miniDoc = {
         _els: els, readyState: 'complete',
         getElementById(id) { if (!els.has(id)) els.set(id, mkMiniEl(id)); return els.get(id); },
@@ -206,7 +223,8 @@ export function run({ SB, check, loadAll }) {
           const m = /^\.tab\[data-tab="([^"]+)"\]$/.exec(sel || '');
           return m ? (this.querySelectorAll('.tab').find(t => t.dataset.tab === m[1]) || null) : null;
         },
-        addEventListener() {}
+        addEventListener(type, fn) { (listeners[type] ||= []).push(fn); },
+        dispatch(type) { for (const fn of listeners[type] || []) fn(); }
       };
       miniDoc.body = mkMiniEl('body');
       class SimDate extends RealDate {
@@ -224,6 +242,7 @@ export function run({ SB, check, loadAll }) {
           removeItem: k => store.delete(k)
         },
         performance: { now: () => RealDate.now() + offsetMsRef.v },
+        addEventListener: (type, fn) => miniDoc.addEventListener(type, fn),
         _intervals: [], setInterval(fn) { sb._intervals.push(fn); return sb._intervals.length; }, clearInterval() {},
         _timeouts: [], setTimeout(fn) { sb._timeouts.push(fn); return sb._timeouts.length; }, clearTimeout() {},
         Math, Date: SimDate, JSON, Object, Array, String, Number, Boolean, Set, Map, isNaN, parseInt, parseFloat
@@ -254,121 +273,269 @@ export function run({ SB, check, loadAll }) {
       return s;
     }
 
-    /* 6. 8h 补算中途保存并重启（即使重启间隔仅 2 秒 < 60s），必须续完剩余进度 */
-    {
-      const sharedStore = new Map();
-      const offsetRef = { v: 0 };
-      const r1 = bootIsolated(sharedStore, offsetRef);
-      const s1 = seedMidRun(r1.SB);
-      const tStart = s1.t;
-      r1.SB.game.planCatchUp(s1, 28800, false);
-      offsetRef.bumpPerRead = 0.4;
-      r1.SB.game.drainCatchUp(1);
-      offsetRef.bumpPerRead = 0;
-      const snap = r1.SB.game.snapshot(s1);
-      r1.SB.state.saveMeta(r1.SB.game.meta());
-      r1.SB.state.saveRun(snap);
-      const cpMid = snap.offlineCheckpoint;
-      const partialAdvanced = s1.t - tStart;
-      check('8h 补算中途落盘生成合法 offlineCheckpoint（v=1，且不落盘循环引用 s）',
-        !!cpMid && cpMid.v === 1 && cpMid.left > 0 && cpMid.left < 28800 && !('s' in cpMid),
-        'done=' + partialAdvanced.toFixed(1) + 's left=' + (cpMid ? cpMid.left.toFixed(1) : 'null'));
-
-      offsetRef.v += 2000; // 仅过 2 秒（< OFFLINE_MIN=60s）即重启
-      const r2 = bootIsolated(sharedStore, offsetRef);
-      const s2 = r2.SB.game.run();
-      check('不足 60s 重启后自动从检查点恢复补算任务',
-        r2.SB.game.runtimeStatus().catchupActive === true && Math.abs((s2.t - tStart) - partialAdvanced) < 1e-6,
-        'catchupActive=' + r2.SB.game.runtimeStatus().catchupActive);
-      for (let f = 0; f < 400 && r2.SB.game.runtimeStatus().catchupActive; f++) r2.SB.game.drainCatchUp(BUDGET);
-      const totalAdvanced = s2.t - tStart;
-      const savedAfter = JSON.parse(sharedStore.get(r2.SB.CFG.RUN_KEY) || '{}');
-      check('重启续算最终完成且总推进等于 8h+2s（不重算已推进段）',
-        !r2.SB.game.runtimeStatus().catchupActive && Math.abs(totalAdvanced - 28802) < 90,
-        'totalAdvanced=' + totalAdvanced.toFixed(1) + 's（期望 ~28802s）');
-      check('续算收尾后磁盘上的 offlineCheckpoint 已清空',
-        savedAfter.offlineCheckpoint == null,
-        'savedCheckpoint=' + JSON.stringify(savedAfter.offlineCheckpoint));
+    function savedRun(r, store) {
+      return JSON.parse(store.get(r.SB.CFG.RUN_KEY));
     }
 
-    /* 7. 带广告余额的补算中途强杀重启，余额扣减与剩余 2x/1x 切换精确接续 */
+    function drainPart(r, clock) {
+      clock.bumpPerRead = 0.4;
+      try { r.SB.game.drainCatchUp(5); }
+      finally { clock.bumpPerRead = 0; }
+    }
+
+    function savePartial(r, clock, store) {
+      drainPart(r, clock);
+      r.SB.state.saveRun(r.SB.game.snapshot(r.SB.game.run()));
+      return savedRun(r, store);
+    }
+
+    function finish(r) {
+      for (let f = 0; f < 500 && r.SB.game.runtimeStatus().catchupActive; f++) {
+        r.SB.game.drainCatchUp(BUDGET);
+      }
+      return !r.SB.game.runtimeStatus().catchupActive;
+    }
+
+    /* 远小于 60s 的重启只恢复已有时段，读档自愈不能覆盖检查点。 */
     {
-      const sharedStore = new Map();
-      const offsetRef = { v: 0 };
-      const r1 = bootIsolated(sharedStore, offsetRef);
+      const store = new Map(), clock = { v: 0 };
+      const r1 = bootIsolated(store, clock);
       const s1 = seedMidRun(r1.SB);
+      const cap = r1.SB.CFG.OFFLINE_CAP, tStart = s1.t;
+      s1.seasonLengthsVersion = 0;
+      r1.SB.game.planCatchUp(s1, cap, false);
+      const saved = savePartial(r1, clock, store);
+      const cp = saved.offlineCheckpoint;
+      check('补算中途保存已推进时长和剩余时长', cp?.v === 2 && !('s' in cp) &&
+        cp.left > 0 && cp.left < cap && Math.abs(saved.t - tStart + cp.left - cap) < 1e-6,
+        't=' + saved.t + ' left=' + cp?.left);
+
+      clock.v += 2000;
+      const r2 = bootIsolated(store, clock);
+      const loaded = savedRun(r2, store);
+      check('不足 60 秒也恢复任务，且季长自愈写盘后保留检查点',
+        r2.SB.game.runtimeStatus().catchupActive && loaded.seasonLengthsVersion === 1 &&
+        loaded.t === saved.t && loaded.offlineCheckpoint?.left === cp.left &&
+        loaded.offlineCheckpoint?.total === cap);
+      const closed = finish(r2), after = savedRun(r2, store);
+      check('短间隙不额外补算，完成时清除检查点', closed &&
+        Math.abs(after.t - tStart - cap) < 1e-5 && after.offlineCheckpoint == null,
+        'advanced=' + (after.t - tStart).toFixed(5));
+    }
+
+    /* 两次被杀中间有独立的离线间隙，原时段和未用完的广告余额继续结算。 */
+    {
+      const store = new Map(), clock = { v: 0 };
+      const r1 = bootIsolated(store, clock);
+      const s1 = seedMidRun(r1.SB);
+      const cap = r1.SB.CFG.OFFLINE_CAP, tStart = s1.t;
       s1.ad.on = true;
-      s1.ad.ms = 1200000; // 1200s 双倍余额，总离线 28800s（期望 1200*2 + 27600 = 30000 游戏秒）
-      const tStart = s1.t;
-      r1.SB.game.planCatchUp(s1, 28800, false);
-      offsetRef.bumpPerRead = 0.4;
-      r1.SB.game.drainCatchUp(1);
-      offsetRef.bumpPerRead = 0;
-      const snap = r1.SB.game.snapshot(s1);
-      r1.SB.state.saveMeta(r1.SB.game.meta());
-      r1.SB.state.saveRun(snap);
-      check('带广告余额中途暂停时确实尚有剩余未补完时长',
-        !!snap.offlineCheckpoint && snap.offlineCheckpoint.left > 0 && snap.offlineCheckpoint.left < 28800,
-        'left=' + (snap.offlineCheckpoint ? snap.offlineCheckpoint.left.toFixed(1) : 'null'));
+      s1.ad.ms = 1200000;
+      r1.SB.game.planCatchUp(s1, cap, false);
+      const first = savePartial(r1, clock, store);
+      const cp1 = first.offlineCheckpoint;
+      check('第一次检查点的广告余额与已推进的双倍时长一致',
+        cp1?.left > 0 && Math.abs(first.t - tStart - 2 * (cap - cp1.left)) < 1e-6 &&
+        Math.abs(first.ad.ms - (1200000 - (cap - cp1.left) * 1000)) < 1e-5);
 
-      const r2 = bootIsolated(sharedStore, offsetRef);
-      const s2 = r2.SB.game.run();
-      for (let f = 0; f < 400 && r2.SB.game.runtimeStatus().catchupActive; f++) r2.SB.game.drainCatchUp(BUDGET);
-      check('带广告余额中途重启后精准完成 2x+1x 混合总时长',
-        !r2.SB.game.runtimeStatus().catchupActive && Math.abs((s2.t - tStart) - 30000) < 90 && s2.ad.ms === 0,
-        'advanced=' + (s2.t - tStart).toFixed(1) + 's (期望 ~30000s) ad.ms=' + s2.ad.ms);
+      clock.v += 600000;
+      const r2 = bootIsolated(store, clock);
+      const secondBoot = savedRun(r2, store);
+      const cp2 = secondBoot.offlineCheckpoint;
+      const extra = (cp2.wallAt - cp1.wallAt) / 1000;
+      check('再离线约 10 分钟后保留原剩余时长，并立即记下新间隙',
+        extra >= 600 && extra < 602 && cp2.uncountedSecs === 0 &&
+        Math.abs(cp2.left - cp1.left - extra) < 1e-6 && Math.abs(cp2.total - cap - extra) < 1e-6);
+      const second = savePartial(r2, clock, store);
+
+      clock.v += 36000000;
+      const r3 = bootIsolated(store, clock);
+      const third = savedRun(r3, store);
+      const cp3 = third.offlineCheckpoint, cp2Partial = second.offlineCheckpoint;
+      check('第二次重启只截断新增的 10 小时间隙，原有待补时长保持完整',
+        r3.SB.game.runtimeStatus().catchupActive && third.t === second.t &&
+        cp3?.left === cp2Partial.left + cap && cp3.total === cp2.total + cap &&
+        Math.abs(cp3.uncountedSecs - ((cp3.wallAt - cp2Partial.wallAt) / 1000 - cap)) < 1e-6,
+        'total=' + cp3?.total + ' left=' + cp3?.left);
+      const closed = finish(r3), after = savedRun(r3, store);
+      check('连续重启仍完整发放混合 2×/1× 进度且广告余额只扣一次',
+        closed && Math.abs(after.t - tStart - cp3.total - 1200) < 1e-5 &&
+        after.ad.ms === 0 && after.offlineCheckpoint == null,
+        'advanced=' + (after.t - tStart).toFixed(5) + ' ad.ms=' + after.ad.ms);
     }
 
-    /* 8. 中途被杀后再隔 10 分钟（600s）重启（在上限内），追加间隙并入同一轮补算 */
+    /* 旧版在 8h 补算中重启，再次写盘后可能出现 secs=28832、left=28768。 */
     {
-      const sharedStore = new Map();
-      const offsetRef = { v: 0 };
-      const r1 = bootIsolated(sharedStore, offsetRef);
-      const s1 = seedMidRun(r1.SB);
-      const tStart = s1.t;
-      r1.SB.game.planCatchUp(s1, 14400, false); // 4 小时（< 8h 上限）
-      offsetRef.bumpPerRead = 0.4;
-      r1.SB.game.drainCatchUp(1);
-      offsetRef.bumpPerRead = 0;
-      const snap = r1.SB.game.snapshot(s1);
-      r1.SB.state.saveMeta(r1.SB.game.meta());
-      r1.SB.state.saveRun(snap);
-
-      offsetRef.v += 600000; // 再离线 10 分钟
-      const r2 = bootIsolated(sharedStore, offsetRef);
-      const s2 = r2.SB.game.run();
-      for (let f = 0; f < 400 && r2.SB.game.runtimeStatus().catchupActive; f++) r2.SB.game.drainCatchUp(BUDGET);
-      check('中途被杀再离线 10 分钟后合并续算，总时长 = 4h + 10m',
-        !r2.SB.game.runtimeStatus().catchupActive && Math.abs((s2.t - tStart) - 15000) < 90,
-        'advanced=' + (s2.t - tStart).toFixed(1) + 's（期望 ~15000s）');
+      const store = new Map(), clock = { v: 0 };
+      const r1 = bootIsolated(store, clock);
+      const s1 = r1.SB.game.run();
+      r1.SB.game.planCatchUp(s1, 28800, false);
+      const raw = r1.SB.game.snapshot(s1), cp = raw.offlineCheckpoint;
+      Object.assign(cp, { v: 1, left: 28768, total: 28832, secs: 28832, uncountedSecs: 568 });
+      delete cp.wallAt;
+      raw.t = 64;
+      r1.SB.state.saveRun(raw);
+      const r2 = bootIsolated(store, clock);
+      const recovered = savedRun(r2, store);
+      check('兼容旧版累计时长超过单段上限的合法检查点',
+        r2.SB.game.runtimeStatus().catchupActive && recovered.t === 64 &&
+        recovered.offlineCheckpoint?.left === 28768 && recovered.offlineCheckpoint?.total === 28832);
     }
 
-    /* 9. 中途被杀后再离线 10 小时，剩余补算受单次离线上限钳制 */
     {
-      const sharedStore = new Map();
-      const offsetRef = { v: 0 };
-      const r1 = bootIsolated(sharedStore, offsetRef);
-      const s1 = seedMidRun(r1.SB);
-      const cap = r1.SB.CFG.OFFLINE_CAP;
-      const tStart = s1.t;
-      r1.SB.game.planCatchUp(s1, 28800, false);
-      offsetRef.bumpPerRead = 0.4;
-      r1.SB.game.drainCatchUp(1);
-      offsetRef.bumpPerRead = 0;
-      const doneBeforeKill = s1.t - tStart;
-      const snap = r1.SB.game.snapshot(s1);
-      r1.SB.state.saveMeta(r1.SB.game.meta());
-      r1.SB.state.saveRun(snap);
+      const store = new Map(), clock = { v: 0 };
+      const r1 = bootIsolated(store, clock), s1 = seedMidRun(r1.SB);
+      Object.assign(s1, { shell: 0, shellOpened: true, broken: true, challengeDone: true,
+        challenge: { id: 'cold', tier: 0 }, challengeReleased: false });
+      r1.SB.game.planCatchUp(s1, 600, false);
+      savePartial(r1, clock, store);
 
-      offsetRef.v += 36000000; // 再离线 10 小时（剩余 + 10h > cap 上限）
-      const r2 = bootIsolated(sharedStore, offsetRef);
-      const s2 = r2.SB.game.run();
-      const tAtBoot = s2.t;
-      for (let f = 0; f < 500 && r2.SB.game.runtimeStatus().catchupActive; f++) r2.SB.game.drainCatchUp(BUDGET);
-      const resumedAdvance = s2.t - tAtBoot;
-      check('二次离线超过离线上限时，单次待补算仍受上限钳制',
-        !r2.SB.game.runtimeStatus().catchupActive && resumedAdvance <= cap + 90 && resumedAdvance >= cap - 90,
-        'doneBeforeKill=' + doneBeforeKill.toFixed(1) + ' resumedAdvance=' + resumedAdvance.toFixed(1) + ' cap=' + cap);
+      const r2 = bootIsolated(store, clock), s2 = r2.SB.game.run();
+      const modalBox = r2.doc.getElementById('modalBox');
+      check('续算中保留离线遮罩，破壳挑战的解除和轮回按钮不会提前出现',
+        r2.SB.game.runtimeStatus().catchupActive && !s2.challengeReleased &&
+        modalBox.innerHTML.includes('id="offPr"') && !modalBox.innerHTML.includes('id="mCycle"'));
+      const closed = finish(r2);
+      const handedBack = closed && modalBox.innerHTML.includes('offline-report') &&
+        !modalBox.innerHTML.includes('id="mRelease"');
+      r2.doc.getElementById('mOk').onclick?.();
+      const actions = modalBox.innerHTML.includes('id="mRelease"') && modalBox.innerHTML.includes('id="mCycle"');
+      if (actions) r2.doc.getElementById('mRelease').onclick();
+      check('玩家看完离线结算后可以继续选择解除挑战或轮回',
+        handedBack && actions && s2.challengeReleased && r2.SB.game.run() === s2);
+    }
+
+    /* 后台挂起后可能先触发补算回调，再触发主循环。退出保存也可能先到。 */
+    {
+      const store = new Map(), clock = { v: 0 };
+      const r = bootIsolated(store, clock), s = seedMidRun(r.SB);
+      const interval = r.sb._intervals[0], n = r.sb._timeouts.length;
+      r.SB.game.planCatchUp(s, 120, true);
+      clock.bumpPerRead = 2;
+      try { interval(); } finally { clock.bumpPerRead = 0; }
+      const nextSlice = r.sb._timeouts[n];
+      const before = r.SB.game.snapshot(s).offlineCheckpoint;
+      r.doc.hidden = true;
+      r.doc.dispatch('visibilitychange');
+      clock.v += 600000;
+      r.doc.dispatch('pagehide');
+      const whileSuspended = savedRun(r, store);
+      const reopenedStore = new Map(store);
+      const reopened = bootIsolated(reopenedStore, clock);
+      const reopenedCp = savedRun(reopened, reopenedStore).offlineCheckpoint;
+      check('后台长间隙先保存再被杀，仍可从上次计时处补算',
+        !!before && whileSuspended.offlineCheckpoint?.wallAt === before.wallAt &&
+        whileSuspended._ts - before.wallAt >= 600000 &&
+        reopenedCp?.total >= before.total + 600 && reopenedCp.total < before.total + 602);
+      r.doc.hidden = false;
+      r.doc.dispatch('visibilitychange');
+      clock.bumpPerRead = 2;
+      try { nextSlice(); interval(); } finally { clock.bumpPerRead = 0; }
+      const resumed = r.SB.game.snapshot(s).offlineCheckpoint;
+      check('同进程恢复先执行补算回调时，新间隙也只入账一次',
+        resumed?.total >= before.total + 600 && resumed.total < before.total + 602 &&
+        savedRun(r, store).offlineCheckpoint?.total === resumed.total,
+        'total=' + resumed?.total);
+      finish(r);
+    }
+
+    /* 换周目、云端接管和导入各自只使用本周目的检查点与时间。 */
+    {
+      const store = new Map(), clock = { v: 0 };
+      const r = bootIsolated(store, clock), s = seedMidRun(r.SB);
+      r.SB.game.planCatchUp(s, 120, false);
+      const incoming = savePartial(r, clock, store);
+      const bundle = { format: 'shellbreak-save', version: 1,
+        save: { meta: r.SB.game.meta(), run: incoming } };
+      check('为另一周目生成快照不会附带当前补算任务',
+        !r.SB.game.snapshot(r.SB.state.freshRun(false)).offlineCheckpoint);
+      clock.v += 600000;
+      r.SB.game.resetRun();
+      r.sb._intervals[0]();
+      check('重开周目清除旧任务及上一周目的墙钟间隙',
+        !r.SB.game.runtimeStatus().catchupActive && r.SB.game.run().t < 1);
+      r.SB.game.adoptBundle(bundle);
+      const adopted = r.SB.game.snapshot(r.SB.game.run());
+      check('云端接管保留来档自己的待补时长',
+        adopted.offlineCheckpoint?.left === incoming.offlineCheckpoint.left &&
+        adopted.offlineCheckpoint?.total === incoming.offlineCheckpoint.total && adopted.t === incoming.t);
+
+      let reloads = 0;
+      r.sb.location = { reload() { reloads++; } };
+      clock.v += 600000;
+      r.SB.game.installImportedSave(bundle);
+      const imported = savedRun(r, store);
+      r.sb._intervals[0]();
+      r.doc.dispatch('pagehide');
+      const fresh = bootIsolated(store, clock);
+      const afterImport = savedRun(fresh, store);
+      check('导入后旧循环不能覆盖来档，源设备时间也不追加到来档检查点',
+        reloads === 1 && imported.offlineCheckpoint?.wallAt === imported._ts &&
+        fresh.SB.game.runtimeStatus().catchupActive && afterImport.t === incoming.t &&
+        afterImport.offlineCheckpoint?.total === incoming.offlineCheckpoint.total &&
+        afterImport.offlineCheckpoint?.left === incoming.offlineCheckpoint.left);
+    }
+
+    {
+      const store = new Map(), clock = { v: 0 };
+      const r = bootIsolated(store, clock), s = seedMidRun(r.SB);
+      const tStart = s.t, seconds = 600;
+      s.challenge = { id: 'drift_terra', tier: 0 };
+      s.lvl.terra_engine = 50;
+      s.res.coreCharge = 50000000;
+      s.ad.on = true;
+      s.ad.ms = 120000;
+      r.SB.game.planCatchUp(s, seconds, true);
+      drainPart(r, clock);
+      const saved = savedRun(r, store);
+      check('离线达成挑战立即保存阶段结果及对应的补算检查点',
+        saved.challengeDone && saved.offlineCheckpoint?.left > 0 &&
+        Math.abs(saved.t - tStart - 2 * (seconds - saved.offlineCheckpoint.left)) < 1e-6 &&
+        Math.abs(saved.ad.ms - (120000 - (seconds - saved.offlineCheckpoint.left) * 1000)) < 1e-5);
+    }
+
+    /* 岗位复用必须在每次减员后失效。用同一个随机序列逐字段对照原重算路径。 */
+    function simulateDeaths(pollution, reuseJobs) {
+      const r = bootIsolated(new Map(), { v: 0 }), s = r.SB.game.run();
+      s.pop = 24;
+      s.lvl.nest = 20;
+      s.lvl.robotbay = 1;
+      Object.assign(s.jobs, { gather: 1, miner: 3, merchant: 20 });
+      Object.assign(s.robotJobs, { gather: 1, merchant: 2 });
+      s.civics.trade = true;
+      s.faithTenets = ['fertile_rite'];
+      s.res.kelp = 1;
+      s.ad = { on: true, ms: 13000 };
+      s.warmOn = false;
+      if (pollution) {
+        s.challenge = { id: 'waterpollution', tier: 0 };
+        s.pollution = 10000000;
+      } else {
+        s.t = s.seasonLengths[0] + s.seasonLengths[1] + 120;
+        s._seasonIdx = 2;
+        s.frozen = true;
+      }
+      let draws = 0;
+      r.SB.rng = () => ++draws % 47 === 0 ? 0 : 0.99;
+      const integrate = r.SB.offline.integrateFoodPop;
+      if (!reuseJobs) r.SB.offline.integrateFoodPop = (state, dt, opts, emit) =>
+        integrate(state, dt, { ...opts, reuseJobs: false }, emit);
+      r.SB.game.planCatchUp(s, 40, true);
+      const closed = finish(r);
+      const snapshot = r.SB.game.snapshot(s);
+      delete snapshot._ts;
+      return { closed, snapshot, draws };
+    }
+
+    for (const pollution of [false, true]) {
+      const baseline = simulateDeaths(pollution, false);
+      const cached = simulateDeaths(pollution, true);
+      check(pollution ? '污染死亡后岗位复用与原逐步重算结果完全一致' : '饥荒、冻伤后岗位复用与原逐步重算结果完全一致',
+        cached.closed && cached.draws === baseline.draws && cached.snapshot.jobs.merchant < 20 &&
+        (pollution ? cached.snapshot.pollutionDeaths > 0 : cached.snapshot.famineDeaths > 0 && cached.snapshot.frostDeaths > 0) &&
+        JSON.stringify(cached.snapshot) === JSON.stringify(baseline.snapshot),
+        'draws=' + cached.draws + ' famine=' + cached.snapshot.famineDeaths +
+        ' frost=' + cached.snapshot.frostDeaths + ' pollution=' + cached.snapshot.pollutionDeaths);
     }
   }
 }

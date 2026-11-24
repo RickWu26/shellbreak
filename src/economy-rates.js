@@ -70,6 +70,34 @@
     return { rate: rate, parts: got || {} };
   }
 
+  /* 面板和离线的暖石净速率沿用同一份分项，扣除保温、熔炉和运行中的汽轮机。 */
+  function warmstoneNet(s, jobs, cold, furnaceInput, tech, mineBonus) {
+    var turbines = Math.max(0, (s.lvl.hydroturbine || 0) - (s.turbineStop || 0));
+    return part('warmstone', '矿工伴生',
+      (jobs.miner || 0) * SB.UNIT.warmstone,
+      [['砂矿坑', mineBonus],
+       ['矿脉升级', 1 + upgSum(s, 'mineWarm')],
+       ['阿尔巴达', (s.wonders && s.wonders.wonder_albada) ? (1 + (s.pop || 0) * 0.01) : 1],
+       ['采集', gatherMul(s)],
+       ['矿工镐', toolMul(s, 'miner')],
+       ['寒流季', cold],
+       ['全局产出', globalMulX(s)],
+       ['科技乘区', 1 + (tech ? tech.warmMul : 0)],
+       ['矿工契', minerPactMul(s)],
+       ['挑战', (SB.challenges ? SB.challenges.warmstoneMul(s) : 1)],
+       ['奇观矿脉', (SB.wonder ? SB.wonder.mineMul(s) : 1)]])
+      + part('warmstone', '保温开关', -(warmBurningNow(s) ? warmRate(s) : 0))
+      + part('warmstone', '熔炉耗料', -furnaceInput * (tech ? tech.bldEff : 1) * warmEff(s))
+      + part('warmstone', '汽轮机耗料', -turbines * SB.UNIT.hydroWarm * warmEff(s));
+  }
+  function warmstoneRate(s) {
+    var cold = isCold(s) ? coldSeasonMul(s) : 1;
+    var jobs = SB.folk.effJobs(s);
+    var furnaceInput = ironFlow(s, cold, 1);
+    var tech = SB.tech ? SB.tech.mul(s) : null;
+    return warmstoneNet(s, jobs, cold, furnaceInput, tech, SB.economy.siltPitMul(s));
+  }
+
   function rates(s) {
     var lg = SB.prestige ? SB.prestige.legacy() : null;
     var cold = isCold(s) ? coldSeasonMul(s) : 1;
@@ -100,10 +128,6 @@
      *    这里取 warmBurningNow（纯查询、无副作用）算 relief，**不能调 warmRelief**
      *    （它有副作用：会烧石、会置 warmBurning ⇒ 渲染路径里调 = 玩家盯着面板就偷烧一 tick）。 */
     var relief = warmBurningNow(s) ? SB.CFG.WARM_RELIEF : 0;
-    /* ⚠️ 汽轮机暖石消耗（第三路）必须并进暖石净速率：否则面板上暖石一直是涨的，
-     *    实际库存却被汽轮机按「运行座数 × hydroWarm × warmEff」每秒烧掉 ——
-     *    正是用户报的「明明是正的却一直在消耗」。与 steelFlow 第 1003 行同源同式（dt=1）。 */
-    var _turL = Math.max(0, (s.lvl.hydroturbine || 0) - (s.turbineStop || 0));
     /* ⚠️ 一次算好热液能三个数（产钢 / 净消耗 / 总生产）：steelRate 内部会跑 hydroAlloc，
      *    在 return 里连写三次等于每秒多跑两遍流分配，而 rates() 本来就重。 */
     var _sr = steelRate(s);
@@ -336,30 +360,7 @@
                   ['采石契', quarryPactMul(s)]])
                + part('stone', '重核聚变耗石', -_sr.fissionStoneRate)
                + part('stone', 'GEEK 改造', -_gkStoneRate),
-      /* 暖石的净速率要减掉**开关正在烧的**那一份：不减的话面板上写着暖石在涨，
-       * 玩家开着他以为只是在攒，实际有一路正在往火里扔。
-       * 判据直接取 warmBurningNow（与 tick 里的 warmRelief 同源），不在这里重写条件，
-       * 否则同一秒的显示会和实际结算对不上。
-       * ⚠️ 2026-09-28 补减「熔炉正在吃的那一份」：铁器改成金属+暖石之后，暖石有了
-       *    第二个去处。不减的话，玩家会看到暖石一路在涨（伴生 > 保温消耗）而实际有
-       *    一路正在被炉子吃掉——同一个「面板撒谎」的坑，只是这次是两口消耗。
-       *    ⚠️ 这里复用 fc（本秒转出的份数），与 tick 里扣 warmstone 的那一行同源。 */
-      warmstone: part('warmstone', '矿工伴生',
-                 (j.miner || 0) * SB.UNIT.warmstone,
-                 [['砂矿坑', mineBonus],
-                  ['矿脉升级', 1 + upgSum(s, 'mineWarm')],
-                  ['阿尔巴达', (s.wonders && s.wonders.wonder_albada) ? (1 + (s.pop || 0) * 0.01) : 1],
-                  ['采集', gatherMul(s)],
-                  ['矿工镐', toolMul(s, 'miner')],
-                  ['寒流季', cold],
-                  ['全局产出', globalMulX(s)],
-                  ['科技乘区', 1 + (Tr ? Tr.warmMul : 0)],
-                  ['矿工契', minerPactMul(s)],
-                  ['挑战', (SB.challenges ? SB.challenges.warmstoneMul(s) : 1)],
-                  ['奇观矿脉', (SB.wonder ? SB.wonder.mineMul(s) : 1)]])
-                 + part('warmstone', '保温开关', -(warmBurningNow(s) ? warmRate(s) : 0))
-                 + part('warmstone', '熔炉耗料', -fc * ((Tr ? Tr.bldEff : 1)) * warmEff(s))
-                 + part('warmstone', '汽轮机耗料', -_turL * SB.UNIT.hydroWarm * warmEff(s)),
+      warmstone: warmstoneNet(s, j, cold, fc, Tr, mineBonus),
       /* ⚠️ `iron` 记的是**消耗掉的原料份数**，不是产出的精铁量 —— 沿用原有口径。
        *    铁是「一进一出」的中间资源，净额可能比看起来还负（这里没有把金属那一侧的
        *    消耗减掉，与改造之前一致）。改这一行前先读铁器产出那段的量纲注。 */
@@ -512,6 +513,7 @@
 
   SB.economyRateParts = SB.economyRateParts || {};
   SB.economyRateParts.rates = rates;
+  SB.economyRateParts.warmstoneRate = warmstoneRate;
   /* 分项出口（2026-10-29）：给「点材料看数值」面板用。与 rates 是**同一次计算**，
    * 不是第二份公式 —— 见 part() 与 rateParts() 上头的注。 */
   SB.economyRateParts.rateParts = rateParts;

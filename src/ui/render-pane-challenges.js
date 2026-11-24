@@ -291,7 +291,7 @@
       var thumbSrc = d.badgeThumb || d.badge;
       h += '<article class="challenge-card' + (isActive ? ' is-active' : '') + (exhausted ? ' is-complete' : '') + '">';
       h += '<header class="challenge-card-head"><span class="challenge-icon" aria-hidden="true"><img src="' + thumbSrc + '" alt="" loading="lazy" decoding="async">' +
-        (exhausted ? '<img class="challenge-completion-medal" src="assets/challenges/challenge-completion-medal-v1.png" alt="">' : '') + '</span>' +
+        (exhausted ? '<img class="challenge-completion-medal" src="assets/challenges/thumbs/challenge-completion-medal-v1.webp" alt="" loading="lazy" decoding="async">' : '') + '</span>' +
         '<div class="challenge-card-name"><h3>' + challengeName + '</h3><small>' + definitionText(d, 'kind') + ' · ' + summary + '</small></div>' +
         '<span class="challenge-status' + (exhausted ? ' done' : activeTimedOut ? ' failed' : isActive ? ' active' : gateBlocked ? ' locked' : '') + '">' + status + '</span></header>';
       h += '<div class="challenge-card-rule"><div class="challenge-rule-item"><small>' + tr('ui.challenge.run.restrictions', {}, '本轮限制') +
@@ -477,11 +477,11 @@
     var prog = earned ? null : progress;
     var title = achievementText(def, 'title'), description = achievementText(def, 'description');
     var icon = def.icon
-      ? '<img src="' + def.icon + '" alt="">'
+      ? '<img src="' + def.icon + '" alt="" loading="lazy" decoding="async">'
       : '<i class="achv-item-badge" aria-hidden="true">' + (def.bld ? '◈' : '★') + '</i>';
     var h = '<div class="achv-item' + (earned ? ' is-earned' : '') + (def.key === 'voidEnd' ? ' is-void-ending' : '') + '">';
     h += '<span class="achv-item-icon">' + icon + (earned
-      ? '<img class="achv-earned-medal" src="assets/achievements/achievement-earned-medal-v1.png" alt="" aria-hidden="true">'
+      ? '<img class="achv-earned-medal" src="assets/achievements/thumbs/achievement-earned-medal-v1.webp" alt="" loading="lazy" decoding="async" aria-hidden="true">'
       : '') + '</span>';
     h += '<div class="achv-item-body"><b>' + title + '</b><small>' + description + '</small>';
     if (prog) {

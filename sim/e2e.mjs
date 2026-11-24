@@ -428,7 +428,7 @@ if (process.argv.includes('--offline-only')) {
 /* 战争结果提示（2026-11-11）：toast 三处触发点 + 军力储备/军人口径 + 真 DOM 上屏取证。
  * 沿用其它 --xxx-only 惯例，单独跑免得每次都等整局 bot。 */
 if (process.argv.includes('--war-only')) {
-  runWarCampaign({ SB, check, noop, doc });
+  runWarCampaign({ SB, check, noop, doc, timers: sandbox._timeouts });
   const failedWar = checks.filter(c => !c.ok);
   console.log(`\n战争系统测试：${checks.length - failedWar.length}/${checks.length} 通过`);
   process.exit(failedWar.length || errors.length ? 1 : 0);
@@ -3236,7 +3236,7 @@ runHeritageClearNodes({ SB, check });/* 2026-11-05：追踪坞「去制造」跳
  * renderPanes 等并在 finally 还原，不压在整局 bot 前面。 */
 runTrackCraftJump({ SB, check, g, sandbox });
 /* 战争系统回归放在最尾部：每项都用独立周目，不依赖整局 bot 状态。 */
-runWarCampaign({ SB, check, noop, doc });
+runWarCampaign({ SB, check, noop, doc, timers: sandbox._timeouts });
 /* 2026-11-14：军事/文化轮回点节点。放全量最尾部——它临时改 meta.perks 并跑
  * 真实 executeAction，虽自带 finally 还原，也别压在整局 bot 前面。 */
 runMilitaryPerks({ SB, check, noop });

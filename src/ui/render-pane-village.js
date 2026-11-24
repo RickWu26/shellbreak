@@ -36,8 +36,9 @@
   /* renderTick 每帧调用；每条只读本发射场计数器，并在整数百分比变化时改两处 DOM，
    * 不重画建筑列表，也不另开定时器。满发后的计时余数由结算逻辑清零/保留。 */
   function refreshLaunchProgress(s) {
-    if (typeof document === 'undefined' || !document.querySelectorAll) return;
-    var bars = document.querySelectorAll('[data-launch-progress]');
+    var pane = typeof document !== 'undefined' && document.getElementById('pane-village');
+    if (!pane || !pane.querySelectorAll) return;
+    var bars = pane.querySelectorAll('[data-launch-progress]');
     for (var i = 0; i < bars.length; i++) {
       var bar = bars[i], id = bar.getAttribute('data-launch-progress');
       var pct = launchProgressPct(s, id), stamp = String(pct);
