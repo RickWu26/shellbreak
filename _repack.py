@@ -6,19 +6,26 @@
   ① 顶层条目数 == 1，且下一层有 index.html
   ② **真解压到 %TEMP% 再 listdir** —— 不信任 zip 目录表
 """
+import argparse
 import os
 import shutil
+import tempfile
 import zipfile
 
-SRC = r'D:/shellbreak/TAPTAP-H5-OUTPUT/rc01-upload/shellbreak'
-OUT = os.environ.get('SB_TAPTAP_OUT',
-    r'D:/shellbreak/TAPTAP-H5-OUTPUT/shellbreak-taptap-public-rc34-v1.0.7.zip')
+_PARSER = argparse.ArgumentParser(add_help=False)
+_PARSER.add_argument('--repo')
+_PARSER.add_argument('--src')
+_PARSER.add_argument('--out')
+_ARGS, _ = _PARSER.parse_known_args()
+
+REPO = os.path.abspath(_ARGS.repo or os.environ.get('SB_REPO') or (r'D:/shellbreak' if os.name == 'nt' and os.path.isdir(r'D:/shellbreak') else os.path.dirname(os.path.abspath(__file__))))
+SRC = os.path.abspath(_ARGS.src or os.environ.get('SB_TAPTAP_SRC') or (r'D:/shellbreak/TAPTAP-H5-OUTPUT/rc01-upload/shellbreak' if os.name == 'nt' else os.path.join(REPO, 'TAPTAP-H5-OUTPUT', 'rc01-upload', 'shellbreak')))
+OUT = os.path.abspath(_ARGS.out or os.environ.get('SB_TAPTAP_OUT') or (r'D:/shellbreak/TAPTAP-H5-OUTPUT/shellbreak-taptap-public-rc34-v1.0.7.zip' if os.name == 'nt' else os.path.join(REPO, 'TAPTAP-H5-OUTPUT', 'shellbreak-taptap-public-rc34-v1.0.7.zip')))
 TOP = 'shellbreak'
 
 # ---------- 打包前：自动同步源码 → 包目录 ----------
 #⚠️ 2026-10-07 教训：包目录是**拷贝**，只改 src/ 会打出旧代码（壳厚 500000 那次差点踩）。
 #   封包前无条件从仓库根重新同步，不靠人记得手动 cp。
-REPO = r'D:/shellbreak'
 os.makedirs(SRC, exist_ok=True)
 def _sync_tree(src, dst):
     """增量同步：逐文件删除 dst 中源已不存在的文件(规避 safe-delete 批量删除阈值)，再覆盖复制。"""
@@ -614,7 +621,7 @@ with zipfile.ZipFile(OUT) as z:
     print('  垃圾条目 =', junk)
 
 # ---------- 判据 ②：真解压 ----------
-TMP = os.path.join(os.environ['TEMP'], 'sb-rc03-unzip-verify')
+TMP = os.path.join(os.environ.get('TEMP') or tempfile.gettempdir(), 'sb-rc03-unzip-verify')
 if os.path.isdir(TMP):
     shutil.rmtree(TMP)
 os.makedirs(TMP)
