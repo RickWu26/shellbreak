@@ -11,7 +11,7 @@ from collections import Counter
 from pathlib import Path
 from PIL import Image
 
-from xhs_star_map import extract_star_map
+from xhs_star_map import extract_star_map, replace_index_script
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -35,14 +35,6 @@ def ignore_nonportable(source_dir: str, names: list[str]) -> set[str]:
     if base.resolve() == (ROOT / "src" / "ui").resolve():
         ignored.update(("star-map-iframe.js", "star-map-frame.html"))
     return ignored
-
-
-def replace_index_script(index: str, source: str, replacement: str) -> str:
-    pattern = rf'<script src="{re.escape(source)}(?:\?[^"]*)?"></script>'
-    index, count = re.subn(pattern, lambda _match: replacement, index)
-    if count != 1:
-        raise SystemExit(f"Expected one script tag for {source} in index.html")
-    return index
 
 
 def main() -> None:

@@ -475,11 +475,14 @@
     if (Array.isArray(raw.cards)) out.cards = raw.cards.map(function (x) { return x || null; });
     else if (raw.card) out.cards = [raw.card];
     else out.cards = [];
-    /* 迁移旧存档中的退役卡：新卡说明「取代」但旧档可能仍把两张都留在槽里。
-     * 保留槽位索引、只把失效卡清空；效果层也会检查 cardOwned 作第二道防线。 */
+    /* 保留槽位索引，清除已退役或当前挑战禁止装备的卡。 */
     var _policies = SB.POLICIES || [], _pi, _pci;
     for (_pi = 0; _pi < out.cards.length; _pi++) {
       if (!out.cards[_pi]) continue;
+      if (SB.civic && SB.civic.cardBlockedByChallenge && SB.civic.cardBlockedByChallenge(out, out.cards[_pi])) {
+        out.cards[_pi] = null;
+        continue;
+      }
       for (_pci = 0; _pci < _policies.length; _pci++) {
         var _policy = _policies[_pci];
         if (_policy.id === out.cards[_pi] && _policy.retiredBy && out.civics[_policy.retiredBy]) {

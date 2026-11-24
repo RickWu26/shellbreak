@@ -7,6 +7,14 @@ import re
 from html.parser import HTMLParser
 
 
+def replace_index_script(index: str, source: str, replacement: str) -> str:
+    pattern = rf'<script\s+src\s*=\s*"{re.escape(source)}(?:\?[^"]*)?"\s*>\s*</script\s*>'
+    index, count = re.subn(pattern, lambda _match: replacement, index)
+    if count != 1:
+        raise SystemExit(f"Expected one script tag for {source} in index.html")
+    return index
+
+
 class _RootDivParser(HTMLParser):
     def __init__(self, source: str, target_id: str) -> None:
         super().__init__(convert_charrefs=False)

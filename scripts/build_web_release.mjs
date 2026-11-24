@@ -12,6 +12,15 @@ const tap = args[0] === '--taptap' && args.length === 3;
 if (args.length && !tap) throw new Error('Usage: build_web_release.mjs [--taptap STAGED_SOURCE NEW_OUTPUT]');
 const ROOT = tap ? path.resolve(args[1]) : repo;
 const OUT_DIR = tap ? path.resolve(args[2]) : path.join(repo, 'dist', 'web');
+// These originals generate the WebP thumbnails used by the challenge and achievement lists.
+const challengeOriginals = new Set([
+  'assets/challenges/challenge-veil-abyss-illustrated.png',
+  'assets/challenges/challenge-veil-cramped-illustrated.png',
+  'assets/challenges/challenge-veil-nofaith-illustrated.png',
+  'assets/challenges/challenge-veil-sprint-illustrated.png',
+  'assets/challenges/challenge-veil-starve-illustrated.png',
+  'assets/challenges/challenge-veil-turmoil-illustrated.png'
+]);
 
 function versioned(rel) {
   const hash = createHash('sha256').update(fs.readFileSync(path.join(OUT_DIR, rel))).digest('hex').slice(0, 12);
@@ -27,6 +36,7 @@ function copyAssets(srcDir, dstDir) {
       const rel = path.relative(ROOT, path.join(curSrc, ent.name)).replace(/\\/g, '/');
       if (rel === 'assets/store' || rel.startsWith('assets/store/')) continue;
       if (rel.startsWith('assets/backgrounds/breakthrough/engraved-')) continue;
+      if (challengeOriginals.has(rel)) continue;
       if (ent.name === '.DS_Store' || ent.name === 'Thumbs.db') continue;
       const sp = path.join(curSrc, ent.name);
       const dp = path.join(curDst, ent.name);

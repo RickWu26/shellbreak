@@ -15,6 +15,8 @@ import zipfile
 from pathlib import Path
 from typing import Iterable
 
+from xhs_star_map import replace_index_script
+
 
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "dist" / "xiaohongshu"
@@ -141,18 +143,23 @@ def patch_container_blockers(package: Path) -> dict[str, int]:
     star_map_runtime = "src/ui/xhs-star-map.js"
     index_path = package / "index.html"
     index = index_path.read_text(encoding="utf-8")
-    for file_name in (star_map_css, star_map_runtime):
-        (package / file_name).unlink()
-    index = re.sub(r'^<link rel="stylesheet" href="css/xhs-star-map\.css">\n', "", index, flags=re.M)
-    index = re.sub(r'^<script src="src/ui/xhs-star-map\.js(?:\?[^"]*)?"></script>\n', "", index, flags=re.M)
+    index, stylesheets_removed = re.subn(
+        rf'<link\s+rel\s*=\s*"stylesheet"\s+href\s*=\s*"{re.escape(star_map_css)}(?:\?[^"]*)?"\s*/?>',
+        "",
+        index,
+    )
+    if stylesheets_removed != 1:
+        raise SystemExit("Expected one star-map stylesheet in the XHS smoke package")
+    index = replace_index_script(index, star_map_runtime, "")
     index, tab_removed = re.subn(
         r'\s*<div class="tab locked" id="tab-star-map"[\s\S]*?</div>',
         "",
         index,
-        count=1,
     )
     if tab_removed != 1:
         raise SystemExit("Could not remove the star-map tab from the XHS smoke package")
+    for file_name in (star_map_css, star_map_runtime):
+        (package / file_name).unlink()
     index_path.write_bytes(index.encode("utf-8"))
     result = {"removedStarMapTab": tab_removed, "removedStarMapAssets": 2}
 

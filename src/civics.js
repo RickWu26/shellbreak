@@ -1441,13 +1441,17 @@
     return false;
   }
 
+  function cardBlockedByChallenge(s, id) {
+    var active = SB.challenges && SB.challenges.active ? SB.challenges.active(s) : null;
+    return !!(active && active.id === 'anarchy' && id !== 'card_cycle_terminus');
+  }
+
   function cardBlocked(s, id, slot) {
     var clear = (id === null || id === undefined);
     if (!clear) {
       var p = policyById(id);
       if (!p) return '没有这张卡';
-      var activeChallenge = SB.challenges && SB.challenges.active ? SB.challenges.active(s) : null;
-      if (activeChallenge && activeChallenge.id === 'anarchy' && id !== 'card_cycle_terminus')
+      if (cardBlockedByChallenge(s, id))
         return '安那其主义挑战只允许装备「轮回之终末」';
       if (inSlot(s, id)) return null;                 // 已经在某槽里 ⇒ 幂等
       if (!cardOwned(s, id)) {
@@ -1839,6 +1843,7 @@
     cardOwned: cardOwned, govOwned: govOwned,
     /* 2026-11-09：效果层与 UI 共用的「此刻是否生效 / 是否已退役」两个权威判据。 */
     cardEffective: cardEffective, cardRetired: cardRetired,
+    cardBlockedByChallenge: cardBlockedByChallenge,
     cardBlocked: cardBlocked, canSetCard: canSetCard, setCard: setCard, setCardAt: setCardAt,
     removeCard: removeCard, ensureCards: ensureCards, reseatCards: reseatCards,
     govFirstAdoptionFree: govFirstAdoptionFree,

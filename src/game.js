@@ -1558,7 +1558,8 @@
     catchupSliceTimer = 0;
     catchupSliceUseRaf = false;
     if (suppressExitSave || !loop.job || !S) return;
-    accountOfflineGap(Date.now(), (document.hidden || loop._lastAiHidden) && isAiRunning());
+    var hidden = root.document && root.document.hidden;
+    accountOfflineGap(Date.now(), (hidden || loop._lastAiHidden) && isAiRunning());
     drainCatchUp(CATCHUP_SLICE_MS);
     if (loop.job) scheduleCatchUpSlice();
     else { last = 0; loop.acc = 0; }
@@ -3259,8 +3260,9 @@
       /* 挂起后退出事件可能先于主循环。无检查点时先认领长间隙，避免新存档时间盖掉它。 */
       if (!loop.job) {
         var wall = Date.now();
+        var hidden = root.document && root.document.hidden;
         if (offlineGap(wall, loop._lastWall) >= CFG.OFFLINE_MIN &&
-            !((document.hidden || loop._lastAiHidden) && isAiRunning()) && accountOfflineGap(wall, false)) return;
+            !((hidden || loop._lastAiHidden) && isAiRunning()) && accountOfflineGap(wall, false)) return;
       }
       SB.state.saveRun(snapshot(S));
     }
