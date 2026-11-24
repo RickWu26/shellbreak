@@ -70,7 +70,7 @@ def enable_test_only_star_map_unlock() -> None:
     )
     if count != 1:
         raise SystemExit("Could not set the MiniTool preview's Star Map flag")
-    index_path.write_text(index, encoding="utf-8", newline="")
+    index_path.write_bytes(index.encode("utf-8"))
 
 
 def embed_static_rasters(files: list[Path], source_assets: Path) -> dict[str, str]:
@@ -190,7 +190,7 @@ def pack_assets() -> dict[str, Any]:
 
         updated = ASSET_REFERENCE.sub(replace_ref, original)
         if updated != text_path.read_text(encoding="utf-8"):
-            text_path.write_text(updated, encoding="utf-8", newline="")
+            text_path.write_bytes(updated.encode("utf-8"))
 
     unresolved: list[str] = []
     for text_path in text_files:

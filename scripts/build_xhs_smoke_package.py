@@ -123,7 +123,7 @@ def patch_references(package: Path, retained: set[str]) -> tuple[int, list[str]]
 
         text = ASSET_REFERENCE.sub(replace, text)
         if text != original:
-            path.write_text(text, encoding="utf-8", newline="")
+            path.write_bytes(text.encode("utf-8"))
 
     for path in package.rglob("*"):
         if not path.is_file() or path.suffix.lower() not in {".html", ".js", ".css", ".json"}:
@@ -153,7 +153,7 @@ def patch_container_blockers(package: Path) -> dict[str, int]:
     )
     if tab_removed != 1:
         raise SystemExit("Could not remove the star-map tab from the XHS smoke package")
-    index_path.write_text(index, encoding="utf-8", newline="")
+    index_path.write_bytes(index.encode("utf-8"))
     result = {"removedStarMapTab": tab_removed, "removedStarMapAssets": 2}
 
     # Keep stale TapTap implementation notes from looking like active forbidden markup
@@ -163,12 +163,12 @@ def patch_container_blockers(package: Path) -> dict[str, int]:
     error_text = error_text.replace("<script>", "script tag")
     error_text = error_text.replace("<iframe>", "embedded frame")
     error_text = error_text.replace("<img>", "image tag")
-    error_log.write_text(error_text, encoding="utf-8", newline="")
+    error_log.write_bytes(error_text.encode("utf-8"))
 
     render_content = package / "src" / "ui" / "render-content.js"
     content_text = render_content.read_text(encoding="utf-8")
     content_text = content_text.replace("onclick=\"SB.ui.openIntro('KEY')\"", "intro event key")
-    render_content.write_text(content_text, encoding="utf-8", newline="")
+    render_content.write_bytes(content_text.encode("utf-8"))
     return result
 
 

@@ -166,7 +166,7 @@ def main() -> None:
             if source_rel != output_rel:
                 updated = updated.replace("assets/" + source_rel, "assets/" + output_rel)
         if updated != original:
-            file.write_text(updated, encoding="utf-8", newline="")
+            file.write_bytes(updated.encode("utf-8"))
 
     excluded_refs: Counter[str] = Counter()
     text_blobs = [(p.relative_to(PACKAGE).as_posix(), p.read_text(encoding="utf-8", errors="ignore")) for p in text_files]
