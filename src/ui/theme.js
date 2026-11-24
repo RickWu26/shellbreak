@@ -8,6 +8,10 @@
   var POWER_SAVE_KEY = 'shellbreak.powerSave';
   var choices = ['day', 'night'];
   var POWER_CHOICES = ['auto', 'on', 'off'];
+  var motionQuery = root.matchMedia ? root.matchMedia('(prefers-reduced-motion: reduce)') : null;
+  var coarseQuery = root.matchMedia ? root.matchMedia('(pointer: coarse)') : null;
+  var powerSaveMode = readSavedPowerSave();
+  var powerSaveActive = resolvePowerSave(powerSaveMode);
 
   var RES_KEY = 'shellbreak.uiResolution';
   /* 档位语义（2026-11-08 改）：不再是「固定设计宽度」，而是「界面放大倍率」。
@@ -27,7 +31,13 @@
   }
 
   function prefersReducedMotion() {
-    return !!(root.matchMedia && root.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    return !!(motionQuery && motionQuery.matches);
+  }
+
+  function onMediaChange(query, handler) {
+    if (!query) return;
+    if (query.addEventListener) query.addEventListener('change', handler);
+    else if (query.addListener) query.addListener(handler);
   }
 
   function savedBubblesPreference() {
@@ -127,36 +137,33 @@
     }
   }
 
-  function currentPowerSave() {
+  function readSavedPowerSave() {
     var v = null;
     try { v = root.localStorage && root.localStorage.getItem(POWER_SAVE_KEY); } catch (e) {}
     return POWER_CHOICES.indexOf(v) >= 0 ? v : 'auto';
   }
 
-  function isPowerSave(mode) {
-    var m = POWER_CHOICES.indexOf(mode) >= 0 ? mode : currentPowerSave();
-    if (m === 'on') return true;
-    if (m === 'off') return false;
-    if (prefersReducedMotion()) return true;
-    return !!(root.matchMedia && root.matchMedia('(pointer: coarse)').matches);
+  function resolvePowerSave(mode) {
+    if (mode !== 'auto') return mode === 'on';
+    return prefersReducedMotion() || !!(coarseQuery && coarseQuery.matches);
   }
 
   function applyPowerSave(mode, persist) {
-    mode = POWER_CHOICES.indexOf(mode) >= 0 ? mode : 'auto';
-    var active = isPowerSave(mode);
+    powerSaveMode = POWER_CHOICES.indexOf(mode) >= 0 ? mode : 'auto';
+    powerSaveActive = resolvePowerSave(powerSaveMode);
     var docRoot = root.document && root.document.documentElement;
-    if (docRoot && docRoot.dataset) docRoot.dataset.powerSave = active ? 'on' : 'off';
+    if (docRoot && docRoot.dataset) docRoot.dataset.powerSave = powerSaveActive ? 'on' : 'off';
     var sel = root.document && root.document.querySelector ? root.document.querySelector('select[data-ui-power-save]') : null;
-    if (sel) sel.value = mode;
+    if (sel) sel.value = powerSaveMode;
     if (persist) {
-      try { if (root.localStorage) root.localStorage.setItem(POWER_SAVE_KEY, mode); } catch (e) {}
+      try { if (root.localStorage) root.localStorage.setItem(POWER_SAVE_KEY, powerSaveMode); } catch (e) {}
     }
     var SB = root.SB;
     if (SB && SB.ui && SB.ui.background && SB.ui.background.refresh) SB.ui.background.refresh();
     if (SB && SB.ui && SB.ui.render && SB.ui.render.notifyStarMapActive && SB.game && SB.game.getTab) {
       SB.ui.render.notifyStarMapActive(SB.game.getTab() === 'star-map' && !(root.document && root.document.hidden));
     }
-    return active;
+    return powerSaveActive;
   }
 
   function boot() {
@@ -206,12 +213,7 @@
         ? event.target.closest('[data-ui-effect="deep-bubbles"]') : null;
       if (checkbox) applyBubbles(checkbox.checked, true);
     });
-    var motionQuery = root.matchMedia ? root.matchMedia('(prefers-reduced-motion: reduce)') : null;
-    if (motionQuery && motionQuery.addEventListener) {
-      motionQuery.addEventListener('change', function () { applyBubbles(savedBubblesPreference(), false); });
-    } else if (motionQuery && motionQuery.addListener) {
-      motionQuery.addListener(function () { applyBubbles(savedBubblesPreference(), false); });
-    }
+    onMediaChange(motionQuery, function () { applyBubbles(savedBubblesPreference(), false); });
 
     // ---- 界面缩放（桌面/横屏按倍率放大 UI；触屏 / 竖屏 / auto 始终走自然响应式） ----
     var res0 = currentResolution();
@@ -255,27 +257,29 @@
     function recomputeUiScale() { applyResolution(currentResolution(), false); }
     root.addEventListener('resize', recomputeUiScale);
     var orientQuery = root.matchMedia ? root.matchMedia('(orientation: landscape)') : null;
-    if (orientQuery && orientQuery.addEventListener) orientQuery.addEventListener('change', recomputeUiScale);
-    else if (orientQuery && orientQuery.addListener) orientQuery.addListener(recomputeUiScale);
+    onMediaChange(orientQuery, recomputeUiScale);
 
     // ---- 省电模式（auto 在移动端/系统减动画时默认开启；关闭背景漂移、模糊滤镜、全屏毛玻璃与星图降帧）----
-    applyPowerSave(currentPowerSave(), false);
+    applyPowerSave(powerSaveMode, false);
     root.document.addEventListener('change', function (event) {
       var t = event.target && event.target.closest ? event.target.closest('select[data-ui-power-save]') : null;
       if (t) applyPowerSave(t.value, true);
     });
-    if (motionQuery && motionQuery.addEventListener) {
-      motionQuery.addEventListener('change', function () { applyPowerSave(currentPowerSave(), false); });
-    } else if (motionQuery && motionQuery.addListener) {
-      motionQuery.addListener(function () { applyPowerSave(currentPowerSave(), false); });
+    function recomputeAutoPowerSave() {
+      if (powerSaveMode === 'auto') applyPowerSave('auto', false);
     }
+    onMediaChange(motionQuery, recomputeAutoPowerSave);
+    onMediaChange(coarseQuery, recomputeAutoPowerSave);
+    root.addEventListener('storage', function (event) {
+      if (event.key === POWER_SAVE_KEY || event.key === null) applyPowerSave(readSavedPowerSave(), false);
+    });
   }
 
   var SB = root.SB || (root.SB = {});
   SB.ui = SB.ui || {};
   SB.ui.theme = {
-    isPowerSave: function () { return isPowerSave(currentPowerSave()); },
-    powerSaveMode: currentPowerSave,
+    isPowerSave: function () { return powerSaveActive; },
+    powerSaveMode: function () { return powerSaveMode; },
     setPowerSave: function (mode) { return applyPowerSave(mode, true); }
   };
 

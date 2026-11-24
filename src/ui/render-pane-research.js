@@ -978,8 +978,12 @@
               (_liveCond ? ' data-live-pct="' + _lk + '"' : '') + '>' + ep.toFixed(0) + '%</b></span>';
           }
         } else {
-          var tDesc = trComplete('tech.' + t.id + '.description', null, t.desc || '');
-          condLine = '<div class="research-list-card-desc">' + escapeHTML(tDesc || (why || '')) + '</div>';
+          var info = SB.ui.renderParts.info;
+          var unlock = t.unlockDesc ? info.localizedTechUnlockDescription(t) : '';
+          var effect = !unlock || t.effectDesc || Object.keys(t.eff || {}).length ? SB.tech.effectDisplayText(t) : '';
+          condLine = '<div class="research-list-card-desc">' + effect +
+            (effect && unlock ? '<br>' : '') + escapeHTML(unlock) + '</div>';
+          if (why && !sciShort) condLine += '<div class="research-list-card-desc">' + escapeHTML(why) + '</div>';
           if (sciShort) {
             var scCost = SB.tech.researchCost(s, t), scNow = Math.max(0, Number(s.res && s.res.science) || 0);
             var scPct = scCost > 0 ? Math.max(0, Math.min(100, scNow / scCost * 100)) : 0;

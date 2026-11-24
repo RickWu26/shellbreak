@@ -228,7 +228,7 @@
   var RES_CELLS = Object.create(null);
   var RES_LAST_BASE_ORDER = [];
   var RES_LAST_CRAFT_ORDER = [];
-  var HUD_RES_KEYS = ['coral', 'kelp', 'stone', 'iron', 'science', 'culture', 'faith', 'metal'];
+  var HUD_RES_KEYS = ['coral', 'kelp', 'stone', 'silt', 'iron', 'science', 'culture', 'faith'];
   var HUD_RES_CELLS = Object.create(null);
   var HUD_RES_LAST_ORDER = [];
 
@@ -2120,9 +2120,10 @@
 
   function renderPanes() {
     if (SB.ui && SB.ui.isPanePointerInteracting && SB.ui.isPanePointerInteracting()) return;
+    var activeTab = (SB.game && SB.game.getTab) ? SB.game.getTab() : 'village';
     syncTabLocks();
     syncTabResearchDots();
-    var activeTab = (SB.game && SB.game.getTab) ? SB.game.getTab() : 'village';
+    syncNavShell(activeTab);
     var activeNode = activeTab ? el('pane-' + activeTab) : null;
 
     var shown = activeTab === 'tech';
@@ -2305,12 +2306,12 @@
     }
     var hudAct = el('hudActionPill');
     if (hudAct) {
-      var shellZero = (s.shell <= 0 && s.shellOpened);
-      var actLabel = opened ? tr(LABEL_KEY[mode]) : (qual && !shellZero ? tr('ui.action.prestige') : tr('ui.render.render_break_btn.break_through_the_ice_shell'));
-      var actDisabled = opened ? !shellZero : (!qual && !shellZero);
-      if (hudAct.textContent !== actLabel) setNodeText(hudAct, actLabel);
+      var action = !opened && qual ? 'cycle' : 'break';
+      var sourceButton = action === 'cycle' ? cyc : btn;
+      var actDisabled = !sourceButton || !!(sourceButton.disabled || sourceButton.hidden);
+      if (sourceButton) setNodeText(hudAct, sourceButton.textContent);
       if (hudAct.disabled !== actDisabled) hudAct.disabled = actDisabled;
-      hudAct.setAttribute('data-hud-action', (!opened && qual && !shellZero) ? 'cycle' : 'break');
+      if (hudAct.getAttribute('data-hud-action') !== action) hudAct.setAttribute('data-hud-action', action);
     }
 
     /* 帷幕之后 · 掀幕按钮（ERA11 spec §6 决策 #10）：学完《掀起帘幕》才出现，
@@ -3647,7 +3648,6 @@
       sm.classList.toggle('locked', !sop);
       sm.title = sop ? '' : tr('ui.render.sync_tab_locks.break_through_the_shell_to_unlock_the');
     }
-    syncNavShell();
   }
 
   /* 科技 / 市政页签的「可研究」红点：各自分类存在当前即可研究的项时点亮（活指示，不记 localStorage）。
@@ -3722,7 +3722,6 @@
         wkut.title = wkTips.join(' · ');
       }
     }
-    syncNavShell();
   }
 
 
@@ -3762,14 +3761,15 @@
     }
     var unlockedGroups = 0;
     var groupState = Object.create(null);
+    var newUpgradeTag = el('tabWorkshopUpgradesNew');
     for (var gi = 0; gi < NAV_GROUPS.length; gi++) {
       var grp = NAV_GROUPS[gi], hasOpen = false, hasAvail = false;
       for (var ti = 0; ti < grp.tabs.length; ti++) {
-        var tn = tabMap[grp.tabs[ti]];
-        if (!tn || !tn.classList) continue;
-        var locked = tn.classList.contains('locked');
-        if (!locked) hasOpen = true;
-        if (!locked && tn.classList.contains('avail')) hasAvail = true;
+        var tabId = grp.tabs[ti], tn = tabMap[tabId];
+        if (!tn || !tn.classList || tn.classList.contains('locked')) continue;
+        hasOpen = true;
+        if (tn.classList.contains('avail') ||
+            (tabId === 'workshop-upgrades' && newUpgradeTag && !newUpgradeTag.hidden)) hasAvail = true;
       }
       if (hasOpen || grp.id === activeGroup) unlockedGroups++;
       groupState[grp.id] = { open: hasOpen, avail: hasAvail };
@@ -3777,13 +3777,13 @@
     var showMulti = unlockedGroups > 1;
     if (doc.body && doc.body.classList) {
       doc.body.classList.toggle('has-multi-nav-groups', showMulti);
-      if (doc.body.dataset) doc.body.dataset.activeGroup = activeGroup;
+      if (doc.body.dataset && doc.body.dataset.activeGroup !== activeGroup) doc.body.dataset.activeGroup = activeGroup;
     }
     var tabsWrap = doc.querySelector ? doc.querySelector('.tabs') : null;
-    if (tabsWrap && tabsWrap.dataset) tabsWrap.dataset.activeGroup = activeGroup;
+    if (tabsWrap && tabsWrap.dataset && tabsWrap.dataset.activeGroup !== activeGroup) tabsWrap.dataset.activeGroup = activeGroup;
     var bar = el('appNavGroups');
     if (bar) {
-      bar.hidden = !showMulti;
+      if (bar.hidden !== !showMulti) bar.hidden = !showMulti;
       var btns = bar.querySelectorAll ? bar.querySelectorAll('[data-nav-group-btn]') : [];
       for (var bi = 0; bi < btns.length; bi++) {
         var btn = btns[bi], gid = btn.getAttribute('data-nav-group-btn');
@@ -3793,7 +3793,7 @@
           btn.classList.toggle('locked', !st.open);
           btn.classList.toggle('avail', st.avail);
         }
-        btn.disabled = !st.open;
+        if (btn.disabled !== !st.open) btn.disabled = !st.open;
       }
     }
   }
@@ -3839,6 +3839,7 @@
       })(tabs[i]);
     }
     syncTabLocks();
+    syncNavShell();
   }
   function initSpeeds() {
     var btns = document.querySelectorAll('.spd'), i;

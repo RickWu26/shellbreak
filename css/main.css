@@ -5,7 +5,7 @@
  */
 @import url("./00-core.css?v=142");
 @import url("./10-tech-tree.css?v=141");
-@import url("./20-panels.css?v=141");
+@import url("./20-panels.css?v=142");
 @import url("./30-visual-polish.css?v=173");
 @import url("./40-atmosphere-theme.css?v=148");
 @import url("./50-module-polish.css?v=243");
@@ -22,5 +22,5 @@
 /* 帷幕之后 · 飞升路径界面（2026-11-17）：外层三路径卡 + 内层操作弹窗 + 硅基装配台。 */
 @import url("./99-veil.css?v=18");
 /* 响应式深海 App Shell、渐进底栏与两层卡片布局 */
-@import url("./99-app-shell.css?v=6");
+@import url("./99-app-shell.css?v=7");
 @import url("./onboarding.css?v=2");

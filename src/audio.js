@@ -232,7 +232,6 @@
       if (!activeId) {
         if (pendingId !== m) pendingId = m;
         if (!gestureReady) return;           // 手势前只记录待播曲目，不触发音频资源下载与播放
-        ensureEl(track(m));
         crossfadeTo(m);
         return;
       }
@@ -269,7 +268,6 @@
         pendingId = pickFrom(pool);
       }
       if (!gestureReady) return;
-      ensureEl(track(pendingId));
       crossfadeTo(pendingId);
       return;
     }
@@ -312,14 +310,22 @@
   function armOnGesture() {
     if (armed || !enabled()) return;
     armed = true;
-    var fire = function () {
+    var fire = function (event) {
+      if (!event.isTrusted) return;
+      /* 鼠标按下、触屏抬起时浏览器才授予播放权限。 */
+      if (event.type === 'pointerdown' && event.pointerType !== 'mouse') return;
+      if (event.type === 'pointerup' && event.pointerType === 'mouse') return;
+      var activation = root.navigator && root.navigator.userActivation;
+      if (activation && !activation.isActive) return;
       gestureReady = true;
       sync();   // 这时 play() 在用户手势上下文里，浏览器允许
     };
     try {
       root.addEventListener('pointerdown', fire, true);
+      root.addEventListener('pointerup', fire, true);
       root.addEventListener('keydown', fire, true);
-      root.addEventListener('touchstart', fire, true);
+      root.addEventListener('touchend', fire, true);
+      if (!root.PointerEvent) root.addEventListener('mousedown', fire, true);
     } catch (e) { armed = false; }
   }
 

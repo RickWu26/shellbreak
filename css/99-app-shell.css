@@ -712,12 +712,16 @@ html[data-ui-theme="day"] .ui-settings-tab.on {
   display: none;
 }
 
-/* ── 桌面三栏工作台 (>=1200px) ────────────────────────────────────── */
-@media (min-width: 1200px) {
+/* 桌面三栏按缩放后的实际可用宽度排布。 */
+@media (min-width: 1380px) {
   .wrap {
+    width: calc(100% - 36px);
     max-width: 1460px;
     padding: 14px 18px 36px;
+    container: app-shell / inline-size;
   }
+}
+@container app-shell (min-width: 1320px) {
   .shell-main {
     display: grid;
     grid-template-columns: minmax(280px, 315px) minmax(0, 1fr) minmax(280px, 315px);
