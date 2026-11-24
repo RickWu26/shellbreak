@@ -1990,7 +1990,7 @@ window.ShellbreakLocales["zh-CN"] = Object.freeze({
   "game.story.unlock.star_map.action": "进入星图页",
   "game.story.unlock.star_map.line_1": "自鲛人首次抬头望向头顶的天壳，已经过去了不知多少岁月。",
   "game.story.unlock.star_map.line_2": "但在今天，他们首次望见了冰层后闪熠的群星。",
-  "game.story.unlock.star_map.system_description": "现在可以查看欧罗巴、土星，以及本周目已经发射的卫星和空间站。",
+  "game.story.unlock.star_map.system_description": "现在可以查看欧罗巴、萨图恩，以及本周目已经发射的卫星和空间站。",
   "game.story.unlock.star_map.system_title": "星图系统已开放",
   "game.story.unlock.star_map.title": "星图页解锁",
   "game.story.unlock.technology.action": "进入科技页",
@@ -2569,9 +2569,9 @@ window.ShellbreakLocales["zh-CN"] = Object.freeze({
   "prestige.star_perk.star_rocket_engine_assembly.name": "火箭引擎总装线",
   "prestige.star_perk.star_rocket_engine_craft2.description": "火箭引擎工艺效率额外 +30%（累计 +60%）",
   "prestige.star_perk.star_rocket_engine_craft2.name": "火箭引擎总装 II",
-  "prestige.star_perk.star_rocket_fuel_refine1.description": "火箭燃料工艺效率 +15%",
+  "prestige.star_perk.star_rocket_fuel_refine1.description": "火箭燃料工艺效率 +{effectPercent1}",
   "prestige.star_perk.star_rocket_fuel_refine1.name": "火箭燃料精炼 I",
-  "prestige.star_perk.star_rocket_fuel_refine2.description": "火箭燃料工艺效率额外 +15%（累计 +30%）",
+  "prestige.star_perk.star_rocket_fuel_refine2.description": "火箭燃料工艺效率额外 +{effectPercent1}（累计 +{effectPercent2}）",
   "prestige.star_perk.star_rocket_fuel_refine2.name": "火箭燃料精炼 II",
   "prestige.star_perk.star_rocket_fuel_refine3.description": "火箭燃料工艺效率再 {effectPercent1}（累计 {effectPercent2}）",
   "prestige.star_perk.star_rocket_fuel_refine3.name": "火箭燃料精炼 III",
@@ -2631,9 +2631,9 @@ window.ShellbreakLocales["zh-CN"] = Object.freeze({
   "prestige.star_perk.star_terraform2.name": "行星重构加速 II",
   "prestige.star_perk.star_theta_film_assembly.description": "θ金属自适应薄膜工艺效率 +5%/级；可重复强化",
   "prestige.star_perk.star_theta_film_assembly.name": "薄膜连续镀制",
-  "prestige.star_perk.star_tiplate_press1.description": "钛金板件工艺效率 +15%",
+  "prestige.star_perk.star_tiplate_press1.description": "钛金板件工艺效率 +{effectPercent1}",
   "prestige.star_perk.star_tiplate_press1.name": "钛金板件精压 I",
-  "prestige.star_perk.star_tiplate_press2.description": "钛金板件工艺效率额外 +15%（累计 +30%）",
+  "prestige.star_perk.star_tiplate_press2.description": "钛金板件工艺效率额外 +{effectPercent1}（累计 +{effectPercent2}）",
   "prestige.star_perk.star_tiplate_press2.name": "钛金板件精压 II",
   "prestige.star_perk.star_tiplate_press3.description": "钛金板件工艺效率再 {effectPercent1}（累计 {effectPercent2}）",
   "prestige.star_perk.star_tiplate_press3.name": "钛金板件精压 III",
@@ -3569,7 +3569,6 @@ window.ShellbreakLocales["zh-CN"] = Object.freeze({
   "ui.challenge.completion.reward_notice": "永久奖励现已生效：{rewardDescription}。本局仍可继续发展。",
   "ui.challenge.completion.status": "挑战完成",
   "ui.challenge.completion.title": "★ {challengeName} · 挑战完成",
-  "ui.challenge.first_clear_bonus": "首次通关本档：轮回点收益永久增加 +{bonusPercent}%。",
   "ui.challenge.footer": "挑战奖励跨周目保留。挑战失败或主动重开不会消耗档位，也不会领取奖励。已通关的挑战可再次挑战，只刷新排行榜成绩、不重复发奖。",
   "ui.challenge.goal.fallback": "挑战目标已达成。",
   "ui.challenge.goal.label": "通关目标",
@@ -3587,7 +3586,6 @@ window.ShellbreakLocales["zh-CN"] = Object.freeze({
   "ui.challenge.overview.challenges_cleared": "挑战通关",
   "ui.challenge.overview.prestige_bonus": "+{bonusPercent}%",
   "ui.challenge.overview.prestige_points": "轮回点获取",
-  "ui.challenge.overview.replay_info": "全部档位通关后，仍可再次挑战已通关的最高档位。重复挑战不会再次发放奖励，只会更新排行榜成绩。",
   "ui.challenge.panel.intro": "开启挑战会结算当前周目并立即开始新周目。各项挑战有各自的目标，达成后会立即结算永久奖励。",
   "ui.challenge.panel.kicker": "轮回挑战",
   "ui.challenge.panel.title": "挑战",
@@ -3611,7 +3609,6 @@ window.ShellbreakLocales["zh-CN"] = Object.freeze({
   "ui.challenge.progress.water_pollution": "{stageName} · 污染 {pollutionValue} · 戴森球 {dysonProgressPercent}%",
   "ui.challenge.replay.must_finish_run": "永久奖励已生效。先结束当前挑战周目再重打。",
   "ui.challenge.replay.no_repeat_reward": "重复挑战：通关不重复发奖，只会刷新排行榜成绩。",
-  "ui.challenge.replay.no_reward_card": "永久奖励已生效。再次挑战不会再次发放奖励，只会更新排行榜成绩。",
   "ui.challenge.result.clear_reward": "挑战通关：{challengeName} · {tierName}。永久奖励：{reward}。此后轮回点获取增加 {prestigePointBonus}。",
   "ui.challenge.result.failed_time": "挑战未通关：{challengeName} · {tierName}超过时限 {timeLimit}（本次用时 {elapsedTime}）。本档奖励未领取，重开本周目后可重试。",
   "ui.challenge.result.final_restriction": "成绩已定格；限制生效中，解除后不可再打开。",
@@ -5346,4 +5343,4 @@ window.ShellbreakLocales["zh-CN"] = Object.freeze({
   "workshop.wonder.unavailable": "没有这座奇观"
 });
 window.ShellbreakLocaleCoverage = window.ShellbreakLocaleCoverage || Object.create(null);
-window.ShellbreakLocaleCoverage["zh-CN"] = Object.freeze({"activeKeys":5342,"approvedKeys":5342,"complete":true});
+window.ShellbreakLocaleCoverage["zh-CN"] = Object.freeze({"activeKeys":5339,"approvedKeys":5339,"complete":true});
