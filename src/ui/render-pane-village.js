@@ -174,13 +174,6 @@
         '<button type="button" class="pane-pill" data-village-density="compact">' + htmlText(tr('village.density.compact', null, '简洁')) + '</button>' +
       '</div>' +
     '</div>';
-    var craftResSet = {};
-    if (SB.workshop && SB.workshop.crafts) {
-      var _cl = SB.workshop.crafts();
-      for (var _ci = 0; _ci < _cl.length; _ci++) {
-        if (_cl[_ci] && _cl[_ci].res) craftResSet[_cl[_ci].res] = 1;
-      }
-    }
     var totalShown = 0, anyOwned = false, anyReady = false;
     for (var zi = 0; zi < (SB.BUILD_ZONES || []).length; zi++) {
       var z = SB.BUILD_ZONES[zi];
@@ -466,7 +459,7 @@
             var _sfTxt = _sfFn ? _sfFn(s, _shortKey, c[_shortKey]) : '';
             var _sfItem = '<span class="bld-shortfall-item" data-live-short="' + _shortKey +
               '" data-live-need="' + c[_shortKey] + '">' + htmlText(_sfTxt) + '</span>';
-            if ((s.lvl && s.lvl.workshop > 0) && craftResSet[_shortKey]) {
+            if (!SB.workshop.craftHasPrereqBlock(s, SB.workshop.craftByResource(_shortKey))) {
               _sfItem = '<span class="bld-shortfall-wrap">' + _sfItem +
                 '<button type="button" class="bld-goto-craft" data-goto-craft-res="' + _shortKey +
                 '" data-return-bld="' + b.id + '">' + htmlText(tr('village.shortfall.goto_craft', null, '去制造 ↗')) + '</button></span>';

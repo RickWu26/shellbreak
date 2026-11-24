@@ -697,7 +697,7 @@ window.ShellbreakLocales["en-US"] = Object.freeze({
   "changelog.ui.clickable_text_links": "Building names and Workshop recipes now use a snug underline and distinct color to show they are clickable links. The old dashed line ran across the whole row and looked like a divider.",
   "changelog.ui.cloud_restore_immediate": "“Restore Cloud Save” now takes effect immediately. The game adopts the cloud progress without reloading the page, which could leave the save unreadable on a weak connection. The local save is still backed up first.",
   "changelog.ui.cycle_wording": "The wording now consistently says \"prestige\" instead of \"cycle number\": the meta shop label reads \"Prestiges\", the opening log line reads \"Run N started · M prestiges\", and the Wandering Terra prerequisite and challenge progress say \"M prestiges completed\". The numbers themselves are unchanged; they simply no longer describe a prestige-only counter as a cycle number.",
-  "changelog.ui.filters_and_craft_roundtrip": "Filter buildings by what you can build or what is running, show only staffed jobs, or see only recipes you can craft. If a building needs a crafted material, jump straight to its recipe and return to the building afterward. Newly unlocked Workshop upgrades are marked NEW.",
+  "changelog.ui.filters_and_craft_roundtrip": "Filter buildings by what you can build or what is running, show only staffed jobs, or see only recipes you can craft. If a building needs a crafted material, jump straight to its recipe and return to the building afterward. Newly unlocked Workshop upgrades are marked NEW. The Workshop now lists every recipe assigned to auto-crafting. You can disable a recipe even if it is still locked this run and use its slot for another material.",
   "changelog.ui.help_badge_reposition": "The \"?\" help button inside the main navigation tabs has been moved to a small corner badge at the top right, reducing accidental taps.",
   "changelog.ui.localization_round": "More interface text now reads from the localization registry: the onboarding tutorial, the save manager, confirmation dialogs, the batch-setting dialog, and the save diagnostics. These screens no longer fall back to Chinese in the English build; a few diagnostic phrasings were standardized along the way.",
   "changelog.ui.localization_round2": "Second round of interface localization: the building run counts on the village page, satellite and station controls on the star map, era navigation and endgame notes in the tech scroll, the G.E.E.K and Sky Drill status text on the environment card, building info cards, and the persistent bottom-bar hints now all read from the locale registry. These screens no longer fall back to Chinese wholesale in the English build, and a few phrasings were standardized in Chinese along the way.",
@@ -5138,14 +5138,17 @@ window.ShellbreakLocales["en-US"] = Object.freeze({
   "ui.wonder.skydrill.stopped": "Sky Drill stopped.",
   "ui.workshop.automation.label": "Auto",
   "ui.workshop.automation_slots.add_button": "＋ Automate",
+  "ui.workshop.automation_slots.assigned": "Assigned auto-crafting slots",
   "ui.workshop.automation_slots.batch_button": "Batch count: {batchCount} · Click to edit",
   "ui.workshop.automation_slots.batch_tooltip": "Automatically craft a full batch when enough materials are available; keep any excess.",
   "ui.workshop.automation_slots.disable.button": "Disable",
   "ui.workshop.automation_slots.disable.tooltip": "Free up this automation slot.",
+  "ui.workshop.automation_slots.disable_named": "Disable auto-crafting for {recipe}",
   "ui.workshop.automation_slots.full_button": "Slots Full",
   "ui.workshop.automation_slots.full_tooltip": "All automation slots are in use (capacity: {autoSlotCapacity}).",
   "ui.workshop.automation_slots.insufficient": "No automation slots are available. Install the Automatic Workshop upgrade or buy more in the Prestige Shop.",
   "ui.workshop.automation_slots.locked_summary": "Automation slots are locked. Install the Automatic Workshop upgrade to unlock {automaticWorkshopSlots}; buy up to {prestigeShopSlots} more in the Prestige Shop.",
+  "ui.workshop.automation_slots.locked_this_run": "Locked this run",
   "ui.workshop.automation_slots.mixed_inputs_note": "This recipe uses capped inputs ({limitedInputs}) and uncapped inputs ({unlimitedInputs}), so it uses batch mode. A batch is crafted when enough of each input is available.",
   "ui.workshop.automation_slots.percent_tooltip": "When any capped input reaches {conversionPercent}% of its cap, automatically craft {conversionPercent}% of the amount currently craftable; stock then drops below that level and builds up again, so it never stays full (100% = only craft when full).",
   "ui.workshop.automation_slots.summary": "Automation slots {usedSlots}/{slotCapacity}: for recipes with only capped inputs, pick a percentage ({percentageOptions}); once any input reaches that share of its cap, automation crafts that share of the currently craftable amount, so stock drops back below it. Recipes with uncapped inputs use batch crafting: make a full batch when enough materials are in stock, preserving any excess.",
@@ -5384,4 +5387,4 @@ window.ShellbreakLocales["en-US"] = Object.freeze({
   "workshop.wonder.unavailable": "Wonder unavailable."
 });
 window.ShellbreakLocaleCoverage = window.ShellbreakLocaleCoverage || Object.create(null);
-window.ShellbreakLocaleCoverage["en-US"] = Object.freeze({"activeKeys":5380,"approvedKeys":5380,"complete":true});
+window.ShellbreakLocaleCoverage["en-US"] = Object.freeze({"activeKeys":5383,"approvedKeys":5383,"complete":true});

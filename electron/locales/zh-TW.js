@@ -697,7 +697,7 @@ window.ShellbreakLocales["zh-TW"] = Object.freeze({
   "changelog.ui.clickable_text_links": "建築名與工坊配方名加了貼字的下劃線和獨立配色：原先那條虛線會橫穿整行，讀起來像分隔線而不像可點的連結。",
   "changelog.ui.cloud_restore_immediate": "「用雲端覆蓋本地」改為當場生效：點完立刻看到雲端那份的進度，不再過載頁面（過載在弱網下容易又讀空一次）。覆蓋前仍會先備份本機進度。",
   "changelog.ui.cycle_wording": "「周目」這個說法統一改為「輪迴」：輪迴商店頁的數字標籤改成「已輪迴」，開局日誌改為「第 N 局開始 · 已輪迴 M 次」，《流浪泰拉》的前置文案與挑戰頁進度也改說「已完成 N 次輪迴」。數字本身沒變，只是不再用「第幾周目」去描述一個只數合格輪迴的計數。",
-  "changelog.ui.filters_and_craft_roundtrip": "巢穴可篩選可建造或運轉中的建築，族民可只看已在崗，工坊可只看能製作的配方。建築缺少材料時，點「去製造」直達配方，做完可回到原建築。工坊新解鎖的升級會標上 NEW。",
+  "changelog.ui.filters_and_craft_roundtrip": "巢穴可篩選可建造或運轉中的建築，族民可只看已在崗，工坊可只看能製作的配方。建築缺少材料時，點「去製造」直達配方，做完可回到原建築。工坊新解鎖的升級會標上 NEW。自動製作槽會列出佔槽配方。本周目還沒解鎖的配方也能停用，騰出的槽可立即改做其他材料。",
   "changelog.ui.help_badge_reposition": "主介面底部切換按鈕裡的「?」說明移到右上角小角標，減少誤觸。",
   "changelog.ui.localization_round": "文字本地化繼續收口：新手引導、存檔管理面板、確認彈窗、批次設定彈窗與存檔診斷文字全部改為從詞庫取詞。Steam 英文版裡這些介面不再回退成中文；中文版的少量診斷用語隨之統一了措辭。",
   "changelog.ui.localization_round2": "介面文字本地化第二批：村莊頁的建築運轉數量、星空圖的衛星與空間站啟停、科技長卷的紀元導航與終局說明、環境卡里 G.E.E.K 與天穹鑽機的狀態文案、建築資訊卡以及底欄常駐提示，全部改為從詞庫取詞。英文版裡這些介面不再整段回退成中文，中文版的個別措辭隨之統一。",
@@ -5138,14 +5138,17 @@ window.ShellbreakLocales["zh-TW"] = Object.freeze({
   "ui.wonder.skydrill.stopped": "天穹鑽機已停機。",
   "ui.workshop.automation.label": "自動",
   "ui.workshop.automation_slots.add_button": "＋自動",
+  "ui.workshop.automation_slots.assigned": "已佔用的自動製作槽",
   "ui.workshop.automation_slots.batch_button": "批次 {batchCount} 次 · 點選設定批次數",
   "ui.workshop.automation_slots.batch_tooltip": "庫存夠造一整批時自動製造；多出的材料保留。",
   "ui.workshop.automation_slots.disable.button": "停用",
   "ui.workshop.automation_slots.disable.tooltip": "騰出這個自動槽",
+  "ui.workshop.automation_slots.disable_named": "停用「{recipe}」的自動製作",
   "ui.workshop.automation_slots.full_button": "槽位已滿",
   "ui.workshop.automation_slots.full_tooltip": "自動製作槽已滿（容量：{autoSlotCapacity}）",
   "ui.workshop.automation_slots.insufficient": "自動槽不夠：先裝「自動工坊」升級或在輪迴商店買槽。",
   "ui.workshop.automation_slots.locked_summary": "自動製作槽尚未解鎖。裝上「自動工坊」可解鎖 {automaticWorkshopSlots} 個槽位；還可從輪迴商店購買 {prestigeShopSlots} 個。",
+  "ui.workshop.automation_slots.locked_this_run": "本周目未解鎖",
   "ui.workshop.automation_slots.mixed_inputs_note": "本配方含有上限原料（{limitedInputs}）和無上限原料（{unlimitedInputs}），因此沿用批次自動製造：所有原料夠一批時製造。",
   "ui.workshop.automation_slots.percent_tooltip": "任一有上限原料攢到「上限 × {conversionPercent}%」時自動轉製，轉製當時可造量的 {conversionPercent}%；轉完會跌到該檔位以下再重新攢，所以不會保持滿倉（100% = 滿倉才轉）",
   "ui.workshop.automation_slots.summary": "自動製作槽 {usedSlots}/{slotCapacity}：僅含有上限原料的配方，會按所選檔位（{percentageOptions}）——任一原料攢到「上限 × 該檔位」時自動轉製，轉製當時可造量的該檔位%，轉完跌回檔位以下再攢；含無上限原料的配方按批次製造，庫存夠造指定數量時造一整批，多出的材料保留。",
@@ -5384,4 +5387,4 @@ window.ShellbreakLocales["zh-TW"] = Object.freeze({
   "workshop.wonder.unavailable": "沒有這座奇觀"
 });
 window.ShellbreakLocaleCoverage = window.ShellbreakLocaleCoverage || Object.create(null);
-window.ShellbreakLocaleCoverage["zh-TW"] = Object.freeze({"activeKeys":5380,"approvedKeys":5380,"complete":true});
+window.ShellbreakLocaleCoverage["zh-TW"] = Object.freeze({"activeKeys":5383,"approvedKeys":5383,"complete":true});

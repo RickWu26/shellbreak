@@ -245,6 +245,17 @@
     return null;
   }
 
+  var indexedCrafts, craftsByResource;
+  function craftByResource(resource) {
+    var recipes = craftRows();
+    if (recipes !== indexedCrafts) {
+      indexedCrafts = recipes;
+      craftsByResource = Object.create(null);
+      for (var i = 0; i < recipes.length; i++) craftsByResource[recipes[i].res] = recipes[i];
+    }
+    return craftsByResource[resource] || null;
+  }
+
   /* 库存最多能造几个：**每种原料分别算「总量÷单价」，取最小的那个**。
    * 照猫国 `workshop.js:2787 getCraftAllCount` —— 哪个原料最先见底就卡玩家。 */
   function maxCraftable(s, c) {
@@ -898,7 +909,7 @@
     toolHasPrereqBlock: toolHasPrereqBlock,
     lackText: lackText,
     /* 工艺制作下半区 */
-    crafts: craftRows, craftById: craftById,
+    crafts: craftRows, craftById: craftById, craftByResource: craftByResource,
     craftHasPrereqBlock: craftHasPrereqBlock,
     craftRatio: craftRatio, craftMul: craftMul, craftCostMul: craftCostMul,
     maxCraftable: maxCraftable, stepAmt: stepAmt, stepOut: stepOut, craftBlocked: craftBlocked,

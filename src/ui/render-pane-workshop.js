@@ -132,6 +132,10 @@
   var craftOnlyReady = false;
   function toggleCraftOnlyReady() { craftOnlyReady = !craftOnlyReady; return craftOnlyReady; }
 
+  function revealCraft(s, recipe) {
+    if (craftOnlyReady && SB.workshop.craftBlocked(s, recipe.id)) craftOnlyReady = false;
+  }
+
   function workshopOverview(s, sideHtml) {
     return '<div class="workshop-overview"><div class="workshop-efficiency">' +
       '<span class="workshop-mark" aria-hidden="true">⚒</span><div><small>' + tr('ui.workshop.crafting.eyebrow', null, 'CRAFT · 工坊') + '</small>' +
@@ -209,11 +213,7 @@
     for (i = 0; i < L.length; i++) {
       var c = L[i];
       var why = SB.workshop.craftBlocked(s, c.id);
-      /* ⚠️ 2026-10-05 用户拍板：与工具/升级项同口径 —— **未解锁的配方不显示**。
-       *   配方没有「已拥有」概念（是反复制造，不是买断）⇒ 不需要那条例外。
-       *   ⚠️ 判据仍是 `craftBlocked` 返回值的 `/^需要先/` 前缀（门未开）vs
-       *      「还缺…」（材料不足）—— 两者都在 `craftBlocked` 里，见 workshop.js。 */
-      if ((SB.workshop.craftHasPrereqBlock && SB.workshop.craftHasPrereqBlock(s, c)) || (why && /^需要先/.test(why))) continue;
+      if (SB.workshop.craftHasPrereqBlock(s, c)) continue;
       if (craftOnlyReady && why) continue;
       shown++;
       var mul = SB.workshop.craftMul(s, c);
@@ -353,20 +353,35 @@
   /* 自动槽的存量提示（挂在「工艺制作」段标题下）：玩家得先知道**有几个槽、从哪来的**。 */
   function autoSlotSummary(s) {
     var cap = SB.workshop.slotCap(s);
-    if (cap <= 0) {
+    var slots = s.autoSlots || [];
+    if (cap <= 0 && !slots.length) {
       var lockedSummary = nonDefaultLocale() ? tr('ui.workshop.automation_slots.locked_summary', {
         automaticWorkshopSlots: 1, prestigeShopSlots: 3
       }, '') : '自动制作槽：未解锁。装上工坊升级项「自动工坊」自带 1 个，轮回商店可再买 3 个。';
       return '<div class="note">' + lockedSummary + '</div>';
     }
-    var used = (s.autoSlots && s.autoSlots.length) || 0;
+    var used = slots.length;
     var percentageOptions = SB.workshop.pcts().map(function (percent) { return percent * 100 + '%'; }).join(' / ');
     var summary = nonDefaultLocale() ? tr('ui.workshop.automation_slots.summary', {
       usedSlots: used, slotCapacity: cap, percentageOptions: percentageOptions
     }, '') : '自动制作槽 <b>' + used + '/' + cap + '</b>：' +
       '全部原料有上限的配方：任一原料攒到「上限 × 所选档位」时自动转制，转制当时可造量的该档位%（25 / 50 / 75 / 100%），转完跌回档位以下再攒；' +
       '含无上限原料的配方：沿用批次自动制造，库存够造指定数量时造一整批，多出的材料保留。';
-    return '<div class="note">' + summary + '</div>';
+    var html = '<div class="note">' + summary + '</div>';
+    if (!used) return html;
+    html += '<section class="assigned-crafts"><strong>' + tr('ui.workshop.automation_slots.assigned') + '</strong><ul>';
+    for (var i = 0; i < used; i++) {
+      var slot = slots[i], recipe = SB.workshop.craftById(slot.id);
+      var name = recipe ? localizedItemName('craft', recipe) : tr('workshop.craft.recipe.unavailable');
+      html += '<li><span>' + escAttr(name) + '</span>';
+      if (SB.workshop.craftHasPrereqBlock(s, recipe)) {
+        html += '<small>' + tr('ui.workshop.automation_slots.locked_this_run') + '</small>';
+      }
+      html += '<button type="button" class="btn tog" data-aoff="' + escAttr(slot.id) + '" aria-label="' +
+        escAttr(tr('ui.workshop.automation_slots.disable_named', { recipe: name })) + '">' +
+        tr('ui.workshop.automation_slots.disable.button') + '</button></li>';
+    }
+    return html + '</ul></section>';
   }
 
   function paneWorkshopLocked() {
@@ -500,6 +515,7 @@
   parts.setWorkshopView = setWorkshopView;
   parts.toggleHideDone = toggleHideDone;
   parts.toggleCraftOnlyReady = toggleCraftOnlyReady;
+  parts.revealCraft = revealCraft;
   parts.paneToolRows = paneToolRows;
   parts.paneCraftRows = paneCraftRows;
   parts.paneUpgradeRows = paneUpgradeRows;

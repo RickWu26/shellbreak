@@ -54,7 +54,6 @@ export function run({ SB, check, sandbox }) {
   let captured = { setTab: null, view: null, panes: 0, sel: null };
   try {
     if (SB.game) {
-      SB.game.run = () => ({ lvl: { workshop: 1 } });
       SB.game.setTab = (t) => { captured.setTab = t; };
     }
     if (SB.ui.render) {
@@ -67,7 +66,22 @@ export function run({ SB, check, sandbox }) {
     ROOT.document = {
       querySelector: (sel) => { captured.sel = sel; return { scrollIntoView() {}, closest() { return this; } }; }
     };
+    const targetRun = SB.state.freshRun();
+    targetRun.lvl.workshop = 1;
+    SB.game.run = () => targetRun;
+    const render = SB.ui.renderParts;
+    T.gotoCraft('scaffold');
+    check('未解锁配方不跳页', captured.setTab === null);
+    render.toggleCraftOnlyReady();
+    // 初始材料不足，筛选会隐藏石梁。跳转后应立即出现目标行。
+    check('只看可造会隐藏缺石头的石梁', !render.paneCraftRows(targetRun).includes('data-craft-res="stoneBeam"'));
     T.gotoCraft('stoneBeam');
+    check('缺料跳转后仍能定位未备齐原料的石梁', render.paneCraftRows(targetRun).includes('data-craft-res="stoneBeam"'));
+    targetRun.res.stone = 100;
+    render.toggleCraftOnlyReady();
+    T.gotoCraft('stoneBeam');
+    check('目标已经可造时保留筛选', !render.paneCraftRows(targetRun).includes('data-craft-res="hardCoral"'));
+    render.toggleCraftOnlyReady();
   } finally {
     if (SB.game) {
       if (saved.run) SB.game.run = saved.run; else delete SB.game.run;

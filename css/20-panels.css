@@ -127,6 +127,15 @@ input.relname.locked{opacity:.85;border-color:#b13bd6;color:#f3c8ff;background:r
  * 让玩家在调座数的那一行就看到会烧多少石，而不是去环境卡说明段里读文案。 */
 .furnctl .fdraw{font-size:11px;color:var(--dim);margin-left:4px;font-variant-numeric:tabular-nums}
 
+.assigned-crafts { margin: 8px 0 12px; }
+.assigned-crafts ul { list-style: none; padding: 0; margin: 4px 0 0; }
+.assigned-crafts li { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; padding: 4px 0; border-bottom: 1px solid var(--line-soft); }
+.assigned-crafts li span { overflow-wrap: anywhere; }
+.assigned-crafts small { color: var(--dim); }
+.assigned-crafts button { margin-inline-start: auto; }
+@media (pointer: coarse) {
+  .assigned-crafts button { min-height: 44px; }
+}
 /* 工坊自动制作槽的档位行（2026-10-07）：配方行下面独立一行，与上面四颗制造按钮分开
  * ——两者语义不同（手动造几份 vs 满仓后自动转制多少），挤在一行会被读成同一组按钮。
  * .asl 是行首那个「自动」标签；档位按钮复用 .tog/.on（绿=当前档）。 */
