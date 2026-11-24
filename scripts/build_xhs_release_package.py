@@ -126,16 +126,16 @@ def extract_star_map(source: str) -> tuple[str, str, str]:
 
     runtime = runtime.replace("window.parent.postMessage(", "window.postMessage(")
     runtime, n = re.subn(
-        r"if\(document\.hidden\)\{last=now;_lastDraw=now;return;\}",
-        "if(document.hidden||!document.getElementById('star-map-mock')||!document.getElementById('star-map-mock').getClientRects().length){last=now;_lastDraw=now;return;}",
+        r"if\(!_smActive\|\|document\.hidden\)\{_smRafId=0;last=now;_lastDraw=now;return;\}",
+        "if(!_smActive||document.hidden||!document.getElementById('star-map-mock')||!document.getElementById('star-map-mock').getClientRects().length){_smRafId=0;last=now;_lastDraw=now;return;}",
         runtime,
         count=1,
     )
     if n != 1:
         raise SystemExit("Could not pause star-map rendering while its pane is hidden")
     runtime, n = re.subn(
-        r"requestAnimationFrame\(animate\)\}\)\(\);\s*$",
-        "requestAnimationFrame(animate);window._smResize=_smResize})();\n",
+        r"_smEnsureAnim\(\)\}\)\(\);\s*$",
+        "_smEnsureAnim();window._smResize=_smResize})();\n",
         runtime,
         count=1,
     )

@@ -288,8 +288,9 @@
           (d.tiers.length > 1 ? 'next_tier_available' : 'not_completed');
       var status = challengeStatus(statusKey);
       var goalText = definitionText(d, 'goalText');
+      var thumbSrc = d.badgeThumb || d.badge;
       h += '<article class="challenge-card' + (isActive ? ' is-active' : '') + (exhausted ? ' is-complete' : '') + '">';
-      h += '<header class="challenge-card-head"><span class="challenge-icon" aria-hidden="true"><img src="' + d.badge + '" alt="">' +
+      h += '<header class="challenge-card-head"><span class="challenge-icon" aria-hidden="true"><img src="' + thumbSrc + '" alt="" loading="lazy" decoding="async">' +
         (exhausted ? '<img class="challenge-completion-medal" src="assets/challenges/challenge-completion-medal-v1.png" alt="">' : '') + '</span>' +
         '<div class="challenge-card-name"><h3>' + challengeName + '</h3><small>' + definitionText(d, 'kind') + ' · ' + summary + '</small></div>' +
         '<span class="challenge-status' + (exhausted ? ' done' : activeTimedOut ? ' failed' : isActive ? ' active' : gateBlocked ? ' locked' : '') + '">' + status + '</span></header>';
@@ -345,7 +346,7 @@
           }, '');
           var tierLabel = definitionText(d, 'tierLabel', ti);
           var tierHTML = '<div class="challenge-tier' + (ti < done ? ' done' : tierActive ? (activeTimedOut ? ' active failed' : ' active') : ti === done && !blocked && !exhausted ? ' next' : '') + '">' +
-            '<span class="challenge-tier-medal" aria-hidden="true"><img src="' + d.badge + '" alt=""><i>' + ['Ⅰ', 'Ⅱ', 'Ⅲ'][ti] + '</i></span>' +
+            '<span class="challenge-tier-medal" aria-hidden="true"><img src="' + thumbSrc + '" alt="" loading="lazy" decoding="async"><i>' + ['Ⅰ', 'Ⅱ', 'Ⅲ'][ti] + '</i></span>' +
             '<div><b>' + tierLabel + '</b><span>' + tierState + '</span></div><small>' + tierRule + '</small>' +
             '<em>' + tr('ui.challenge.reward.tier', {
               rewardDescription: definitionText(d, 'reward', ti)

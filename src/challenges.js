@@ -213,7 +213,7 @@
      *   三项都带 ascension:true，供 ascensionTierCount 计入「每档 +10% 飞升点」通用奖励
      *   （挂 prestige.veilPeriod().points，绝不碰轮回点的 challengePointMul）。
      *   平台榜单 / 成就 ID 均暂不建：不填 rankKey（不提交不存在的榜）；achievementKey 只记本地账本。 */
-    { id: 'veil_rush', achievementKey: 'challengeVeilRush', name: '飞升竞速', icon: '⏳', badge: 'assets/challenges/challenge-veil-sprint-illustrated.png', kind: '三档限时挑战',
+    { id: 'veil_rush', achievementKey: 'challengeVeilRush', name: '飞升竞速', icon: '⏳', badge: 'assets/challenges/challenge-veil-sprint-illustrated.png', badgeThumb: 'assets/challenges/thumbs/challenge-veil-sprint-illustrated.webp', kind: '三档限时挑战',
       timed: true, ascension: true,
       summary: '在计时归零前研成《掀起帘幕》；退出游戏后计时仍继续。',
       rule: '从开始挑战起按现实时间计时，离线时间也计入；超时后本档不能领取竞速奖励。',
@@ -224,7 +224,7 @@
         { label: '16 小时档', cap: 16 * 60 * 60 },
         { label: '8 小时档', cap: 8 * 60 * 60 }
       ] },
-    { id: 'veil_abyss', achievementKey: 'challengeVeilAbyss', name: '飞升苦旅', icon: '⛓', badge: 'assets/challenges/challenge-veil-abyss-illustrated.png', kind: '三档挑战',
+    { id: 'veil_abyss', achievementKey: 'challengeVeilAbyss', name: '飞升苦旅', icon: '⛓', badge: 'assets/challenges/challenge-veil-abyss-illustrated.png', badgeThumb: 'assets/challenges/thumbs/challenge-veil-abyss-illustrated.webp', kind: '三档挑战',
       ascension: true,
       summary: '全产出被压低，仍需一路研成《掀起帘幕》。',
       rule: '本轮全产出降低，直至研成《掀起帘幕》。',
@@ -235,7 +235,7 @@
         { label: '第二档', cap: 0.40 },
         { label: '第三档', cap: 0.60 }
       ] },
-    { id: 'veil_starve', achievementKey: 'challengeVeilStarve', name: '宇宙空洞', icon: '🕳', badge: 'assets/challenges/challenge-veil-starve-illustrated.png', kind: '三档挑战',
+    { id: 'veil_starve', achievementKey: 'challengeVeilStarve', name: '宇宙空洞', icon: '🕳', badge: 'assets/challenges/challenge-veil-starve-illustrated.png', badgeThumb: 'assets/challenges/thumbs/challenge-veil-starve-illustrated.webp', kind: '三档挑战',
       ascension: true,
       summary: '星屑结算收益被压低，仍需一路研成《掀起帘幕》。',
       rule: '本轮破壳星屑结算收益降低，直至研成《掀起帘幕》。',
@@ -253,21 +253,21 @@
      * ⚠️ 档数：无神论 / 动荡年代为**单档固定**（tiers 一条 cap:null，各贡献飞升点 +0.1），
      *    繁盛市场为三档（cap 0.3/0.5/0.7，+0.3）——用户 17:44 拍「1和5哪来的三档」。
      * ⚠️ badge 暂用已存在的 veil 图标占位（用户将出图）：出图后按文档文件名替换三处 badge。 */
-    { id: 'veil_nofaith', achievementKey: 'challengeVeilNoFaith', name: '无神论', icon: '🚫', badge: 'assets/challenges/challenge-veil-nofaith-illustrated.png', kind: '终局挑战',
+    { id: 'veil_nofaith', achievementKey: 'challengeVeilNoFaith', name: '无神论', icon: '🚫', badge: 'assets/challenges/challenge-veil-nofaith-illustrated.png', badgeThumb: 'assets/challenges/thumbs/challenge-veil-nofaith-illustrated.webp', kind: '终局挑战',
       ascension: true,
       summary: '弃绝一切信条与信仰之助，以无神之身抵达帘幕之后。',
       rule: '全程不得装备任何信条；信仰的两条全产加成（局内存量档 + 跨局旧日信仰档）均失效。',
       reward: '永久信仰产出 +50% · 信条抽选多一个候选（三选一变四选一）',
       goal: { t: 'tech', id: 'beyond_veil' }, goalText: '研成《掀起帘幕》科技',
       tiers: [{ label: '完成挑战', cap: null }] },
-    { id: 'veil_turmoil', achievementKey: 'challengeVeilTurmoil', name: '动荡年代', icon: '🌊', badge: 'assets/challenges/challenge-veil-turmoil-illustrated.png', kind: '终局挑战',
+    { id: 'veil_turmoil', achievementKey: 'challengeVeilTurmoil', name: '动荡年代', icon: '🌊', badge: 'assets/challenges/challenge-veil-turmoil-illustrated.png', badgeThumb: 'assets/challenges/thumbs/challenge-veil-turmoil-illustrated.webp', kind: '终局挑战',
       ascension: true,
       summary: '在最深的动荡里，依然把文明推向群星。',
       rule: '幸福度恒为最低档（动荡 ×0.80），奢侈品与奇观均无法抬升；直至研成《掀起帘幕》。',
       reward: '永久幸福度 +1',
       goal: { t: 'tech', id: 'beyond_veil' }, goalText: '研成《掀起帘幕》科技',
       tiers: [{ label: '完成挑战', cap: null }] },
-    { id: 'veil_cramped', achievementKey: 'challengeVeilCramped', name: '繁盛市场今在此', icon: '🏪', badge: 'assets/challenges/challenge-veil-cramped-illustrated.png', kind: '三档挑战',
+    { id: 'veil_cramped', achievementKey: 'challengeVeilCramped', name: '繁盛市场今在此', icon: '🏪', badge: 'assets/challenges/challenge-veil-cramped-illustrated.png', badgeThumb: 'assets/challenges/thumbs/challenge-veil-cramped-illustrated.webp', kind: '三档挑战',
       ascension: true,
       summary: '仓廪逼仄偏要开成繁盛市场，把有限空间用到极致。',
       rule: '全部有上限资源的仓储上限 −30% / −50% / −70%（科研点等无上限资源不受影响）。',

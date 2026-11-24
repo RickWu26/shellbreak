@@ -1480,12 +1480,14 @@
    *   data-live-num  → 科技点余额（卡面）/ 市政点注脚（笔记行）
    * ⚠️ 假 DOM（e2e）没有 querySelectorAll：判 typeof 直接返回，绝不抛错 ——
    *    否则 boot 期 renderPanes 会把整份回归带崩（与 talentScroll 那条同因）。 */
-  function paintLive(s) {
+  function paintLive(s, scope) {
     if (!s) return;
-    var doc = (typeof document !== 'undefined') ? document : null;
-    if (!doc || typeof doc.querySelectorAll !== 'function') return;
+    var rootNode = (scope && typeof scope.querySelectorAll === 'function')
+      ? scope
+      : ((typeof document !== 'undefined') ? document : null);
+    if (!rootNode || typeof rootNode.querySelectorAll !== 'function') return;
     var els;
-    try { els = doc.querySelectorAll('[data-live-cond],[data-live-pct],[data-live-num],[data-live-sci]'); }
+    try { els = rootNode.querySelectorAll('[data-live-cond],[data-live-pct],[data-live-num],[data-live-sci]'); }
     catch (e) { return; }
     if (!els || !els.length) return;
     var headingCache = {};

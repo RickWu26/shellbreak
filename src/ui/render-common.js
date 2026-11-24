@@ -232,12 +232,14 @@
     var amount = SB.economy && SB.economy.fmtAmt ? SB.economy.fmtAmt(deficit) : String(deficit);
     return tr('village.building.shortfall.item', { amount: amount, resourceName: name });
   }
-  function paintLiveCost(s) {
+  function paintLiveCost(s, scope) {
     if (!s) return;
-    var doc = (typeof document !== 'undefined') ? document : (root ? root.document : null);
-    if (!doc || typeof doc.querySelectorAll !== 'function') return;
+    var rootNode = (scope && typeof scope.querySelectorAll === 'function')
+      ? scope
+      : ((typeof document !== 'undefined') ? document : (root ? root.document : null));
+    if (!rootNode || typeof rootNode.querySelectorAll !== 'function') return;
     var els;
-    try { els = doc.querySelectorAll('[data-live-cost],[data-live-short]'); }
+    try { els = rootNode.querySelectorAll('[data-live-cost],[data-live-short]'); }
     catch (e) { return; }
     if (!els || !els.length) return;
     var eco = SB.economy || {};

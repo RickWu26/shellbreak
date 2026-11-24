@@ -1536,7 +1536,7 @@ console.log('\n=== 市政 ===');
     const oldShell = loop.shell;
     loop.broken = true; loop.shell = 0; loop.upgrades.upg_starscope = true;
     SB.ui.render.renderShell();
-    var shellTxt = (doc.getElementById('shellTxt') || {})._html || '';
+    var shellTxt = (doc.getElementById('shellTxt') || {}).innerHTML || '';
     check('星空槽：破壳后 renderShell 显示星空槽进度（含 STAR_CAP 目标数值）',
       shellTxt.indexOf('星空槽') >= 0 && shellTxt.indexOf(SB.CFG.STAR_CAP.toLocaleString()) >= 0, 'snip=' + shellTxt.slice(0, 80));
 

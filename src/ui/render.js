@@ -223,100 +223,144 @@
   loadBuildingIconPreference();
 
 
+  var RES_CELLS = Object.create(null);
+  var RES_LAST_BASE_ORDER = [];
+  var RES_LAST_CRAFT_ORDER = [];
+
+  function setNodeText(node, txt) {
+    if (node && node.textContent !== txt) node.textContent = txt;
+  }
+  function makeResCell(d, k, isMilitaryPower) {
+    var box = d.createElement('div');
+    box.className = 'res' + (k === 'luxury' ? ' luxury' : '');
+    box.setAttribute('data-res-detail', k);
+
+    var icon = d.createElement('img');
+    icon.className = 'res-icon';
+    icon.src = 'assets/resource-icons/' + k + '.png?v=2';
+    icon.alt = '';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.width = 48;
+    icon.height = 48;
+    icon.decoding = 'async';
+
+    var content = d.createElement('div');
+    content.className = 'res-content';
+    var bEl = d.createElement('b');
+    if (!isMilitaryPower) bEl.setAttribute('data-res', k);
+    var amtNode = d.createTextNode('');
+    bEl.appendChild(amtNode);
+
+    var capEl = d.createElement('i');
+    capEl.className = 'cap';
+
+    var detailsEl = d.createElement('span');
+    detailsEl.className = 'res-details';
+    var labelWrap = d.createElement('span');
+    labelWrap.className = 'res-label';
+    var nameEl = d.createElement('span');
+    nameEl.className = 'res-name';
+    labelWrap.appendChild(nameEl);
+    detailsEl.appendChild(labelWrap);
+
+    var luxEl = null, luxOutEl = null, luxBurnEl = null;
+    if (k === 'luxury') {
+      luxEl = d.createElement('i');
+      luxEl.className = 'sd';
+      luxEl.appendChild(d.createTextNode('产 '));
+      luxOutEl = d.createElement('span');
+      luxOutEl.className = 'lux-out';
+      luxEl.appendChild(luxOutEl);
+      luxEl.appendChild(d.createTextNode(' · 耗 '));
+      luxBurnEl = d.createElement('span');
+      luxBurnEl.className = 'lux-burn';
+      luxEl.appendChild(luxBurnEl);
+      detailsEl.appendChild(luxEl);
+    }
+    var rateEl = d.createElement('i');
+    rateEl.className = 'rate';
+    var faithEl = null;
+    if (k === 'faith') {
+      faithEl = d.createElement('i');
+      faithEl.className = 'rate up';
+    }
+    var tipBtnEl = null;
+    if (k === 'luxury') {
+      tipBtnEl = d.createElement('i');
+      tipBtnEl.className = 'hover-info-btn';
+      tipBtnEl.textContent = 'ⓘ';
+    }
+
+    content.appendChild(bEl);
+    content.appendChild(detailsEl);
+    box.appendChild(icon);
+    box.appendChild(content);
+
+    return {
+      key: k, box: box, bEl: bEl, amtNode: amtNode, capEl: capEl,
+      detailsEl: detailsEl, nameEl: nameEl, luxEl: luxEl, luxOutEl: luxOutEl,
+      luxBurnEl: luxBurnEl, rateEl: rateEl, faithEl: faithEl, tipBtnEl: tipBtnEl,
+      hasCap: false, hasRate: false, hasFaith: false, hasTip: false,
+      lastCls: box.className, lastRaw: '', lastAmt: '', lastCap: '', lastCapCls: 'cap',
+      lastName: '', lastLuxOut: '', lastLuxBurn: '', lastLuxTip: '',
+      lastRateTxt: '', lastRateCls: 'rate', lastFaithTxt: ''
+    };
+  }
+  function syncOrder(container, prevOrder, nextOrder, nodes) {
+    var same = prevOrder.length === nextOrder.length && (container.children || []).length === nextOrder.length;
+    if (same) {
+      for (var i = 0; i < nextOrder.length; i++) {
+        if (prevOrder[i] !== nextOrder[i]) { same = false; break; }
+      }
+    }
+    if (same) return prevOrder;
+    var cur = container.children || [];
+    while (cur.length) container.removeChild(cur[cur.length - 1]);
+    for (var j = 0; j < nodes.length; j++) container.appendChild(nodes[j]);
+    return nextOrder.slice();
+  }
+
   function renderRes() {
-    var s = res(), g = el('res');
-    if (!s || !g) return;
+    var s = res(), g = el('res'), d = root.document;
+    if (!s || !g || !d || !d.createElement || !d.createTextNode) return;
+    if (!g._sbDomInit) { g.innerHTML = ''; g._sbDomInit = true; }
+    var gc = el('res-craft');
+    if (gc && !gc._sbDomInit) { gc.innerHTML = ''; gc._sbDomInit = true; }
+
     var need = SB.economy.foodUse(s);
     var rate = SB.economy.rates(s);   // 与 tick 同一套公式的净速率，见 economy.rates
-    var htmlBase = '', htmlCraft = '';
+    var baseOrder = [], baseNodes = [], craftOrder = [], craftNodes = [];
+
     for (var k in SB.RESS) {
-      /* ⚠️ 2026-09-28 信仰面板 gate：信仰资源行只在《神学》完成后出现（用户规格
-       *    「研究神学之后就开启信仰面板」）。神学前信仰恒为 0 也没地方显示，
-       *    硬塞一行只会误导玩家以为已经有信仰系统。gate 读 `s.civics.theology`。 */
-      /* 热液能是逐 tick 分配、不会累积的能流；星空探索是星图进度；星屑属于轮回局外资源。
-       * 前两者分别在自然环境卡与星图展示，星屑在轮回商店展示，不混进本局材料库存网格。 */
       if (k === 'hydro' || k === 'starExplore' || k === 'stardust' || !SB.economy.resUnlocked(s, k)) continue;
       var isCraft = SB.RESS[k].kind === 'craft';
+      var cell = RES_CELLS[k] || (RES_CELLS[k] = makeResCell(d, k, false));
       var v = s.res[k];
-      var cls = 'res' + (k === 'luxury' ? ' luxury' : '') + (k === 'kelp' && v < need ? ' neg' : '');
-      /* 上限写进格子：只有有限上限的资源才显示 /N（科技、地热是 Infinity，不显示）。
-       * 满了标红——那一刻起继续产出是在白流，玩家得知道该去造压舱仓或花掉。
-       * ⚠️ 存量与上限是**两种精度**：存量走 fmtAmt（固定一位小数，因为珊瑚 0.1/次、
-       *    科技 0.03/秒这种进项取整后点十下都不动），上限走 fmt（成本/上限天生是整数）。
-       *    见 economy.js 里 fmtAmt 的注释。 */
       var cap = SB.economy.capOf(s, k);
-      var capTxt = '';
-      if (isFinite(cap)) {
-        var full = v >= cap;
-        capTxt = '<i class="cap' + (full ? ' full' : '') + '">/ ' + SB.economy.fmt(cap) + '</i>';
-        if (full) cls = cls.replace(/ neg/, '');   // 满了和饥荒是两回事，别再标红成缺粮
+      var hasCap = isFinite(cap);
+      var full = hasCap && v >= cap;
+
+      var nextCls = 'res' + (k === 'luxury' ? ' luxury' : '') + ((k === 'kelp' && v < need && !full) ? ' neg' : '');
+      if (cell.lastCls !== nextCls) { cell.box.className = nextCls; cell.lastCls = nextCls; }
+
+      var rawStr = (+v).toFixed(2);
+      if (cell.lastRaw !== rawStr) { cell.bEl.setAttribute('data-raw', rawStr); cell.lastRaw = rawStr; }
+
+      var amtTxt = SB.economy.fmtAmt(v);
+      if (cell.lastAmt !== amtTxt) { setNodeText(cell.amtNode, amtTxt); cell.lastAmt = amtTxt; }
+
+      if (hasCap !== cell.hasCap) {
+        if (hasCap) cell.bEl.appendChild(cell.capEl);
+        else if (cell.capEl.parentNode === cell.bEl) cell.bEl.removeChild(cell.capEl);
+        cell.hasCap = hasCap;
       }
-      /* 总获得速率（净值/秒）：正绿负红，0 不显示。中间资源（珊瑚/矿砂被加工
-       * 转走、燃料被祭坛烧掉）净值可能是负的——这正是要暴露给玩家的信息。 */
-      var r = rate[k] || 0;
-      var rateTxt = '';
-      if (Math.abs(r) >= 0.005) {
-        var sign = r > 0 ? '+' : '';
-        /* 计数单位与存量/上限同源（2026-11-09）：≥1e4 走 economy.fmtAbbr 的 k/M/B/T 阶梯，
-         * 回落仍用原来的两档精度（≥100 取整、否则两位小数）—— +0.03/s 不能被压成 +0.0/s。 */
-        rateTxt = '<i class="rate' + (r > 0 ? ' up' : ' down') + '">' + sign +
-          SB.economy.fmtAbbr(r, Math.abs(r) >= 100 ? Math.round(r) : r.toFixed(2)) + '/s</i>';
+      if (hasCap) {
+        var capCls = 'cap' + (full ? ' full' : '');
+        if (cell.lastCapCls !== capCls) { cell.capEl.className = capCls; cell.lastCapCls = capCls; }
+        var capTxt = '/ ' + SB.economy.fmt(cap);
+        if (cell.lastCap !== capTxt) { setNodeText(cell.capEl, capTxt); cell.lastCap = capTxt; }
       }
-      var faithBonusTxt = '';
-      if (k === 'faith') {
-        /* 信仰行的「全产 +X%」：让玩家一眼看到信仰存量换来的全局产出加成
-         *   （economy.faithAllMul，10→+1% / 100→+2% / 1000→+3%）。faith<10 时不显示（加成为 0）。 */
-        var fam = SB.economy.faithAllMul(s);
-        if (fam > 1) faithBonusTxt = ' <i class="rate up">全产+' + Math.round((fam - 1) * 100) + '%</i>';
-      }
-      /* 奢侈品行的「产 X · 耗 Y」小字（2026-10-05 用户拍板）：净速率会被**需求封顶** ——
-       *   供给涨了之后净值停在 min(S,D) 那一档不动，玩家会以为购买项（奢侈品契/马具/马镫…）没生效。
-       *   用小一号斜体把供给与消耗直接摆出来，一眼看出「净不变=需求封顶」而非加成失效。
-       * ⚠️ 数字走 happyLedger 同一口（与 tick / 幸福度行同源），render 不自己拼第二份账。
-       * ★ 2026-10-21（用户「产xx耗xx放到奢侈品后面去，把卡片调整成一样大的」）三处调整：
-       *   ① 位置挪到**标签正后方**（原先排在净值之后，被挤到第二行）；
-       *   ② 长括号解释（按幸福 X 计 / 已剔市政·奇观·卡的 +Y）收进 `title`：
-       *      正是它把这张卡撑到 **3 行**，而 .grid 是 `align-items:stretch` ⇒ 整行被拉高 30px，
-       *      卡片大小不齐。实测（5 列、卡宽 204.8px）：带长括号行高 101.7，收进 title 后 71.7
-       *      = 普通卡行高，四行全部一致；
-       *   ③ 奢侈品行不再叠一个净值：净 = 产 − 耗 是恒等式（rates.luxury = S − min(S,D)），
-       *      两个分量都摆着了，第三个数字纯冗余，窄屏（≤390px）还会多折一行把卡撑高。
-       *   ④ ②把解释塞进 title ⇒ **只有桌面 hover 能看见，手机端等于整条信息丢了**。
-       *      按用户跨端约定（方案 C）补 ⓘ：CSS 只在 @media (hover:none) 显示 ⓘ，
-       *      点按弹自定义浮层；内容读 ⓘ 自己的 title（与桌面同一份文本，单一落点）。 */
-      var luxTxt = '';
-      var tipBtn = '';      /* 手机端 ⓘ（见下 ④）：仅在有 title 解释时才生成 */
-      var hideRate = false;
-      if (k === 'luxury' && SB.economy.happyLedger) {
-        var LL = SB.economy.happyLedger(s);
-        /* ⚠️ 2026-10-06 用户报 bug：「这里的消耗是不是把市政加的这些额外幸福度也算上去了」
-         *   —— 是的，那是读数 bug（真结算一直用机制值），已修（economy.happyMech）。
-         *   现在把「用于计价的幸福度」也摆出来：有政体/奇观/卡加成时，
-         *   玩家能验「人口 × 每人(mechH) = 耗」，不会以为加成被算成了消耗。
-         *   ⚠️ 2026-10-21：这段解释改挂 `title`（桌面 hover 可见），数值一字不改。 */
-        var _luxTip = '';
-        if (Math.abs(LL.bonus) > 1e-9) {
-          /* mechH ≤ 0 时 c(H) 走保底 BASE，那个负数对玩家没有意义，
-           * 印出来只会让人以为「按 −1 计价」是更省的事（其实单价已是最低）。 */
-          _luxTip = tr(LL.mechH > 0 ? 'ui.happiness.luxury.tooltip.mechanic' : 'ui.happiness.luxury.tooltip.floor', {
-            mechanicHappiness: LL.mechH.toFixed(2), bonusOffset: (LL.bonus > 0 ? '+' : '') + LL.bonus.toFixed(2)
-          }, LL.mechH > 0
-            ? '按幸福 ' + LL.mechH.toFixed(2) + ' 计，已剔市政/奇观/卡的 ' + (LL.bonus > 0 ? '+' : '') + LL.bonus.toFixed(2)
-            : '计价已到底线，已剔市政/奇观/卡的 ' + (LL.bonus > 0 ? '+' : '') + LL.bonus.toFixed(2));
-        }
-        luxTxt = '<i class="sd"' + (_luxTip ? ' title="' + _luxTip + '"' : '') + '>产 ' +
-          '<span class="lux-out">' + LL.out.toFixed(2) + '</span> · 耗 ' +
-          '<span class="lux-burn">' + LL.burn.toFixed(2) + '</span></i>';
-        hideRate = true;
-        /* ④ 手机端 ⓘ：解释文本只挂一次（ⓘ 的 title），点按时由 showHoverInfo 读出弹浮层。
-         * 桌面端 ⓘ 不显示（CSS 门控），.sd 的原生 title hover 照旧 —— 两端同一份文本。 */
-        if (_luxTip) {
-          tipBtn = '<i class="hover-info-btn" title="' +
-            _luxTip.replace(/&/g, '&amp;').replace(/"/g, '&quot;') + '">ⓘ</i>';
-        }
-      }
-      /* 信仰行的标签：玩家给信仰起了名 ⇒ 用宗教名代替「信仰」二字（神学解锁后可在 #religionBox 改名）。
-       * ERA9 虚境信仰卡装填后强制「虚境」并锁死（覆盖玩家自定义名，见 civics.faithDisplayName）。 */
+
       var rowName = SB.i18n && SB.i18n.resourceName ? SB.i18n.resourceName(k, SB.RESS[k].name) : SB.RESS[k].name;
       if (k === 'faith') {
         var rn = (SB.civic && SB.civic.faithDisplayName)
@@ -324,50 +368,110 @@
           : ((s.religionName || '').trim());
         if (rn) rowName = rn;
       }
-      /* 标签行顺序（2026-10-21 用户要求）：名称 → 产/耗 → 净值 → 全产加成。
-       * 奢侈品行 hideRate=true ⇒ 不重复净值（净 = 产 − 耗，见上面 ③）。 */
-      var resourceIcon = '<img class="res-icon" src="assets/resource-icons/' + k + '.png?v=2" alt="" aria-hidden="true" width="48" height="48" decoding="async">';
-      /* data-res-detail：整格可点 ⇒ 弹「存量/上限 + 净值 + 产出消耗分项」面板
-       * （2026-10-29 用户：只给数值）。委托在 input.js，重画不丢监听。 */
-      var row = '<div class="' + cls + '" data-res-detail="' + k + '">' + resourceIcon + '<div class="res-content"><b data-res="' + k + '" data-raw="' + (+v).toFixed(2) + '">' +
-        SB.economy.fmtAmt(v) + capTxt + '</b><span class="res-details"><span class="res-label"><span class="res-name">' + rowName + '</span></span>' + luxTxt + (hideRate ? '' : rateTxt) +
-        faithBonusTxt + tipBtn + '</span></div></div>';
-      if (isCraft) htmlCraft += row; else htmlBase += row;
+      if (cell.lastName !== rowName) { setNodeText(cell.nameEl, rowName); cell.lastName = rowName; }
+
+      var hideRate = false, luxTip = '';
+      if (k === 'luxury' && SB.economy.happyLedger) {
+        var LL = SB.economy.happyLedger(s);
+        if (Math.abs(LL.bonus) > 1e-9) {
+          luxTip = tr(LL.mechH > 0 ? 'ui.happiness.luxury.tooltip.mechanic' : 'ui.happiness.luxury.tooltip.floor', {
+            mechanicHappiness: LL.mechH.toFixed(2), bonusOffset: (LL.bonus > 0 ? '+' : '') + LL.bonus.toFixed(2)
+          }, LL.mechH > 0
+            ? '按幸福 ' + LL.mechH.toFixed(2) + ' 计，已剔市政/奇观/卡的 ' + (LL.bonus > 0 ? '+' : '') + LL.bonus.toFixed(2)
+            : '计价已到底线，已剔市政/奇观/卡的 ' + (LL.bonus > 0 ? '+' : '') + LL.bonus.toFixed(2));
+        }
+        var lo = LL.out.toFixed(2), lb = LL.burn.toFixed(2);
+        if (cell.lastLuxOut !== lo) { setNodeText(cell.luxOutEl, lo); cell.lastLuxOut = lo; }
+        if (cell.lastLuxBurn !== lb) { setNodeText(cell.luxBurnEl, lb); cell.lastLuxBurn = lb; }
+        if (cell.lastLuxTip !== luxTip) {
+          if (luxTip) {
+            cell.luxEl.setAttribute('title', luxTip);
+            cell.tipBtnEl.setAttribute('title', luxTip);
+          } else {
+            if (cell.luxEl.removeAttribute) cell.luxEl.removeAttribute('title');
+            if (cell.tipBtnEl.removeAttribute) cell.tipBtnEl.removeAttribute('title');
+          }
+          cell.lastLuxTip = luxTip;
+        }
+        hideRate = true;
+      }
+
+      var r = rate[k] || 0;
+      var showRate = !hideRate && Math.abs(r) >= 0.005;
+      if (showRate !== cell.hasRate) {
+        if (showRate) cell.detailsEl.appendChild(cell.rateEl);
+        else if (cell.rateEl.parentNode === cell.detailsEl) cell.detailsEl.removeChild(cell.rateEl);
+        cell.hasRate = showRate;
+      }
+      if (showRate) {
+        var rateCls = 'rate' + (r > 0 ? ' up' : ' down');
+        if (cell.lastRateCls !== rateCls) { cell.rateEl.className = rateCls; cell.lastRateCls = rateCls; }
+        var rateTxt = (r > 0 ? '+' : '') +
+          SB.economy.fmtAbbr(r, Math.abs(r) >= 100 ? Math.round(r) : r.toFixed(2)) + '/s';
+        if (cell.lastRateTxt !== rateTxt) { setNodeText(cell.rateEl, rateTxt); cell.lastRateTxt = rateTxt; }
+      }
+
+      if (k === 'faith' && cell.faithEl) {
+        var fam = SB.economy.faithAllMul(s);
+        var showFaith = fam > 1;
+        if (showFaith !== cell.hasFaith) {
+          if (showFaith) cell.detailsEl.appendChild(cell.faithEl);
+          else if (cell.faithEl.parentNode === cell.detailsEl) cell.detailsEl.removeChild(cell.faithEl);
+          cell.hasFaith = showFaith;
+        }
+        if (showFaith) {
+          var fTxt = '全产+' + Math.round((fam - 1) * 100) + '%';
+          if (cell.lastFaithTxt !== fTxt) { setNodeText(cell.faithEl, fTxt); cell.lastFaithTxt = fTxt; }
+        }
+      }
+
+      if (cell.tipBtnEl) {
+        var showTip = !!luxTip;
+        if (showTip !== cell.hasTip) {
+          if (showTip) cell.detailsEl.appendChild(cell.tipBtnEl);
+          else if (cell.tipBtnEl.parentNode === cell.detailsEl) cell.detailsEl.removeChild(cell.tipBtnEl);
+          cell.hasTip = showTip;
+        }
+      }
+
+      if (isCraft) { craftOrder.push(k); craftNodes.push(cell.box); }
+      else { baseOrder.push(k); baseNodes.push(cell.box); }
     }
+
     /* 军力储备存在 s.war.power，不在普通库存 s.res / RESS 中；职业解锁后单独加入资源栏。 */
     if (SB.war && SB.war.power && SB.war.rate && SB.folk && SB.folk.jobUnlocked(s, 'soldier')) {
+      var mKey = 'militaryPower';
+      var mCell = RES_CELLS[mKey] || (RES_CELLS[mKey] = makeResCell(d, mKey, true));
       var power = SB.war.power(s), powerRate = SB.war.rate(s);
-      var powerRateTxt = '';
-      if (Math.abs(powerRate) >= 0.005) {
-        var powerRateSign = powerRate > 0 ? '+' : '';
-        powerRateTxt = '<i class="rate' + (powerRate > 0 ? ' up' : ' down') + '">' + powerRateSign +
-          SB.economy.fmtAbbr(powerRate, Math.abs(powerRate) >= 100 ? Math.round(powerRate) : powerRate.toFixed(2)) + '/s</i>';
-      }
+      var mAmt = SB.economy.fmtAmt(power);
+      if (mCell.lastAmt !== mAmt) { setNodeText(mCell.amtNode, mAmt); mCell.lastAmt = mAmt; }
       var powerName = SB.i18n && SB.i18n.resourceName
         ? SB.i18n.resourceName('militaryPower', tr('resource.military_power.name'))
         : tr('resource.military_power.name');
-      htmlBase += '<div class="res" data-res-detail="militaryPower"><img class="res-icon" src="assets/resource-icons/militaryPower.png?v=2" alt="" aria-hidden="true" width="48" height="48" decoding="async">' +
-        '<div class="res-content"><b>' + SB.economy.fmtAmt(power) + '</b><span class="res-details"><span class="res-label"><span class="res-name">' + htmlText(powerName) +
-        '</span></span>' + powerRateTxt + '</span></div></div>';
+      if (mCell.lastName !== powerName) { setNodeText(mCell.nameEl, powerName); mCell.lastName = powerName; }
+      var showMRate = Math.abs(powerRate) >= 0.005;
+      if (showMRate !== mCell.hasRate) {
+        if (showMRate) mCell.detailsEl.appendChild(mCell.rateEl);
+        else if (mCell.rateEl.parentNode === mCell.detailsEl) mCell.detailsEl.removeChild(mCell.rateEl);
+        mCell.hasRate = showMRate;
+      }
+      if (showMRate) {
+        var mCls = 'rate' + (powerRate > 0 ? ' up' : ' down');
+        if (mCell.lastRateCls !== mCls) { mCell.rateEl.className = mCls; mCell.lastRateCls = mCls; }
+        var mRTxt = (powerRate > 0 ? '+' : '') +
+          SB.economy.fmtAbbr(powerRate, Math.abs(powerRate) >= 100 ? Math.round(powerRate) : powerRate.toFixed(2)) + '/s';
+        if (mCell.lastRateTxt !== mRTxt) { setNodeText(mCell.rateEl, mRTxt); mCell.lastRateTxt = mRTxt; }
+      }
+      baseOrder.push(mKey);
+      baseNodes.push(mCell.box);
     }
-    g.innerHTML = htmlBase;
-    /* 工艺资源独立分区：解锁前不显示（resUnlocked），且无任何可见项时整段隐藏。 */
-    var gc = el('res-craft');
+
+    RES_LAST_BASE_ORDER = syncOrder(g, RES_LAST_BASE_ORDER, baseOrder, baseNodes);
     if (gc) {
-      gc.innerHTML = htmlCraft;
+      RES_LAST_CRAFT_ORDER = syncOrder(gc, RES_LAST_CRAFT_ORDER, craftOrder, craftNodes);
       var wrap = el('res-craft-wrap');
-      if (wrap) wrap.hidden = (htmlCraft === '');
+      if (wrap) wrap.hidden = (craftOrder.length === 0);
     }
-    /* ⚠️ 这行「洋流季：… ×N｜族民…｜峰值…｜饿死…」已经删掉（2026-09-26 用户要求），
-     *   因为**每一格在别处都有归属**，堆在这里只是同一份信息出现两次：
-     *     ① 季节 → 顶上「自然环境」卡里的海底火山那块（renderEnv），它连周期与
-     *        剩余潮日一起给，比这一行只念一个倍率有用；
-     *     ② 族民 / 人口上限、峰值族民 → 巢穴页各自有专门一行；
-     *     ③ 饿死 / 冻死 → 破壳结算报告里按增量报（game.js 的结算 lines）；
-     *     ④ 冰封期 → 天壳条上的「冰封期」徽标。
-     *   留着它的坏处是它同时是**每帧重画的**（季节会变），一个纯读数却挂在顶栏。 */
-    /* 随行资源面板：复用本次 renderRes 已算好的 rate，只回填 textContent，不重建 DOM。
-     * ⚠️ 不在这里另调 rates() —— 生产层聚合函数每帧多跑一次是没必要的开销。 */
     if (SB.ui.walkPanel && SB.ui.walkPanel.paint) SB.ui.walkPanel.paint(s, rate);
   }
 
@@ -524,11 +628,88 @@
     return true;
   }
 
+  var SHELL_CACHE = {
+    lblMode: '', lblLocale: '', txtMode: '',
+    fillW: '', fillCls: '', dysonCls: null, hint: '',
+    txtA: '', txtB: '', txtC: '', cold: null, coldTxt: '',
+    mainNode: null, stageSpan: null, capSpan: null, coldSpan: null
+  };
+  function updateShellLabel(lbl, mode, locale, iconSrc, text) {
+    var d = root.document;
+    if (!lbl || !d || !d.createElement) return;
+    if (SHELL_CACHE.lblMode !== mode || SHELL_CACHE.lblLocale !== locale) {
+      lbl.innerHTML = '';
+      if (iconSrc) {
+        var img = d.createElement('img');
+        img.className = 'special-resource-icon';
+        img.src = iconSrc;
+        img.alt = '';
+        img.setAttribute('aria-hidden', 'true');
+        img.width = 20;
+        img.height = 20;
+        var span = d.createElement('span');
+        span.textContent = text;
+        lbl.appendChild(img);
+        lbl.appendChild(span);
+        SHELL_CACHE.lblSpan = span;
+      } else {
+        lbl.textContent = text;
+        SHELL_CACHE.lblSpan = null;
+      }
+      SHELL_CACHE.lblMode = mode;
+      SHELL_CACHE.lblLocale = locale;
+    } else if (SHELL_CACHE.lblSpan) {
+      setNodeText(SHELL_CACHE.lblSpan, text);
+    } else {
+      setNodeText(lbl, text);
+    }
+  }
+  function updateShellFill(f, widthStr, clsName, isDyson) {
+    if (SHELL_CACHE.fillW !== widthStr) { f.style.width = widthStr; SHELL_CACHE.fillW = widthStr; }
+    if (SHELL_CACHE.fillCls !== clsName) { f.className = clsName; SHELL_CACHE.fillCls = clsName; }
+    if (f.parentNode && SHELL_CACHE.dysonCls !== isDyson) {
+      f.parentNode.classList.toggle('dyson-progress', isDyson);
+      SHELL_CACHE.dysonCls = isDyson;
+    }
+  }
+  function ensureShellTxtMode(txt, mode) {
+    var d = root.document;
+    if (!txt._sbDomInit) { txt.innerHTML = ''; txt._sbDomInit = true; }
+    if (SHELL_CACHE.txtMode === mode) return;
+    while ((txt.children || []).length) txt.removeChild(txt.children[txt.children.length - 1]);
+    var mainNode = d.createTextNode('');
+    txt.appendChild(mainNode);
+    SHELL_CACHE.mainNode = mainNode;
+    SHELL_CACHE.stageSpan = null;
+    SHELL_CACHE.capSpan = null;
+    SHELL_CACHE.coldSpan = null;
+    SHELL_CACHE.cold = null;
+    SHELL_CACHE.txtA = ''; SHELL_CACHE.txtB = ''; SHELL_CACHE.txtC = '';
+    if (mode === 'dyson') {
+      txt.appendChild(d.createTextNode(' '));
+      SHELL_CACHE.stageSpan = d.createElement('span');
+      SHELL_CACHE.stageSpan.className = 'dyson-stage-badge';
+      txt.appendChild(SHELL_CACHE.stageSpan);
+      txt.appendChild(d.createTextNode(' '));
+      SHELL_CACHE.capSpan = d.createElement('span');
+      SHELL_CACHE.capSpan.className = 'cap';
+      txt.appendChild(SHELL_CACHE.capSpan);
+    } else if (mode === 'star-complete') {
+      txt.appendChild(d.createTextNode(' '));
+      SHELL_CACHE.capSpan = d.createElement('span');
+      SHELL_CACHE.capSpan.className = 'cap';
+      txt.appendChild(SHELL_CACHE.capSpan);
+    } else if (mode === 'shell') {
+      SHELL_CACHE.coldSpan = d.createElement('span');
+      SHELL_CACHE.coldSpan.className = 'coldbadge';
+    }
+    SHELL_CACHE.txtMode = mode;
+  }
+
   function renderShell() {
     var s = res(); if (!s) return;
     var f = el('shellFill'), txt = el('shellTxt'), hint = el('shellHint');
-    /* 破壳后：同一条 shellbar 先显示星空探索进度；完成《绝热材料》启动戴森球工程后，
-     * 这里直接切换为工程进度与帆/节点计数。 */
+    var curLocale = SB.i18n && SB.i18n.getLocale ? SB.i18n.getLocale() : 'zh-CN';
     if (s.shell <= 0 && (s.broken || s.shellOpened || s.breakSettled)) {
       if (s.techs && s.techs.adiabatic) {
         var dysonCapSails = SB.challenges && SB.challenges.dysonSailCap ? SB.challenges.dysonSailCap(s) : (SB.CFG.DYSON_SAIL_CAP || 10000);
@@ -554,15 +735,13 @@
               (stagePosition >= si && stagePosition < si + 1 && !s.dysonDone ? ' is-current' : '');
             if (cell.className !== cellClass) cell.className = cellClass;
             var cellFill = cell.firstElementChild || (cell.children && cell.children[0]);
-            if (cellFill) cellFill.style.width = (cellProgress * 100) + '%';
+            var cw = (cellProgress * 100) + '%';
+            if (cellFill && cellFill.style.width !== cw) cellFill.style.width = cw;
           }
         }
-        f.style.width = dysonPercent + '%';
-        f.className = 'shellfill dyson';
-        if (f.parentNode) f.parentNode.classList.add('dyson-progress');
-        var dysonLbl = el('shellLbl');
-        if (dysonLbl) dysonLbl.innerHTML = '<img class="special-resource-icon" src="assets/building-icons/era-10/era10-solar-ring-v2.png" alt="" aria-hidden="true" width="20" height="20"><span>' +
-          htmlText(tr('ui.shell.dyson.project.label', null, '戴森球工程进度')) + '</span>';
+        updateShellFill(f, dysonPercent + '%', 'shellfill dyson', true);
+        updateShellLabel(el('shellLbl'), 'dyson', curLocale, 'assets/building-icons/era-10/era10-solar-ring-v2.png',
+          tr('ui.shell.dyson.project.label', null, '戴森球工程进度'));
         var projectLabel = s.dysonDone
           ? tr('ui.shell.dyson.project.complete', null, '★ 戴森球已竣工')
           : tr('ui.shell.dyson.project.progress', { dysonProgressPercent: dysonPercent.toFixed(2) }, '戴森球工程 ' + dysonPercent.toFixed(2) + '%');
@@ -572,64 +751,65 @@
           currentNodes: currentNodes.toLocaleString(), nodeCap: dysonCapNodes.toLocaleString()
         }, '（太阳帆 ' + currentSails.toLocaleString() + ' / ' + dysonCapSails.toLocaleString() +
           ' ＋ 戴森球节点 ' + currentNodes.toLocaleString() + ' / ' + dysonCapNodes.toLocaleString() + '）');
-        txt.innerHTML = htmlText(projectLabel) + ' <span class="dyson-stage-badge">' + htmlText(stageLabel) +
-          '</span> <span class="cap">' + htmlText(countLabel) + '</span>';
-        hint.textContent = tr('ui.shell.dyson.project.progress_hint', {
+        ensureShellTxtMode(txt, 'dyson');
+        if (SHELL_CACHE.txtA !== projectLabel) { setNodeText(SHELL_CACHE.mainNode, projectLabel); SHELL_CACHE.txtA = projectLabel; }
+        if (SHELL_CACHE.txtB !== stageLabel) { setNodeText(SHELL_CACHE.stageSpan, stageLabel); SHELL_CACHE.txtB = stageLabel; }
+        if (SHELL_CACHE.txtC !== countLabel) { setNodeText(SHELL_CACHE.capSpan, countLabel); SHELL_CACHE.txtC = countLabel; }
+        var dHint = tr('ui.shell.dyson.project.progress_hint', {
           stageCount: stageCount, stageContributionPercent: stageContributionPercent.toFixed(0)
         }, '五阶段各代表总工程的 20%；进度取太阳帆与戴森球节点中较慢的一项，两项都达标后工程竣工。');
+        if (SHELL_CACHE.hint !== dHint) { setNodeText(hint, dHint); SHELL_CACHE.hint = dHint; }
         return;
       }
       var cap = SB.challenges && SB.challenges.starCap ? SB.challenges.starCap(s) : (SB.CFG.STAR_CAP || 0);
       var cur = s.res.starExplore || 0;
       var p = cap > 0 ? (cur / cap) * 100 : 0;
-      f.style.width = Math.max(0, Math.min(100, p)) + '%';
-      f.className = 'shellfill';
-      if (f.parentNode) f.parentNode.classList.remove('dyson-progress');
-      /* 卡片标题跟着翻转（2026-10-13 截图验证发现：条改了、标题还挂「天壳 · 冰封层厚度」）。 */
-      var lbl = el('shellLbl');
-      if (lbl) lbl.innerHTML = '<img class="special-resource-icon" src="assets/resource-icons/starExplore.png?v=2" alt="" aria-hidden="true" width="20" height="20"><span>' +
-        htmlText(tr('ui.shell.star_exploration.progress_label', null, '星空 · 深空探索进度')) + '</span>';
+      updateShellFill(f, Math.max(0, Math.min(100, p)) + '%', 'shellfill', false);
+      updateShellLabel(el('shellLbl'), 'star', curLocale, 'assets/resource-icons/starExplore.png?v=2',
+        tr('ui.shell.star_exploration.progress_label', null, '星空 · 深空探索进度'));
       if (s.starComplete) {
-        /* `.cap` 是线上原版的计数样式：拆成「标题 + 计数」两个语义 key，
-         * 既不把 HTML 塞进文案，也不会让整串被 htmlText() 转义后丢掉样式。
-         * ⚠️ 必须写 innerHTML：e2e 的 DOM 桩只从 _html 读 #shellTxt。 */
         var completeParams = {
           currentStarProgress: Math.round(cur).toLocaleString(), starProgressCap: cap.toLocaleString()
         };
-        txt.innerHTML = htmlText(tr('ui.shell.star_exploration.complete', null, '★ 太空时代达成')) +
-          ' <span class="cap">' + htmlText(tr('ui.shell.star_exploration.complete_counts', completeParams,
-            '（' + completeParams.currentStarProgress + ' / ' + completeParams.starProgressCap + '）')) + '</span>';
-        hint.textContent = tr('ui.shell.star_exploration.complete_hint', null, '星空探索已达上限；研究《绝热材料》后，戴森球工程进度会接替这里。');
+        var scMain = tr('ui.shell.star_exploration.complete', null, '★ 太空时代达成');
+        var scCount = tr('ui.shell.star_exploration.complete_counts', completeParams,
+          '（' + completeParams.currentStarProgress + ' / ' + completeParams.starProgressCap + '）');
+        ensureShellTxtMode(txt, 'star-complete');
+        if (SHELL_CACHE.txtA !== scMain) { setNodeText(SHELL_CACHE.mainNode, scMain); SHELL_CACHE.txtA = scMain; }
+        if (SHELL_CACHE.txtB !== scCount) { setNodeText(SHELL_CACHE.capSpan, scCount); SHELL_CACHE.txtB = scCount; }
+        var scHint = tr('ui.shell.star_exploration.complete_hint', null, '星空探索已达上限；研究《绝热材料》后，戴森球工程进度会接替这里。');
+        if (SHELL_CACHE.hint !== scHint) { setNodeText(hint, scHint); SHELL_CACHE.hint = scHint; }
       } else {
-        /* ⚠️ 必须写 innerHTML：e2e 的 DOM 桩只把 innerHTML 同步到 _html，
-         * 用 textContent 会让「星空槽」断言读到上一帧的旧串。 */
-        txt.innerHTML = htmlText(tr('ui.shell.star_exploration.progress', {
+        var sMain = tr('ui.shell.star_exploration.progress', {
           currentStarProgress: Math.round(cur).toLocaleString(), starProgressCap: cap.toLocaleString(), starProgressPercent: p.toFixed(2)
-        }, '星空槽 ' + Math.round(cur).toLocaleString() + ' / ' + cap.toLocaleString() + '（' + p.toFixed(2) + '%）'));
-        hint.textContent = tr('ui.shell.star_exploration.progress_hint', null, '破壳后由文明推力（人口/建筑/科技/轮回增益）被动累积，满槽即太空时代达成。卫星/空间站各自的「开几座」开关可单独停掉它们的星空贡献。');
+        }, '星空槽 ' + Math.round(cur).toLocaleString() + ' / ' + cap.toLocaleString() + '（' + p.toFixed(2) + '%）');
+        ensureShellTxtMode(txt, 'star');
+        if (SHELL_CACHE.txtA !== sMain) { setNodeText(SHELL_CACHE.mainNode, sMain); SHELL_CACHE.txtA = sMain; }
+        var sHint = tr('ui.shell.star_exploration.progress_hint', null, '破壳后由文明推力（人口/建筑/科技/轮回增益）被动累积，满槽即太空时代达成。卫星/空间站各自的「开几座」开关可单独停掉它们的星空贡献。');
+        if (SHELL_CACHE.hint !== sHint) { setNodeText(hint, sHint); SHELL_CACHE.hint = sHint; }
       }
       return;
     }
     /* 破壳前：原有天壳条逻辑 */
-    var lbl0 = el('shellLbl');
-    if (lbl0) lbl0.textContent = tr('ui.shell.thickness.label', null, '天壳 · 冰封层厚度');
+    updateShellLabel(el('shellLbl'), 'shell', curLocale, '', tr('ui.shell.thickness.label', null, '天壳 · 冰封层厚度'));
     var p2 = SB.economy.rOf(s) * 100;
-    f.style.width = Math.max(0, p2) + '%';
-    f.className = 'shellfill' + (SB.economy.isCold(s) ? ' cold' : '');
-    if (f.parentNode) f.parentNode.classList.remove('dyson-progress');
-    /* 线上原版是全角括号「（25.0%）」；接 i18n 时曾把整串硬编码成半角，
-     * 现在收回词库，中文/英文各自保留正确标点，不再在渲染器里拼中文。 */
-    txt.innerHTML = htmlText(tr('ui.shell.thickness.progress', {
+    var cold = SB.economy.isCold(s);
+    updateShellFill(f, Math.max(0, p2) + '%', 'shellfill' + (cold ? ' cold' : ''), false);
+    var shMain = tr('ui.shell.thickness.progress', {
       currentShell: Math.round(s.shell), iceShell: s.iceShell, shellPercent: p2.toFixed(1)
-    }, Math.round(s.shell) + ' / ' + s.iceShell + '（' + p2.toFixed(1) + '%）')) +
-      (SB.economy.isCold(s) ? ' <span class="coldbadge">' + htmlText(tr('ui.shell.thickness.frozen_badge', null, '· 本季冰封')) + '</span>' : '');
-    /* 2026-10-30（用户）：「提醒玩家被动破壳只能到 25%，后续要造奇观钻头」。
-     * 两件事必须在**没到下限时**就说清楚，不能等卡住了才讲：
-     *   ① 基础（被动）削壳有天花板 = FLOOR_AT，不是无限推；
-     *   ② 天花板之后唯一的出路 = 奇观「天穹钻机」，且它要先去科技页研究。
-     * ⚠️ 旧句「在下方这行启动」是**假指引** —— 未建成奇观时 #envDrill 是 display:none，
-     *    玩家顺着找会扑空（真机取证：`#card-env button` 一个都没有）。改成条件语态
-     *    「建成后这一行下方就会出现启动按钮」，只在真的会有按钮时才指向它。 */
+    }, Math.round(s.shell) + ' / ' + s.iceShell + '（' + p2.toFixed(1) + '%）');
+    ensureShellTxtMode(txt, 'shell');
+    var shTextWithGap = cold ? shMain + ' ' : shMain;
+    if (SHELL_CACHE.txtA !== shTextWithGap) { setNodeText(SHELL_CACHE.mainNode, shTextWithGap); SHELL_CACHE.txtA = shTextWithGap; }
+    if (cold !== SHELL_CACHE.cold) {
+      if (cold) txt.appendChild(SHELL_CACHE.coldSpan);
+      else if (SHELL_CACHE.coldSpan.parentNode === txt) txt.removeChild(SHELL_CACHE.coldSpan);
+      SHELL_CACHE.cold = cold;
+    }
+    if (cold) {
+      var cBadge = tr('ui.shell.thickness.frozen_badge', null, '· 本季冰封');
+      if (SHELL_CACHE.coldTxt !== cBadge) { setNodeText(SHELL_CACHE.coldSpan, cBadge); SHELL_CACHE.coldTxt = cBadge; }
+    }
     var floorPct = Math.round((CFG.FLOOR_AT || 0) * 100);
     var hint2 = tr('ui.shell.thickness.hint.passive_limit', { shellFloorPercent: floorPct },
       '被动削壳：族民、建筑、科技推高它，但最多只能把天壳削到 ' + floorPct + '%——最后一段要靠建成奇观「天穹钻机」来凿。');
@@ -637,13 +817,9 @@
       hint2 = tr('ui.shell.thickness.hint.at_limit', { shellFloorPercent: floorPct },
         '已到 ' + floorPct + '% 下限，被动削壳到此为止。剩下的天壳要靠奇观「天穹钻机」：先在科技页研究同名科技，再到奇观页建成它，这一行下方就会出现启动按钮。');
     }
-    /* 冰封那段是**次要信息**，不该跟主指令抢行数：已到下限时概率恒定（越薄越容易中到顶），
-     * 再报一次「现在 25%」只会和主句的下限数字撞在一起读成一句话。 */
-    if (SB.economy.isCold(s)) hint2 += ' ' + tr('ui.shell.thickness.hint.frozen_season', {
+    if (cold) hint2 += ' ' + tr('ui.shell.thickness.hint.frozen_season', {
       coldSeasonGlobalProductionMultiplier: SB.economy.coldSeasonMul(s)
     }, '本季冰封：全局产出 ×0.6，族民会冻伤（拨开暖石开关即可免）。');
-    /* 下限时只给短句（不重复报概率）；与未到下限的长句是两种语义，
-     * 之前误用同一个 key ⇒ 下限态会显示长句。各自独立登记，不共用 key。 */
     else if (SB.economy.rOf(s) <= CFG.FLOOR_AT) hint2 += ' ' + tr('ui.shell.thickness.hint.freeze_chance_at_limit', null,
       '冰封按寒流季掷骰，壳越薄越容易中。');
     else {
@@ -651,7 +827,7 @@
         freezeChancePercent: Math.round(SB.economy.freezeChance(s) * 100)
       }, '冰封期在每个寒流季开局掷一次，壳越薄越容易中——按现在的壳厚是 ' + Math.round(SB.economy.freezeChance(s) * 100) + '%。');
     }
-    hint.textContent = hint2;
+    if (SHELL_CACHE.hint !== hint2) { setNodeText(hint, hint2); SHELL_CACHE.hint = hint2; }
   }
 
   /* 星空槽满槽占位结算面板（2026-10-13）。
@@ -1547,84 +1723,57 @@
   var techJumpTo = null, techJumpDone = false;
   function scheduleTechJumpTo(px) { techJumpTo = px; }
 
+  function notifyStarMapActive(active) {
+    var pane = el('pane-star-map');
+    var ifr = pane && pane.querySelector ? pane.querySelector('iframe.starmap-frame') : null;
+    if (!ifr || !ifr.contentWindow) return;
+    var powerSave = !!(SB.ui && SB.ui.theme && SB.ui.theme.isPowerSave && SB.ui.theme.isPowerSave());
+    try {
+      ifr.contentWindow.postMessage({ type: 'sb-star-map-active', active: !!active, powerSave: powerSave }, '*');
+    } catch (e) {}
+  }
+
   function renderPanes() {
-    /* 触点闸门（2026-11-16）：指针按下到抬起之间，**任何路径**都不重建 pane。
-     * 旧版只在 game.js 的 PANE_REFRESH 分支读这个标志，而 dirty 有 30+ 处置位、走
-     * `if (dirty) renderAll()` 那条路完全绕过闸门。重写一旦落在 pointerdown 与合成
-     * click 之间，被按的节点已被替换 ⇒ 浏览器不合成 click ⇒ 玩家说的「点了没反应」。
-     * 收在这里 = 一处覆盖全部调用方（主循环 / 动作回调 / 直接调 renderAll 的地方）。
-     * 代价：这一趟整体跳过，最多晚一个 PANE_REFRESH 补上，抬起后立刻恢复。 */
     if (SB.ui && SB.ui.isPanePointerInteracting && SB.ui.isPanePointerInteracting()) return;
-    /* 科技 tab 的灰态随开门那一刻翻转，所以每次画面板都同步一次（5 个节点，很便宜）。
-     * 放在这里而不是只在 initTabs 做一次：开门是由建造动作触发的，那时 initTabs 早跑完了。 */
     syncTabLocks();
     syncTabResearchDots();
-    var tech = el('pane-tech');
-    var shown = !tech || !tech.classList || !tech.classList.contains('hidden');
+    var activeTab = (SB.game && SB.game.getTab) ? SB.game.getTab() : 'village';
+    var activeNode = activeTab ? el('pane-' + activeTab) : null;
 
-    /* 首次显形时把长卷定位到**当前纪元**，只做一次。
-     * 玩家在纪元四点开这页，第一眼该是他在做的那一段，而不是早已过去的纪元一。
-     * ⚠️ 必须一次性：做成「每次显形都定位」就等于每趟切页签都把玩家拖走 ——
-     *    那正是用户报过的「每隔一段时间被拉回最左边」。 */
+    var shown = activeTab === 'tech';
     if (shown && !techShown && !techJumpDone) {
       techJumpDone = true;
       var ss = res();
       if (ss && (ss.era || 1) > 1) techJumpTo = SB.tech.eraAnchorX(ss.era);
     }
 
-    var box = el('techScroll'), jumped = false;
-    if (techJumpTo != null) { techScrollLeft = techJumpTo; techJumpTo = null; jumped = true; }
-    else if (box && shown && techShown) techScrollLeft = box.scrollLeft || 0;
+    var box = shown ? el('techScroll') : null, jumped = false;
+    if (shown) {
+      if (techJumpTo != null) { techScrollLeft = techJumpTo; techJumpTo = null; jumped = true; }
+      else if (box && techShown) techScrollLeft = box.scrollLeft || 0;
+    }
 
-    /* 市政树同一套「先读」：只在本 pane **可见且上一趟也可见**时信任 DOM 读数。 */
-    var cNode = el('pane-civic');
-    var cShown = !cNode || !cNode.classList || !cNode.classList.contains('hidden');
-    var cbox = el('civicScroll');
+    var cShown = activeTab === 'civic';
+    var cbox = cShown ? el('civicScroll') : null;
     if (cbox && cShown && civicShown) civicScrollLeft = cbox.scrollLeft || 0;
 
-    /* 天赋树卷：先按可见态快照各树横向位置（详见上方注释）。 */
-    snapshotTalentScroll();
+    if (activeTab === 'meta') snapshotTalentScroll();
 
-    /* ⚠️ 2026-10-27 真机定位（iOS 16 / 390×844）：整块 innerHTML 替换会让页面总高在**中间态**
-     *   瞬间变小（旧节点已移除、新节点未插入），此刻处于页面底部的 scrollTop 会被立刻钳死；
-     *   新节点插回后总高恢复，但 scrollTop 不会自己回来。
-     *   自测包实测：滚到底 1962（上限 2059）→ 3 秒后 1059，弹回 903px；同一时刻
-     *   village 的 docH 在 700ms 内变了 9px，而其余 pane 全稳。
-     *   页面中部完全不受影响（①静止 1000、②连续滚动全绿），**只有贴底才中招**——这与
-     *   客户「滚到最底会弹回去」完全一致。
-     *   所以在重写前后各取一次滚动位置：同一次同步任务内如果没有玩家操作，scrollY 变了就
-     *   只可能是被钳，直接写回即可。 */
     var _se = document.scrollingElement || document.documentElement;
     var _sy = _se ? _se.scrollTop : 0;
 
-    /* ⚠️ 2026-10-27 真机定位（iOS 16）：**重绘前先放掉 button 的焦点**。
-     *   客户原话：「族民大部分时候正常，往下太多的话会回到农民在最上面的位置」——
-     *   不是随机回弹，是精确对准某个元素。机制：iOS 上点过的 <button> 会保持 focus，
-     *   而 #pane-folk 是**整卡重写**（连卡片标题一起换），按钮节点被销毁后 WebKit 会把
-     *   滚动位置拉回焦点元素最后所在处；滚得浅时那一行还在视口内，看不出；滚深了就被拽回去。
-     *   只放掉 BUTTON：input/textarea 的焦点绝不能动 —— 信仰/聚落命名框每敲一个字都要跨重绘保焦点。
-     *   （blur 不带参数 = 不移交焦点，不会触发额外的滚动。） */
     var _ae = document.activeElement;
     if (_ae && _ae.tagName === 'BUTTON' && root.document && root.document.body !== _ae && _ae.blur) {
       try { _ae.blur(); } catch (e) {}
     }
 
-    for (var k in PANES) {
-      var node = el('pane-' + k);
-      if (!node) continue;
-      /* 只有信仰页背着**静态标题 + 持久命名框（#religionBox）**，所以它的可重写正文另放在
-       * #pane-faith-body —— 直接写 pane-faith 会把命名框冲掉，玩家每敲一个字就丢焦点。
-       * 其余页没有 body 容器，正文与标题条一起写进卡片本身。
-       * ⚠️ 这里**只能特判 faith**，不能写成「探测 pane-KEY-body 是否存在」：
-       * 假 DOM（e2e / 探针）的 getElementById 对任意 id 都懒造一个桩，于是
-       * pane-village-body 也会返回真值，导致所有页的正文被写进幽灵桩、真面板恒空、
-       * e2e 整片红（真实浏览器里这些 -body 不存在，反而正常）。 */
+    var k = activeTab;
+    var node = k ? el('pane-' + k) : null;
+    var writtenScope = node;
+    if (k && node && PANES[k]) {
       if (k === 'star-map') {
-        /* iframe 动画组件：内容只在门翻转时变化，其余 tick 跳过重写以免 iframe 重载。 */
         var smHtml = cardHeadHTML(k) + PANES[k]();
         if (smHtml !== lastStarMapHTML) { node.innerHTML = smHtml; lastStarMapHTML = smHtml; }
-        /* 已破壳：每周期向星图 iframe 推送最新航天器与星空探索数据（frame 收到后动态绘制）。
-         * 即使 innerHTML 未变也照推——iframe 是独立文档，父页面靠 postMessage 注入状态。 */
         var _smS = SB.game && SB.game.run ? SB.game.run() : null;
         if (_smS && (_smS.shellOpened || _smS.breakSettled) && _smS.shell <= 0) {
           var _ifr = node.querySelector('iframe');
@@ -1671,108 +1820,90 @@
                 enceladus: _smLvl.enceladus_launch || 0
               }
             }, '*');
+            notifyStarMapActive(!(root.document && root.document.hidden));
           }
           if (SB.ui.renderParts.refreshStarMapBuildings) SB.ui.renderParts.refreshStarMapBuildings(_smS);
         }
       } else if (k === 'folk' && SB.ui.input && SB.ui.input.isFolkControlPointerActive &&
                  SB.ui.input.isFolkControlPointerActive()) {
-        /* 手机 tap 的 pointerdown 与合成 click 之间保留原按钮节点；定时 renderAll 若在这段窗口
-         * 重建 #pane-folk，就会让浏览器丢掉 click target。动作 click 到达后会立刻恢复正常渲染。 */
-        continue;
+        // Skip rebuild during pointer tap window on folk controls
       } else if (k === 'faith' || k === 'company' || k === 'village') {
-        /* 三页的正文写在 -body 容器里（标题/命名框留在卡片上），同样按签名跳过重写。
-         * village 的成本 / 缺料差额挂了 data-live-*，签名把它们抹平 ⇒ 只剩数字在动时不重建。 */
         var body = el('pane-' + k + '-body');
         if (body) {
+          writtenScope = body;
           var bodyHtml = PANES[k]();
           var bodySig = liveSig(bodyHtml);
           if (bodySig !== lastPaneHTML[k]) { body.innerHTML = bodyHtml; lastPaneHTML[k] = bodySig; }
         }
       } else if (k === 'meta') {
-        /* 轮回/星屑商店：内容指纹没变就跳过整块重写（见 lastMetaHTML 声明处注释），根治反复闪。
-         * 买节点导致 HTML 变化时仍会重写一次，现有 restoreTalentScroll 会恢复天赋树横向位置。 */
         var metaHtml = cardHeadHTML(k) + PANES[k]();
         var metaSig = liveSig(metaHtml);
         if (metaSig !== lastMetaHTML) { node.innerHTML = metaHtml; lastMetaHTML = metaSig; }
       } else if (k === 'civic') {
-        /* 市政卷轴闪动修复（见 lastCivicHTML 声明处注释）：内容指纹没变就跳过整块重写。 */
         var civicHtml = cardHeadHTML(k) + PANES[k]();
         var civicSig = liveSig(civicHtml);
         if (civicSig !== lastCivicHTML) { node.innerHTML = civicHtml; lastCivicHTML = civicSig; }
       } else if (k === 'tech') {
-        /* 科技树闪动修复（方案 A → 方案 B，见 lastTechHTML 声明处注释）：内容指纹没变就跳过整块重写。
-         * 活数值已被 data-live-* 标记并由 liveSig 抹平 ⇒ 进度条不再让指纹失效，
-         * 数值由循环结束后的 paintLive() 原地更新。 */
         var techHtml = cardHeadHTML(k) + PANES[k]();
         var techSig = liveSig(techHtml);
         if (techSig !== lastTechHTML) { node.innerHTML = techHtml; lastTechHTML = techSig; }
       } else {
-        /* folk / diplomacy / workshop / wonder / challenges / achievements：
-         * 原先无条件重写（最贵的是 folk，玩家停留最久的主屏之一）。同样按签名跳过。 */
         var paneHtml = cardHeadHTML(k) + PANES[k]();
         var paneSig = liveSig(paneHtml);
         if (paneSig !== lastPaneHTML[k]) { node.innerHTML = paneHtml; lastPaneHTML[k] = paneSig; }
       }
     }
-    /* 重写结束：把被中间态钳掉的滚动位置写回（见循环前那段注释）。 */
+
     if (_se) {
       var _now = _se.scrollTop;
       if (typeof _now === 'number' && isFinite(_now) && Math.abs(_now - _sy) > 1) _se.scrollTop = _sy;
     }
     SB.ui.renderCommon.paintHappy(res());
-    /* 活数值原地回填（2026-11-16）：指纹把 data-live-* 抹平了，所以「只有数值变了」时
-     * 不会重建 DOM —— 这里把真正的数字写回原节点（textContent / style.width）。
-     * 每次 renderPanes 必调：首帧也要填，否则新插入的 meter 会停在标记里的样子。
-     * 假 DOM（e2e）没有 querySelectorAll，paintLive 内部自行判存在，这里再兜一层 try。 */
-    try {
-      if (SB.ui.renderParts && SB.ui.renderParts.research && SB.ui.renderParts.research.paintLive) {
-        SB.ui.renderParts.research.paintLive(res());
-      }
-    } catch (e) {}
-    /* 成本 / 缺料差额的原地回填（2026-11-16）：巢穴建筑行与奇观按钮上的「已有 / 需要」
-     * 同样被 liveSig 抹平了，这里把真值写回（详见 renderCommon.paintLiveCost）。
-     * 与上面 paintLive 分开是因为标记类型不同、归属模块也不同 —— 但都必须在**每一趟**
-     * renderPanes 末尾跑：内容没重建时（签名命中）这是唯一一次数字刷新机会。 */
-    try {
-      if (SB.ui.renderCommon && SB.ui.renderCommon.paintLiveCost) {
-        SB.ui.renderCommon.paintLiveCost(res());
-      }
-    } catch (e) {}
+    if (activeTab === 'tech' || activeTab === 'civic') {
+      try {
+        if (SB.ui.renderParts && SB.ui.renderParts.research && SB.ui.renderParts.research.paintLive) {
+          SB.ui.renderParts.research.paintLive(res(), writtenScope || activeNode);
+        }
+      } catch (e) {}
+    }
+    if (activeTab === 'village' || activeTab === 'wonder') {
+      try {
+        if (SB.ui.renderCommon && SB.ui.renderCommon.paintLiveCost) {
+          SB.ui.renderCommon.paintLiveCost(res(), writtenScope || activeNode);
+        }
+      } catch (e) {}
+    }
     techShown = shown;
-    box = el('techScroll');
-    /* ⚠️ 写回要连 **0** 一起写（炸开的只有「跳回纪元一」这一种情况：目标就是 0，
-     *    而 `if (techScrollLeft)` 会把它当成「没什么可写的」跳过 ⇒ 容器里还留着上一次
-     *    的位置，玩家点纪元一发现树纹丝不动）。所以用 jumped 单独记一笔意图。
-     * ⚠️ 隐藏态一律不写：那时读数恒为 0，写下去等于把玩家的位置抹掉。 */
-    if (box && shown && (jumped || techScrollLeft)) {
-      box.scrollLeft = techScrollLeft;
-      /* 回读一次：浏览器会把目标夹到 [0, scrollWidth−clientWidth]（末纪元常常滚不到那么远），
-       * 不回读的话模块里记住的就是一个到不了的值。 */
-      techScrollLeft = box.scrollLeft || 0;
-    }
-    /* 市政树首次打开时跟随当前已揭露的纪元；导航安排的目标在容器重建后再落地。 */
-    civicShown = cShown;
-    cbox = el('civicScroll');
-    var civicJumped = false;
-    if (cbox && cShown && !civicJumpDone) {
-      civicJumpDone = true;
-      var cs = res();
-      if (cs && SB.civic && SB.civic.eraAnchorX) {
-        var civicTargetEra = SB.civic.visibleEra ? SB.civic.visibleEra(cs) : (cs.era || 1);
-        if (civicTargetEra > 1) civicJumpTo = SB.civic.eraAnchorX(civicTargetEra);
+    if (shown) {
+      box = el('techScroll');
+      if (box && (jumped || techScrollLeft)) {
+        box.scrollLeft = techScrollLeft;
+        techScrollLeft = box.scrollLeft || 0;
       }
     }
-    if (cbox && cShown && civicJumpTo != null) {
-      civicScrollLeft = civicJumpTo;
-      civicJumpTo = null;
-      civicJumped = true;
+    civicShown = cShown;
+    if (cShown) {
+      cbox = el('civicScroll');
+      var civicJumped = false;
+      if (cbox && !civicJumpDone) {
+        civicJumpDone = true;
+        var cs = res();
+        if (cs && SB.civic && SB.civic.eraAnchorX) {
+          var civicTargetEra = SB.civic.visibleEra ? SB.civic.visibleEra(cs) : (cs.era || 1);
+          if (civicTargetEra > 1) civicJumpTo = SB.civic.eraAnchorX(civicTargetEra);
+        }
+      }
+      if (cbox && civicJumpTo != null) {
+        civicScrollLeft = civicJumpTo;
+        civicJumpTo = null;
+        civicJumped = true;
+      }
+      if (cbox && (civicJumped || civicScrollLeft)) {
+        cbox.scrollLeft = civicScrollLeft;
+        civicScrollLeft = cbox.scrollLeft || 0;
+      }
     }
-    if (cbox && cShown && (civicJumped || civicScrollLeft)) {
-      cbox.scrollLeft = civicScrollLeft;
-      civicScrollLeft = cbox.scrollLeft || 0;
-    }
-    /* 天赋树卷：重写之后把各树横向位置写回（详见上方注释）。 */
-    restoreTalentScroll();
+    if (activeTab === 'meta') restoreTalentScroll();
   }
 
   /* 点纪元按钮：切详情卡 + （已抵达的纪元）把长卷滚到它的左边界。
@@ -3465,6 +3596,8 @@
     toggleHideDone: SB.ui.renderParts.toggleHideDone,
     toggleWonderHideDone: SB.ui.renderParts.toggleWonderHideDone,
     PANE_KEYS: PANE_KEYS,
+    notifyStarMapActive: notifyStarMapActive,
+    paneTech: SB.ui.renderParts.research && SB.ui.renderParts.research.paneTech,
     /* ⚠️ 2026-10-05：导出 `paneWonder` 供回归直接断言「未解锁的奇观不显示」。
      *   为什么单独导它而不让 e2e 走 renderPanes：那一路是把 HTML 写进假 DOM 的
      *   innerHTML，桩元素不回填 children ⇒ 取不到 `data-wonder` 属性。

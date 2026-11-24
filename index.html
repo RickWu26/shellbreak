@@ -41,6 +41,14 @@
             <input type="checkbox" data-ui-effect="deep-bubbles">
             <span><b data-i18n="ui.settings.bubbles.label">气泡上浮动画</b><small data-bubbles-hint data-i18n="ui.settings.bubbles.hint">只在暗流纪偶尔上浮</small></span>
           </label>
+          <label class="ui-setting-row ui-setting-row--select">
+            <span><b data-i18n="ui.settings.power_save.label">省电模式</b><small data-i18n="ui.settings.power_save.hint">关闭背景飘动与磨砂滤镜，降低星图帧率并放缓后台读数刷新（移动端默认自动开启）。</small></span>
+            <select data-ui-power-save class="ui-resolution-select" data-i18n-aria-label="ui.settings.power_save.label">
+              <option value="auto" data-i18n="ui.settings.power_save.auto">自动（移动端开启）</option>
+              <option value="on" data-i18n="ui.settings.power_save.on">始终开启</option>
+              <option value="off" data-i18n="ui.settings.power_save.off">关闭（全特效）</option>
+            </select>
+          </label>
           <div class="ui-settings-title" data-i18n="ui.settings.display.title">显示</div>
           <label class="ui-setting-row ui-setting-row--select">
             <span><b data-i18n="ui.settings.ui_scale.label">界面缩放</b><small data-i18n="ui.settings.ui_scale.hint">仅桌面横屏生效；文字与图标同比例放大，页面会变长。不影响游戏进度。</small></span>

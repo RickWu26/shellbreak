@@ -70,21 +70,23 @@
     /* 切走帷幕页时把页内视图退回大厅（不碰 DOM，只改视图状态）：
      * 下次点「帷幕」总是先看到三条路径，而不是上次停留的某个装配台。 */
     if (k !== 'veil' && SB.ui.veilHub && SB.ui.veilHub.leave) SB.ui.veilHub.leave();
+    var prevTab = tab;
     tab = k; dirty = true;
     var keys = SB.ui.render.PANE_KEYS;
     for (var i = 0; i < keys.length; i++) {
       var node = document.getElementById('pane-' + keys[i]);
       if (node) node.classList.toggle('hidden', keys[i] !== k);
     }
-    /* ⚠️ 页签高亮也在这里同步。它原先**只**写在 tab 的 onclick 里，于是任何走
-     *    setTab 的路径（最典型的是开门弹窗里那句「去看看」——它直接调 setTab('tech')）
-     *    都只换了 pane，把高亮留在「巢穴」上：页签写着巢穴、底下画着科技。
-     *    放在这里之后，onclick 那段就只剩「点了谁」这一件事，两边不再各记一份状态。
-     *    （2026-09-26 写探针时撞见：截图里科技页是好的，页签却没亮。） */
     var tabs = document.querySelectorAll('.tab');
     for (i = 0; i < tabs.length; i++)
       tabs[i].classList.toggle('on', tabs[i].dataset.tab === k);
+    if (prevTab === 'star-map' && k !== 'star-map' && SB.ui.render.notifyStarMapActive) {
+      SB.ui.render.notifyStarMapActive(false);
+    }
     render();
+    if (k === 'star-map' && SB.ui.render.notifyStarMapActive) {
+      SB.ui.render.notifyStarMapActive(!(typeof document !== 'undefined' && document.hidden));
+    }
   }
   function setSpeed(v) { speed = v; }
   /* 看广告加速倍率：玩家所选档位（speed）× 这个系数。广告时间银行（S.ad.ms）>0 且开关打开时 = MUL，否则 1。
@@ -223,6 +225,7 @@
 
   function startRun(options) {
     loop.job = null;
+    cancelCatchUpSlice();
     /* 旧版本中尚未写入永久解锁旗的存档，也在离开已建卫星的周目时补记。 */
     if (S && S.lvl && S.lvl.satellite >= 1) unlockStardustShop();
     /* 局数 / 轮回两个计数在这里彻底分开（2026-11-06 用户拍板）：
@@ -336,6 +339,7 @@
   // 继续未完成的上一周目（刷新页面时）
   function resumeRun(saved, restartGap) {
     loop.job = null;
+    cancelCatchUpSlice();
     S = saved;
     if (SB.faith && SB.faith.syncRun && SB.faith.syncRun(S)) markDirty();
     /* 季长自愈（2026-10-31）：除了「缺版本号」的老档，还有一种格局要重算 ——
@@ -442,6 +446,7 @@
    * 这是唯一会毁掉跨周目进度的操作，必须走弹窗 + 显式勾选确认，绝不做静默清空。 */
   function wipeSave() {
     loop.job = null;
+    cancelCatchUpSlice();
     SB.ui.render.hideModal();
     SB.state.clearRun();
     /* 2026-10-29：尸检副本也要一起清。它是自动留的、玩家不知道它的存在，
@@ -1498,11 +1503,38 @@
    * 以前只跑「回调次数 × 固定步长」，后台标签页里浏览器把定时器节流到 1 次/秒
    * （Chrome 满 5 分钟进一步降到约 1 次/分），时间就跟着被稀释甚至冻住。 */
   var MAX_STEP = 5;                 // 单次回调最多推进 5 秒逻辑时间，防止切回前台一次算爆
-  var CATCHUP_BUDGET = 225;         // 离线补算每帧的毫秒预算（占空比 = 225 ÷ 主循环间隔250ms = 90%，与旧 100ms/90 同比例，补算墙钟耗时不变）
-  /* ⚠️ 2026-10-13 50→90（用户拍板「ab一起做」的 A 项）：补算期间整个界面被离线闸门
-   *   modal 锁死、无需交互响应，50 当年是保守占位（见 planCatchUp 注的历史：8 时曾 12.5×）。
-   *   90 ⇒ 墙钟 ≈ 纯算量 ÷ 0.9，8h 满档桌面从 ~45s 压到 ~25s（叠加 tech.mul 记忆化后更低）。
-   * ⚠️ 2026-10-20 B 项省电：主循环 100ms→250ms，CATCHUP_BUDGET 同比例 90→225 保住 90% 占空比。 */
+  var CATCHUP_BUDGET = 225;         // 供离线回放测试/同步推进的单帧预算
+  var CATCHUP_SLICE_MS = 12;        // 浏览器实时补算每帧协作切片预算（~12ms 让出主线程不卡绘制/触控）
+  var CATCHUP_PASSIVE_TICK_MS = 500; // 省电模式下非脏状态 renderTick 节流周期
+  var catchupSliceTimer = 0;
+  var catchupSliceUseRaf = false;
+  function cancelCatchUpSlice() {
+    if (!catchupSliceTimer) return;
+    try {
+      if (catchupSliceUseRaf && root.cancelAnimationFrame) root.cancelAnimationFrame(catchupSliceTimer);
+      else if (root.clearTimeout) root.clearTimeout(catchupSliceTimer);
+    } catch (e) {}
+    catchupSliceTimer = 0;
+    catchupSliceUseRaf = false;
+  }
+  function scheduleCatchUpSlice() {
+    if (!loop.job || catchupSliceTimer) return;
+    if (typeof root.requestAnimationFrame === 'function' && !(typeof document !== 'undefined' && document.hidden)) {
+      catchupSliceUseRaf = true;
+      catchupSliceTimer = root.requestAnimationFrame(runCatchUpSlice);
+    } else if (typeof root.setTimeout === 'function') {
+      catchupSliceUseRaf = false;
+      catchupSliceTimer = root.setTimeout(runCatchUpSlice, 4);
+    }
+  }
+  function runCatchUpSlice() {
+    catchupSliceTimer = 0;
+    catchupSliceUseRaf = false;
+    if (!loop.job || !S) return;
+    drainCatchUp(CATCHUP_SLICE_MS);
+    if (loop.job) scheduleCatchUpSlice();
+  }
+  /* ⚠️ 2026-10-13 50→90（用户拍板「ab一起做」的 A 项）；2026-10-20 B 项主循环 100ms→250ms。 */
   var PANE_REFRESH = 2000;          // 面板（整块重画那种）的刷新周期，毫秒 **墙钟**
   var TICK_MS = 250;                // 主循环间隔（2026-10-20 B 项省电：10Hz→4Hz）。模拟靠 loop.acc 墙钟累加器驱动，降频不影响推进速度。
 
@@ -1522,22 +1554,16 @@
     var acceleratedBackgroundAI = hiddenAI || resumedHiddenAI;
     loop._lastAiHidden = hiddenAI;
 
-    /* 离开过的间隙：后台期间定时器基本不跑，这里在下次回调时才算得出来，
-     * 于是「离线补算」和「切回前台补算」是同一条路径。 */
-    /* ⚠️ 2026-11-03（玩家报「挑战中破壳后游戏卡着不动」）：这里原带 `!S.broken`。
-     *   破壳后 ERA10 是正文内容（发射场 → 戴森球 → 星图），离开一段同样要给离线收益；
-     *   带 broken 门等于「破壳后切后台 = 白挂」。真正的暂停由各模块自判（削壳/钻机/星空槽）。
-     *   同批拆掉的还有：主循环 while(1131)、广告时间银行、UI 刷新、自动存档、退出 flush。 */
     if (S && loop._lastWall) {
       var gap = (wall - loop._lastWall) / 1000;
-      /* 2026-10-24 分级离线：gap ≥ OFFLINE_MIN 都要补算（挂机收益一分不少），
-       * 但 gap < OFFLINE_SETTLE_MIN（30min，用户拍板）时静默补算——
-       * 回个消息、切窗几分钟不该被「离线结算三连」糊脸。 */
       if (gap >= SB.CFG.OFFLINE_MIN && !loop.job && !acceleratedBackgroundAI) {
         planCatchUp(S, gap, gap < OFFLINE_SETTLE_MIN);
       }
     }
-    if (loop.job) drainCatchUp(CATCHUP_BUDGET);
+    if (loop.job) {
+      drainCatchUp(CATCHUP_SLICE_MS);
+      if (loop.job) scheduleCatchUpSlice();
+    }
     loop._lastWall = wall;
 
     /* 排行榜墙钟计时（wallT）：**真实流逝秒**，不吃游戏倍速。
@@ -1705,7 +1731,16 @@
           loop._lastPane = now; dirty = true;
         }
       }
-      if (dirty) renderAll(); else SB.ui.render.renderTick();
+      if (dirty) {
+        loop._lastPassiveTick = now;
+        renderAll();
+      } else {
+        var ps = !!(SB.ui && SB.ui.theme && SB.ui.theme.isPowerSave && SB.ui.theme.isPowerSave());
+        if (!ps || !loop._lastPassiveTick || now - loop._lastPassiveTick >= CATCHUP_PASSIVE_TICK_MS) {
+          loop._lastPassiveTick = now;
+          SB.ui.render.renderTick();
+        }
+      }
       /* 自动采集点击（轮回商店 autoClick，N 次/真实秒）：只在线（!loop.job），用帧钟 elapsed 累计，
        * 不随倍速放大——倍速只加快世界、不加快自动点击节奏。
        * 破壳后照跑：这是玩家花钱买的常驻能力，破壳不退还、也不该停。 */
@@ -1989,7 +2024,7 @@
          * 余量留给下一帧 —— 界面从「冻 4.5 秒」变成逐帧推进、进度条能走动。
          * ⚠️ 只在这里 break 内层，外面那句 `j.left = Math.max(0, j.left - realDone)` 必须照常执行，
          *    否则这一帧算的那部分会被丢掉（时间白算、还得多算一遍）。 */
-        if ((++inner & 63) === 0 && Date.now() - tStart >= budgetMs) break;
+        if ((++inner & 3) === 0 && Date.now() - tStart >= budgetMs) break;
       }
       j.left = Math.max(0, j.left - realDone);
       /* 通用护栏（2026-11-07）：本轮没推进出任何有意义的真实秒，说明切段口径把
@@ -2006,6 +2041,7 @@
   }
   function finishCatchUp(j) {
     loop.job = null;
+    cancelCatchUpSlice();
     if (j && j.s) j.s.offlineCheckpoint = null;
     if (SB.war && SB.war.drainInvasionReports) {
       var invasionMessages = SB.war.drainInvasionReports(j.s);
@@ -3251,6 +3287,9 @@
       /* A 项省电：切后台/锁屏时给 <html> 打 vis-hidden，CSS 据此暂停所有 infinite 动画
        * （atmosphere-drift / p0-tide 等），GPU 合成线程随之 idle，不再空转发热。 */
       if (document.documentElement) document.documentElement.classList.toggle('vis-hidden', !!document.hidden);
+      if (tab === 'star-map' && SB.ui && SB.ui.render && SB.ui.render.notifyStarMapActive) {
+        SB.ui.render.notifyStarMapActive(!document.hidden);
+      }
       if (document.hidden) flushOnExit();
     });
     /* 初始态同步一次（极端情况：页面在 hidden 状态下完成首次渲染）。 */

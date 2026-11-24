@@ -395,4 +395,31 @@ html[data-ui-theme="day"] .era1-bubbles i { border-color:rgba(39,139,144,.28); b
 @media (prefers-reduced-motion:reduce) {
   .era1-bubbles { display:none !important; }
 }
+html[data-power-save="on"] .atmosphere-scene {
+  animation:none !important;
+  transition:none !important;
+  filter:none !important;
+}
+html[data-power-save="on"] .era1-bubbles { display:none !important; }
+html[data-power-save="on"] body::before,
+html[data-power-save="on"] body::after,
+html[data-power-save="on"] .hydro-live i,
+html[data-power-save="on"] .tree-civic .technode.tree-node.open,
+html[data-power-save="on"] #pane-tech .tree-tech .technode.tree-node.open,
+html[data-power-save="on"] #pane-village .bld-row.void-altar.void-lv-3 .btn.buy::after,
+html[data-power-save="on"] html[data-era] .cardhd::before,
+html[data-power-save="on"] html[data-era] .cardhd::after,
+html[data-power-save="on"] .dyson-stage.is-current .dyson-stage-fill::after {
+  animation:none !important;
+}
+html[data-power-save="on"] .modal,
+html[data-power-save="on"] .intro-mask,
+html[data-power-save="on"] .modal.story-modal,
+html[data-power-save="on"] .modal.break-modal,
+html[data-power-save="on"] .modal.tree-modal,
+html[data-power-save="on"] .modal.gov-picker-modal,
+html[data-power-save="on"] .modal.void-ending-modal,
+html[data-power-save="on"] .void-dialog-scrim {
+  backdrop-filter:none !important;
+}
 
