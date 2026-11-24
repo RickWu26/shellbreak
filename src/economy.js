@@ -967,36 +967,20 @@
     return (isFinite(r) && r > 0) ? r : 0;
   }
 
-  /* 「这一瞬间开关会不会真的烧」——纯查询，无副作用。
-   * ⚠️ 判据被 warmRelief 与 rates() 共用，不各写一遍：
-   *    分开写的差别只在「暖石剩不到一个 need（`>= warmRate(s)`）」那几秒 —— numbers 上极小，
-   *    症状却是面板写着正在烧、实际一 tick 都没烧（rates 提前扣了、结算没扣，两边对不上）。 */
-  /* ⚠️【2026-09-27 用户拍板：改回「只在寒流季烧」】历史经历了三步：
-   *    ① 原本就是季节闸（mult<1 才烧），当时理由是「暖石只顶回减产一个用途」；
-   *    ② 2026-09-26 放开成一开就烧——理由是「冻伤看壳厚（轴 A）、减产看 t（轴 B），
-   *       两条轴不重合，开关只在寒流季烧的话冰封期那一路一份暖石都吃不到」；
-   *    ③ 冰封期改成「寒流季随机触发」后**两条轴重合了**（冰封只发生在寒流季），
-   *       季节闸重新自洽 ⇒ 用户拍板改回来。
-   *    现在的行为：寒流季烧（减产顶回 + 冰封冻伤归零共用这一份），其余季完全不耗石，
-   *    玩家平流季囤的暖石不会再凭空消失。
-   *    ⚠️ 判惩罚季用 `mult < 1`，**不写死季名/季数**——季节表是最容易增删的表，
-   *       哪天再增删季，这条闸自己跟着表走。 */
-  function warmBurningNow(s) {
-    if (!s || !s.warmOn || !s.res) return false;
-    if (SB.challenges && SB.challenges.warmHeatingBlocked(s)) return false;
-    if (season(s).mult >= 1) return false;   // 只在惩罚季（mult<1，现为寒流季）烧
+  /* 当前实际保温费率。仅在允许保温的惩罚季且库存够烧一秒时有值。
+   * 面板与结算共用库存门槛和费率。 */
+  function warmBurnRate(s) {
+    if (!s || !s.warmOn || !s.res) return 0;
+    if (SB.challenges && SB.challenges.warmHeatingBlocked(s)) return 0;
+    if (season(s).mult >= 1) return 0;
     var r = warmRate(s);
-    return r > 0 && (s.res.warmstone || 0) >= r;
+    return (s.res.warmstone || 0) >= r ? r : 0;
   }
+  function warmBurningNow(s) { return warmBurnRate(s) > 0; }
 
-  /* ⚠️ 三条「顶不住」的出口都要把 warmBurning 落成 false，不能只管置 true：
-   *    warmBurning 的含义是「**这一瞬间**真的在烧」。它是每帧瞬时标记（tick 开头清位），
-   *    但如果只有烧得起的那一支写它，任何在 tick 之外读到它的调用方（面板的 burning
-   *    提示、回归断言）都会看到上一次「烧得动」留下的 true —— 面板就会在石见底之后
-   *    还亮着「正在烧」，等于骗玩家。落位是这段自己的职责，别指望调用方记得清。 */
+  /* 这一分段实际扣费后才标记保温，库存不足时清除上一段的标记。 */
   function warmRelief(s, dt) {
-    if (!warmBurningNow(s)) { s.warmBurning = false; return 0; }
-    var need = warmRate(s) * (dt == null ? 1 : dt);
+    var need = warmBurnRate(s) * (dt == null ? 1 : dt);
     if (!(need > 0) || !(s.res.warmstone >= need)) { s.warmBurning = false; return 0; }
     s.res.warmstone -= need;
     s.warmBurning = true;
@@ -3023,7 +3007,7 @@
     metalCraftEfficiencyMul: metalCraftEfficiencyMul,
     warmBurningNow: warmBurningNow, warmCap: warmCap, warmEff: warmEff, warmRelief: warmRelief,
     /* rates / economy-tick 从 P 取读数：暖石行的「保温开关」扣减必须与 warmRelief 同源。 */
-    warmRate: warmRate,
+    warmRate: warmRate, warmBurnRate: warmBurnRate,
     /* ERA8：θ生物金属产线（tick 走 thetaFlow、rates 走 thetaRate，与 steelFlow/steelRate 对同构）。 */
     thetaFlow: thetaFlow, thetaRate: thetaRate, thetaRateParts: thetaRateParts, thetaInputRates: thetaInputRates,
     /* ERA10（2026-10-20）：unifiedMul / globalMulX / dysonPct / solarRingOut 进 internals——

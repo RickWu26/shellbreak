@@ -280,6 +280,10 @@
       if (!s) return fn.apply(null, arguments);
       var real = fn.apply(null, arguments);
       if (shadowBusy) return real;
+      // 已初始化且没有传承时，直接返回当前卡槽的效果。旧档仍由 ownedIds 检查并补齐。
+      var heritage = s.war && s.war.heritage;
+      if (heritage && typeof heritage === 'object' && Array.isArray(heritage.owned) &&
+          heritage.owned.length === 0 && Array.isArray(heritage.pending)) return real;
       var owned = ownedIds(s);
       if (!owned.length) return real;
       if (SPECIAL_SUM[name]) return real + SPECIAL_SUM[name](s, owned);

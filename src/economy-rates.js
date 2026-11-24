@@ -16,9 +16,7 @@
   var isCold = P.isCold, libraryLevel = P.libraryLevel, luxuryPactMul = P.luxuryPactMul;
   var merchantGeneMul = P.merchantGeneMul, metalCraftEfficiencyMul = P.metalCraftEfficiencyMul;
   var minerPactMul = P.minerPactMul, quarryPactMul = P.quarryPactMul, furnaceEffMul = P.furnaceEffMul, scholarPactMul = P.scholarPactMul, obsSciMul = P.obsSciMul, steelRate = P.steelRate;
-  var toolMul = P.toolMul, upgSum = P.upgSum, warmBurningNow = P.warmBurningNow;
-  /* 2026-11-05：费率随破壳系数变化，保温开关这一行必须读 economy.warmRate（与 warmRelief 同源）。 */
-  var warmRate = P.warmRate;
+  var toolMul = P.toolMul, upgSum = P.upgSum, warmBurnRate = P.warmBurnRate;
   var warmEff = P.warmEff;
   /* ERA10 市政（2026-10-20）：发射场读数与 tick 同源（三座合计等级 / 节律 / 每级耗流）。 */
   var launchRunLvl = P.launchRunLvl, launchNodeMode = P.launchNodeMode, launchMaterialPer = P.launchMaterialPer;
@@ -71,7 +69,7 @@
   }
 
   /* 面板和离线的暖石净速率沿用同一份分项，扣除保温、熔炉和运行中的汽轮机。 */
-  function warmstoneNet(s, jobs, cold, furnaceInput, tech, mineBonus) {
+  function warmstoneNet(s, jobs, cold, furnaceInput, tech, mineBonus, burnRate) {
     var turbines = Math.max(0, (s.lvl.hydroturbine || 0) - (s.turbineStop || 0));
     return part('warmstone', '矿工伴生',
       (jobs.miner || 0) * SB.UNIT.warmstone,
@@ -86,7 +84,7 @@
        ['矿工契', minerPactMul(s)],
        ['挑战', (SB.challenges ? SB.challenges.warmstoneMul(s) : 1)],
        ['奇观矿脉', (SB.wonder ? SB.wonder.mineMul(s) : 1)]])
-      + part('warmstone', '保温开关', -(warmBurningNow(s) ? warmRate(s) : 0))
+      + part('warmstone', '保温开关', -burnRate)
       + part('warmstone', '熔炉耗料', -furnaceInput * (tech ? tech.bldEff : 1) * warmEff(s))
       + part('warmstone', '汽轮机耗料', -turbines * SB.UNIT.hydroWarm * warmEff(s));
   }
@@ -95,7 +93,7 @@
     var jobs = SB.folk.effJobs(s);
     var furnaceInput = ironFlow(s, cold, 1);
     var tech = SB.tech ? SB.tech.mul(s) : null;
-    return warmstoneNet(s, jobs, cold, furnaceInput, tech, SB.economy.siltPitMul(s));
+    return warmstoneNet(s, jobs, cold, furnaceInput, tech, SB.economy.siltPitMul(s), warmBurnRate(s));
   }
 
   function rates(s) {
@@ -121,13 +119,9 @@
      *    写成 `+ (cv ? cv.kelp : 0)` 看起来对，但空对象是 truthy ⇒ cv.kelp 是 undefined
      *    ⇒ 1.375 + undefined = NaN ⇒ 面板上藻食速率直接显示 NaN，整条食物线没人看得懂。
      *    这类断链不抛错、不报警，只能靠 e2e 里「rates() 全项都有穷」那一条兜住。 */
-    /* ⚠️ 暖石顶回（relief）必须并进面板路（2026-09-30 补）。
-     *    tick 走 foodRate(s, cold, warmRelief(s, dt))，面板原先走 foodRate(s, cold) ⇒
-     *    拨开关时顶栏速率纹丝不动，而实账真的在顶 —— 又一个「面板撒谎」。
-     *    用户报的原话就是症状：「开关暖石产出完全没区别」。
-     *    这里取 warmBurningNow（纯查询、无副作用）算 relief，**不能调 warmRelief**
-     *    （它有副作用：会烧石、会置 warmBurning ⇒ 渲染路径里调 = 玩家盯着面板就偷烧一 tick）。 */
-    var relief = warmBurningNow(s) ? SB.CFG.WARM_RELIEF : 0;
+    // 同一次费率查询供藻食减产顶回与暖石消耗两项使用。
+    var burnRate = warmBurnRate(s);
+    var relief = burnRate > 0 ? SB.CFG.WARM_RELIEF : 0;
     /* ⚠️ 一次算好热液能三个数（产钢 / 净消耗 / 总生产）：steelRate 内部会跑 hydroAlloc，
      *    在 return 里连写三次等于每秒多跑两遍流分配，而 rates() 本来就重。 */
     var _sr = steelRate(s);
@@ -360,7 +354,7 @@
                   ['采石契', quarryPactMul(s)]])
                + part('stone', '重核聚变耗石', -_sr.fissionStoneRate)
                + part('stone', 'GEEK 改造', -_gkStoneRate),
-      warmstone: warmstoneNet(s, j, cold, fc, Tr, mineBonus),
+      warmstone: warmstoneNet(s, j, cold, fc, Tr, mineBonus, burnRate),
       /* ⚠️ `iron` 记的是**消耗掉的原料份数**，不是产出的精铁量 —— 沿用原有口径。
        *    铁是「一进一出」的中间资源，净额可能比看起来还负（这里没有把金属那一侧的
        *    消耗减掉，与改造之前一致）。改这一行前先读铁器产出那段的量纲注。 */

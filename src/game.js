@@ -1001,17 +1001,8 @@
    *          而无条件的泵等于悄悄把「只在脏标记时重画」变成了「每 0.2 秒重画」）。
    *    面板读数的周期刷新不靠这里，挪到 loop 里的 PANE_REFRESH（**墙钟**，不随倍速放大）。 */
   var TECH_PUMP = 2;
-  /* 补算专用的泵周期（2026-11-17）。
-   * 为什么必须与 TECH_PUMP 分开：泵周期的唯一作用是「揭示/自动化能多快响应」，
-   * 而离线补算期间没人看着面板，一次 8h 补算里泵要跑上万次，其中绝大多数是空扫。
-   * 但 TECH_PUMP 是在线**手感**参数（玩家点建造要 ≤2 秒看到尤里卡），动它等于让在线变钝。
-   * 实测（tmp/_cdp_stepsize.mjs，1h gap）：只把 OFFLINE_STEP 抬到 8 完全无效 ——
-   *   offlineStep 里 `dt = min(dt, TECH_PUMP - j.tp)` 会立刻把它夹回 2 秒；
-   *   两者一起放到 8，步数 4.1× 减少、墙钟 5.1×，且 1h 终态逐字段一致
-   *   （季节/生育/饥荒/暖石/生长期在 offlineStep 里各自独立夹刀，不受泵影响）。
-   * ⚠️ 代价：补算期间自动建造/自动研究的响应从 2 游戏秒放宽到 8 游戏秒。
-   *   对 8h 总量无实质影响，但**前期/中期档**（离线期间还在自动解锁）体感会变钝，
-   *   所以这个数只给补算用。在线与 30× 快进仍走 TECH_PUMP。 */
+  /* 离线每 8 游戏秒运行科技和市政泵，offlineStep 在泵的边界切段。
+   * 在线与在线快进仍沿用 2 游戏秒的周期。 */
   var CATCHUP_PUMP = 8;
   function pumpTech(s, emit) {
     if (!s || !SB.tech || !SB.tech.pump) return;
@@ -1522,7 +1513,6 @@
    * 以前只跑「回调次数 × 固定步长」，后台标签页里浏览器把定时器节流到 1 次/秒
    * （Chrome 满 5 分钟进一步降到约 1 次/分），时间就跟着被稀释甚至冻住。 */
   var MAX_STEP = 5;                 // 单次回调最多推进 5 秒逻辑时间，防止切回前台一次算爆
-  var CATCHUP_BUDGET = 225;         // 供离线回放测试/同步推进的单帧预算
   var CATCHUP_SLICE_MS = 12;        // 浏览器实时补算每帧协作切片预算（~12ms 让出主线程不卡绘制/触控）
   var CATCHUP_PASSIVE_TICK_MS = 500; // 省电模式下非脏状态 renderTick 节流周期
   var catchupSliceTimer = 0;
@@ -1626,23 +1616,8 @@
     var rawElapsed = Math.max(0, (now - last) / 1000);
     var elapsed = Math.min(acceleratedBackgroundAI ? SB.CFG.OFFLINE_MIN : MAX_STEP, rawElapsed);
     last = now;
-    /* ══ 2026-11-17 补算期总闸门（玩家报「离线 8h 回来补算 10 分钟、进度十几秒才涨 1%、
-     *    最后 80% 卡没了」）══
-     * 【为什么需要】补算不是独立循环，它挂在主循环里：每 250ms 只拿前 CATCHUP_BUDGET(225ms)
-     *   算数，剩下的 renderAll / renderTick / tickStar / 点击事件 / 新手引导 / 挑战判定
-     *   全排在它**后面**同一轮里。于是真实周期 = 225 + X ms，补算的占空比被 X 稀释成
-     *   225/(225+X)。而这段时间整个界面被离线闸门 modal 盖死，玩家根本看不见重建结果
-     *   ⇒ 这些工作是纯浪费，只会把补算的墙钟拖长。
-     * 【闸门盖着就该什么都不画】补算期间直接 return，算完那一帧自然回落到完整流程
-     *   （那时 loop.job 已由 finishCatchUp 清掉），全量重建也就自动补上了。
-     * ⚠️ 保留三件事，缺一个就出问题：
-     *   ① loop.acc 归零 —— 补算期流逝的墙钟已在 drainCatchUp 里按真实秒算过，
-     *      不能再攒进 acc 等补算结束按实时推第二遍（原实现会攒到 backlogCap=60 秒，
-     *      补算一结束就一口气多推 60 秒，是既有的重复计时）。
-     *   ② loop._lastPane **不更新** —— 于是补算结束的第一个 now - _lastPane 必然 ≥
-     *      PANE_REFRESH，PANE_REFRESH 那条分支会自动置脏并触发那一次「补做全量」，
-     *      不需要另写调用点（少一处就少一处漂移）。
-     *   ③ 认领新离线时段时立刻落盘，补算进行中每 30 秒保存一次进度。 */
+    /* 这一帧只做补算。清空在线积压，避免结算后重复推进同一段时间。
+     * 面板刷新延至在线恢复，剩余任务每 30 秒落一次检查点。 */
     if (catchingUp) {
       loop.acc = 0;
       if (loop.job && now - (loop._lastSave || 0) > 30000) {
@@ -1651,12 +1626,7 @@
       }
       return;
     }
-    /* 广告时间银行按**真实墙钟**流逝（不看倍速）：开着开关且还有余额时，这一帧扣掉 elapsed 毫秒。
-     * 扣到 0 的那一帧置脏一次，让顶栏立刻从「2× 生效」翻成「无加速」。开关关着时冻结余额 = 囤着不用。 */
-    /* 广告时间银行按**真实墙钟**流逝（不看倍速）：开着开关且还有余额时，这一帧扣掉 elapsed 毫秒。
-     * 扣到 0 的那一帧置脏一次，让顶栏立刻从「2× 生效」翻成「无加速」。开关关着时冻结余额 = 囤着不用。
-     * ⚠️ 只在**在线**扣：离线补算期间（loop.job=true）由 drainCatchUp 按真实离线秒统一扣减（且吃 2×），
-     *    这里加 !loop.job 守卫，避免离线时既被 nibble 又不给 2× 进度的双重错账。 */
+    /* 在线按真实时间扣减广告余额，归零时刷新状态。离线余额由 drainCatchUp 结算。 */
     if (!loop.job && S && S.ad && S.ad.on && S.ad.ms > 0) {
       var adWas = S.ad.ms > 0;
       S.ad.ms = Math.max(0, S.ad.ms - elapsed * 1000);
@@ -1970,15 +1940,11 @@
   function drainCatchUp(budgetMs) {
     var j = loop.job; if (!j) return;
     if (j.s !== S) { loop.job = null; return; }   // 补算途中重开了周目，作废这一批
-    /* ⚠️ 预算基准必须叫 tStart，**绝不能叫 t0**：内层曾写成 `var t0 = j.s.t`，
-     * var 在函数作用域内不分块 ⇒ 第一轮内层就把外层 t0 覆盖成游戏逻辑秒（十万量级），
-     * `Date.now() - t0` 立刻远超 budgetMs ⇒ 每次调用只做一轮外层迭代、内层一口气算完整段，
-     * 225ms 预算形同虚设（晚期局单条长任务 4471ms，界面整段冻结）。 */
+    /* 切片预算用墙钟毫秒，积分用游戏秒。 */
     var tStart = Date.now();
     j.draining = true;
-    /* 离线补算按「真实秒」记账、按事件块推进：每块最多 OFFLINE_STEP 个游戏秒，
-     * 广告银行覆盖时按 2× 换算真实时长，并在余额归零处切段后回落 1×。
-     * 旧循环每次只推进 1 个真实秒，导致 1× 时 dt 永远 <=1 秒；现在可跨真实秒批量结算。 */
+    /* 用真实秒记录待补算时长，用不超过 CATCHUP_STEP 的游戏秒推进。
+     * 广告余额归零时切段，后续按 1× 结算。 */
     while (j.left > CATCHUP_EPS && !j.breakReached && Date.now() - tStart < budgetMs) {
       var mul = adMul();
       /* ⚠️ 2026-11-07 客户「离线结算进度条卡死」：双倍段把银行扣到只剩 1ulp 正残差时
@@ -2014,11 +1980,7 @@
         if (!j.brokeDuring && !j.bBroke && j.s.broken) j.brokeDuring = true;
         /* 星空槽在破壳后独立于 economy.tick 推进；按同一事件块累计，线性速率结果不变。 */
         SB.shell.tickStar(j.s, dt, null);
-        /* 预算让出：内层过去不检查时间（只有外层查），一段 8 小时补算会在一帧里算到底。
-         * 每 64 步查一次 Date.now()，超预算就带着已完成的 realDone 退出，
-         * 余量留给下一帧 —— 界面从「冻 4.5 秒」变成逐帧推进、进度条能走动。
-         * ⚠️ 只在这里 break 内层，外面那句 `j.left = Math.max(0, j.left - realDone)` 必须照常执行，
-         *    否则这一帧算的那部分会被丢掉（时间白算、还得多算一遍）。 */
+        /* 每四步检查预算。退出内层后扣除已完成的真实秒，剩余留给下一切片。 */
         if ((++inner & 3) === 0 && Date.now() - tStart >= budgetMs) break;
       }
       j.left = Math.max(0, j.left - realDone);
@@ -2118,9 +2080,7 @@
     showCatchUpEvents(j, false);
   }
   function fireDysonPending(j) {
-    /* 离线补算期间达成的戴森竣工：结算窗关闭后再播胜利窗，避免被共用 #modal 的离线结算覆盖。
-     * 见 economy-tick.js dysonDone 块 deferBreakUI 分支（离线只挂 dysonPopupPending，不置 seen）。
-     * 破壳与竣工在同一段离线补算里互斥（破壳即终止补算），故不与 breakReport 叠加。 */
+    /* 离线达成的戴森竣工延后到结算窗关闭时展示。 */
     if (!j || !j.s || !j.s.dysonPopupPending) return;
     var s = j.s;
     s.dysonPopupSeen = true;

@@ -39,7 +39,7 @@ export function run({ SB, check, loadAll }) {
     return s;
   }
 
-  /* 模拟生产循环：每帧给 225ms 预算，直到 drainCatchUp 变成「0ms 立即返回」= job 已清空 */
+  /* 直接用验收预算驱动各切片，直到 drainCatchUp 立即返回。 */
   function driveToFinish(s, secs) {
     SB.game.planCatchUp(s, secs, true);      // silent：不弹闸门，e2e 没有可用遮罩
     const t0 = s.t;
@@ -78,7 +78,7 @@ export function run({ SB, check, loadAll }) {
     check('8 小时补算分帧推进（≥2 帧），不是一帧算完', r.frames >= 2,
       'frames=' + r.frames + ' total=' + r.total + 'ms');
     check('单帧不超过预算上限（内层会让出）', r.maxFrame <= 600,
-      'maxFrame=' + r.maxFrame + 'ms（预算 ' + BUDGET + 'ms + 64 步余量）');
+      'maxFrame=' + r.maxFrame + 'ms（测试预算 ' + BUDGET + 'ms，内层每四步检查）');
   }
 
   /* ── 3. 残渣容差不许把「还没算完」误判成「算完了」 ── */
@@ -168,6 +168,31 @@ export function run({ SB, check, loadAll }) {
       return SB.economyRateParts.warmstoneRate(s) === breakdown.rate.warmstone && net === breakdown.rate.warmstone;
     });
     check('暖石单项速率与面板分项、净值一致，覆盖缺料、保温和设备扣料', match);
+
+    const rate = SB.economy.warmRate(s);
+    s.res.warmstone = rate / 2;
+    const refused = SB.economy.warmRelief(s, 0.25) === 0 && s.res.warmstone === rate / 2;
+    s.res.warmstone = rate;
+    const paid = SB.economy.warmRelief(s, 0.25) === CFG.WARM_RELIEF && s.res.warmstone === rate - rate * 0.25;
+    const stopped = !SB.economy.warmBurningNow(s);
+    s.challenge = { id: 'cold', tier: 0 };
+    s.res.warmstone = rate * 2;
+    const blocked = SB.economy.warmRelief(s, 0.25) === 0 && s.res.warmstone === rate * 2;
+    check('保温沿用一秒库存门槛、按实际步长扣费，并遵守寒流禁火限制',
+      rate > 0 && refused && paid && stopped && blocked);
+  }
+
+  {
+    const s = SB.state.freshRun(false);
+    s.cards = [null, 'card_town_meeting'];
+    const active = SB.civic.cardPopCapFlat(s) === 3 && SB.civic.cardPopGrowthTimeMul(s) === 0.5;
+    s.civics.city_supply = true;
+    s.war.heritage.pending = null;
+    const retired = SB.civic.cardPopCapFlat(s) === 0 && SB.civic.cardPopGrowthTimeMul(s) === 1 &&
+      Array.isArray(s.war.heritage.pending);
+    s.war.heritage.owned.push({ id: 'card_town_meeting', stage: 1 });
+    const inherited = SB.civic.cardPopCapFlat(s) === 3 && SB.civic.cardPopGrowthTimeMul(s) === 0.5;
+    check('空槽、退役与新获得传承保留政策效果原有数值，并补齐旧档传承栏', active && retired && inherited);
   }
 
   /* ── 检查点从落盘、载入、后台恢复及换档的入口验证 ── */

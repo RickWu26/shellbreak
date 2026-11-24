@@ -113,17 +113,7 @@
     return POLICIES;
   }
   function policyList(s) { return ensureGovPassiveCards(s); }
-  /* 政策按 id 查表：原来是线性扫描，被调用方放大成 O(卡槽数 × 政策数 × 字段数)。
-   * ⚠️ 为什么必须加索引（2026-11-17，玩家「后期离线 8h 加载 10 分钟」的根因）：
-   *   cardFieldMul / cardFieldSum 对 s.cards 逐槽（后期 11 槽）**每张卡扫两遍**——
-   *   cardEffective 内部 policyById 一次，取 cd 又一次——而 cardFieldMul 本身按乘区字段
-   *   被调十几次，rates() 又每步调 2.3 次。79 条政策 × 11 卡 × 2 遍 × N 字段。
-   *   实测占补算 CPU 的 49~65%，改成索引后每步 8.46ms → 2.31ms（3.7×），
-   *   8h 补算 126s → 43s。前期卡槽只有 1~2 个，所以早期完全看不出来 —— 这是乘法不是加法。
-   * ⚠️ POLICIES 只在**尾部 push**（addGovPassiveCard），数组身份不变 ⇒ 用长度判失效即可；
-   *   若将来允许改写已有条目的 id，这里必须改成显式失效，否则会返回旧对象。
-   * ⚠️ 语义必须与线性扫描**逐字一致**：未命中（含 id 为 null / 空槽）仍走下面
-   *   GOV_PASSIVE_CARD_PREFIX 那段动态补卡分支，最后返回 null。 */
+  /* 政体被动卡只追加到 POLICIES 末尾，因此用长度判断索引是否需要重建。 */
   var _polIdx = null, _polIdxLen = -1;
   function policyById(id) {
     if (_polIdxLen !== POLICIES.length || !_polIdx) {
@@ -403,13 +393,14 @@
    * 统一纪律：只读 s.cards，没装 = 返回基准值（1），绝不污染产线（与 castleFaithMul 同构）。
    * cardCivicOutMul / cardSciOutMul：热能优先卡把市政/科技产出 ×0.5（civicOutMul/sciOutMul 字段）。
    * cardHydroMul：热能优先卡把热液能供给 ×2（hydroSupplyMul 字段）。
-   * cardHappyOffset：工业化配给卡幸福度 −1（happyOffset 字段，求和进恒温器 _gb 基线）。 */
+   * cardHappyOffset：工业化配给卡幸福度 −1（happyOffset 字段，求和进恒温器 _gb 基线）。
+   * 已按槽遍历，直接读取卡定义与退役状态。 */
   function cardFieldMul(s, field) {
     var m = 1, arr = (s && s.cards) || [], i, cd;
     for (i = 0; i < arr.length; i++) {
-      if (!cardEffective(s, arr[i])) continue;
+      if (!arr[i]) continue;
       cd = policyById(arr[i]);
-      if (cd && typeof cd[field] === 'number') m *= cd[field];
+      if (cd && typeof cd[field] === 'number' && !cardRetired(s, cd)) m *= cd[field];
     }
     return m;
   }
@@ -418,9 +409,9 @@
   function cardFieldSum(s, field) {
     var m = 0, arr = (s && s.cards) || [], i, cd;
     for (i = 0; i < arr.length; i++) {
-      if (!cardEffective(s, arr[i])) continue;
+      if (!arr[i]) continue;
       cd = policyById(arr[i]);
-      if (cd && typeof cd[field] === 'number') m += cd[field];
+      if (cd && typeof cd[field] === 'number' && !cardRetired(s, cd)) m += cd[field];
     }
     return m;
   }
