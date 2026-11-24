@@ -1,16 +1,21 @@
 import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import * as esbuild from 'esbuild';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(__dirname, '..');
-const OUT_DIR = path.join(ROOT, 'dist', 'web');
+const repo = path.resolve(__dirname, '..');
+const args = process.argv.slice(2);
+const tap = args[0] === '--taptap' && args.length === 3;
+if (args.length && !tap) throw new Error('Usage: build_web_release.mjs [--taptap STAGED_SOURCE NEW_OUTPUT]');
+const ROOT = tap ? path.resolve(args[1]) : repo;
+const OUT_DIR = tap ? path.resolve(args[2]) : path.join(repo, 'dist', 'web');
 
-function cleanDir(dir) {
-  fs.rmSync(dir, { recursive: true, force: true });
-  fs.mkdirSync(dir, { recursive: true });
+function versioned(rel) {
+  const hash = createHash('sha256').update(fs.readFileSync(path.join(OUT_DIR, rel))).digest('hex').slice(0, 12);
+  return rel + '?v=' + hash;
 }
 
 function copyAssets(srcDir, dstDir) {
@@ -54,7 +59,9 @@ function fmtKB(n) {
 
 async function main() {
   const indexHtml = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-  cleanDir(OUT_DIR);
+  // A caller-supplied TapTap output must be new; only dist/web is ours to replace.
+  if (tap) fs.mkdirSync(OUT_DIR);
+  else fs.rmSync(OUT_DIR, { recursive: true, force: true });
   fs.mkdirSync(path.join(OUT_DIR, 'css'), { recursive: true });
   fs.mkdirSync(path.join(OUT_DIR, 'locales'), { recursive: true });
   fs.mkdirSync(path.join(OUT_DIR, 'src', 'ui'), { recursive: true });
@@ -101,7 +108,7 @@ async function main() {
   ];
   for (const [srcRel, dstRel] of localeMap) {
     const srcFull = path.join(ROOT, srcRel);
-    if (!fs.existsSync(srcFull)) continue;
+    if (tap && srcRel.startsWith('electron/')) continue;
     const min = await esbuild.transform(fs.readFileSync(srcFull, 'utf8'), {
       loader: 'js',
       minify: true,
@@ -120,12 +127,19 @@ async function main() {
 
   // 5. Rewrite index.html cleanly for production bundle
   let outHtml = indexHtml;
-  outHtml = outHtml.replace(/href="css\/main\.css(?:\?v=[^"]*)?"/, 'href="css/app.min.css"');
-  outHtml = outHtml
-    .replace(/src\/locales\/zh-CN\.js(?:\?v=[^'"]*)?/g, 'locales/zh-CN.min.js')
-    .replace(/electron\/locales\/en-US\.js(?:\?v=[^'"]*)?/g, 'locales/en-US.min.js')
-    .replace(/electron\/locales\/zh-TW\.js(?:\?v=[^'"]*)?/g, 'locales/zh-TW.min.js')
-    .replace(/src\/i18n\.js(?:\?v=[^'"]*)?/g, 'locales/i18n.min.js');
+  outHtml = outHtml.replace(/href="css\/main\.css(?:\?v=[^"]*)?"/, () => 'href="' + versioned('css/app.min.css') + '"');
+  if (tap) {
+    // This package ships the Chinese dictionary and helper as ordinary head scripts.
+    const loader = /document\.write\([^\n]+\);\s*<\/script>/;
+    if (!loader.test(outHtml)) throw new Error('Missing head locale loader');
+    outHtml = outHtml.replace(loader, '</script>\n<!--TAPTAP_LOCALES-->');
+  } else {
+    for (const [src, dst] of localeMap) {
+      const reference = new RegExp(src.replaceAll('.', '\\.') + '(?:\\?v=\\d+)?');
+      if (!reference.test(outHtml)) throw new Error('Missing locale reference: ' + src);
+      outHtml = outHtml.replace(reference, versioned(dst));
+    }
+  }
 
   const firstTag = scriptMatches[0]?.[0];
   if (!firstTag) throw new Error('Could not find bottom <script src="..."> list in index.html');
@@ -133,10 +147,15 @@ async function main() {
   outHtml = outHtml.replace(/<script\s+src="[^"]+"><\/script>\s*/g, () => {
     if (!replaced) {
       replaced = true;
-      return '<script src="app.min.js"></script>\n';
+      return '<script src="' + versioned('app.min.js') + '"></script>\n';
     }
     return '';
   });
+  if (tap) {
+    const headScripts = ['locales/zh-CN.min.js', 'locales/i18n.min.js']
+      .map(rel => '<script src="' + versioned(rel) + '"></script>').join('\n');
+    outHtml = outHtml.replace('<!--TAPTAP_LOCALES-->', headScripts);
+  }
   fs.writeFileSync(path.join(OUT_DIR, 'index.html'), outHtml, 'utf8');
 
   // 6. Report bundle metrics
@@ -148,7 +167,7 @@ async function main() {
     ['app.min.js', appJsOut]
   ];
   let totalRaw = 0, totalGz = 0;
-  console.log('=== Shellbreak Web Release Build ===');
+  console.log('=== Shellbreak ' + (tap ? 'TapTap' : 'Web') + ' Release Build ===');
   console.log(`Bundled ${scriptPaths.length} scripts -> app.min.js`);
   console.log(`Core boot HTTP requests: ${coreFiles.length} (<= 6 target)`);
   for (const [label, fp] of coreFiles) {
@@ -160,7 +179,7 @@ async function main() {
   }
   console.log(`Core bundle total:         raw=${fmtKB(totalRaw).padStart(9)}  gzip=${fmtKB(totalGz).padStart(9)}`);
   console.log(`Runtime assets copied:     files=${assetStats.count}  size=${(assetStats.bytes / (1024 * 1024)).toFixed(2)} MB (excluded assets/store)`);
-  console.log(`Total dist/web files:      ${countFiles(OUT_DIR)}`);
+  console.log(`Total release files:      ${countFiles(OUT_DIR)}`);
 }
 
 main().catch(err => {

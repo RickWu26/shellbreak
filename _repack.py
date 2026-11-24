@@ -7,6 +7,9 @@
   ② **真解压到 %TEMP% 再 listdir** —— 不信任 zip 目录表
 """
 import argparse
+import json
+import subprocess
+from pathlib import Path
 import os
 import shutil
 import tempfile
@@ -501,7 +504,7 @@ def _assert_assets(_src_root, _whitelist):
     写成具名函数，便于 tmp/ 下的探针直接 exec 生产函数本体做回归，不复制逻辑。"""
     import os as _os, re as _re, glob as _glob
     _src_files = []
-    for _pat in ('index.html', 'src/**/*.js', 'src/**/*.html', 'css/**/*.css'):
+    for _pat in ('index.html', 'app.min.js', 'src/**/*.js', 'src/**/*.html', 'css/**/*.css'):
         _src_files += _glob.glob(_os.path.join(_src_root, _pat), recursive=True)
     assert _src_files, '包内找不到待扫描的源码文件（assets 反向校验无法执行）'
     _ref_dirs = set()
@@ -568,23 +571,27 @@ if os.path.isdir(_FONTS_DIR):
         if _fn.lower().endswith('.txt'):
             try: os.remove(os.path.join(_FONTS_DIR, _fn))
             except OSError: pass
-_net_hits, _self_hits, _tap_net_count = [], [], 0
-for _nroot, _ndirs, _nfiles in os.walk(SRC):
-    for _nfn in _nfiles:
-        _np = os.path.join(_nroot, _nfn)
-        with open(_np, 'rb') as _nf:
-            _blob = _nf.read()
-        _rel = os.path.relpath(_np, SRC).replace(os.sep, '/')
-        for _m in _FETCH_B.finditer(_blob):
-            _net_hits.append('%s@%d fetch(' % (_rel, _m.start()))
-        for _m in _EXTURL_B.finditer(_blob):
-            _sample = _blob[_m.start():_m.start() + 56].decode('latin1').split()[0]
-            _net_hits.append('%s@%d %s' % (_rel, _m.start(), _sample))
-        for _m in _SELF_TELL_B.finditer(_blob):
-            _self_hits.append('%s@%d %s' % (_rel, _m.start(), _m.group().decode('utf-8', 'replace')))
-        _tap_net_count += len(_TAP_NET_B.findall(_blob))
-assert not _net_hits, '包内仍有 fetch / 非白名单外部 URL：%s' % ', '.join(_net_hits[:8])
-assert not _self_hits, '包内仍有联网自述字样：%s' % ', '.join(_self_hits[:8])
+def _verify_network_features(directory):
+    _net_hits, _self_hits, _tap_net_count = [], [], 0
+    for _nroot, _ndirs, _nfiles in os.walk(directory):
+        for _nfn in _nfiles:
+            _np = os.path.join(_nroot, _nfn)
+            with open(_np, 'rb') as _nf:
+                _blob = _nf.read()
+            _rel = os.path.relpath(_np, directory).replace(os.sep, '/')
+            for _m in _FETCH_B.finditer(_blob):
+                _net_hits.append('%s@%d fetch(' % (_rel, _m.start()))
+            for _m in _EXTURL_B.finditer(_blob):
+                _sample = _blob[_m.start():_m.start() + 56].decode('latin1').split()[0]
+                _net_hits.append('%s@%d %s' % (_rel, _m.start(), _sample))
+            for _m in _SELF_TELL_B.finditer(_blob):
+                _self_hits.append('%s@%d %s' % (_rel, _m.start(), _m.group().decode('utf-8', 'replace')))
+            _tap_net_count += len(_TAP_NET_B.findall(_blob))
+    assert not _net_hits, '包内仍有 fetch / 非白名单外部 URL：%s' % ', '.join(_net_hits[:8])
+    assert not _self_hits, '包内仍有联网自述字样：%s' % ', '.join(_self_hits[:8])
+    return _tap_net_count
+
+_tap_net_count = _verify_network_features(SRC)
 _rd = _read('src/redeem.js')
 assert "api: ''" in _rd, '包内 redeem.js 缺平台通道下线锚点（可能又活了）'
 assert 'function platformReady() { return false; }' in _rd, '包内 redeem.js 的 platformReady 不是恒 false'
@@ -597,66 +604,49 @@ print('包体零外部特征: OK (全文件类型 / 不剥注释 / fetch=0 / 非
       '/ 平台通道锚点 / CSP 必要指令 / ai-player 已排除 / tap 平台服务 %d 处仅清点)'
       % _tap_net_count)
 
-# ---------- 打包 ----------
-n = 0
-with zipfile.ZipFile(OUT, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as z:
-    for root, dirs, files in os.walk(SRC):
-        dirs.sort()
-        files.sort()
-        for fn in files:
-            p = os.path.join(root, fn)
-            rel = os.path.relpath(p, SRC).replace(os.sep, '/')
-            z.write(p, f'{TOP}/{rel}')
-            n += 1
-print(f'files = {n}  sizeKB = {round(os.path.getsize(OUT) / 1024, 1)}')
+# 从已执行渠道检查的源码合包，再从实际 ZIP 读取上传物并验收。
+out = Path(OUT)
+out.parent.mkdir(parents=True, exist_ok=True)
+with tempfile.TemporaryDirectory(prefix='shellbreak-taptap-', dir=out.parent) as work:
+    bundle = Path(work) / 'release'
+    subprocess.run(['node', os.path.join(REPO, 'scripts', 'build_web_release.mjs'),
+                    '--taptap', SRC, str(bundle)], check=True)
+    candidate = Path(work) / 'upload.zip'
+    with zipfile.ZipFile(candidate, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
+        for entry in sorted(bundle.rglob('*')):
+            if entry.is_file():
+                archive.write(entry, TOP + '/' + entry.relative_to(bundle).as_posix())
 
-# ---------- 判据 ①：zip 目录表 ----------
-with zipfile.ZipFile(OUT) as z:
-    names = z.namelist()
-    tops = sorted({x.split('/')[0] for x in names})
-    print('①顶层 =', tops, 'count =', len(tops), '->', 'PASS' if len(tops) == 1 else 'FAIL')
-    print('  index.html =', [x for x in names if x.endswith('/index.html')])
-    print('  根下游离文件 =', [x for x in names if '/' not in x.rstrip('/')])
-    junk = [x for x in names if any(s in x for s in ('.DS_Store', 'assets/store/', 'shots/', '__MACOSX'))]
-    print('  垃圾条目 =', junk)
+    unpacked = Path(work) / 'unpacked'
+    with zipfile.ZipFile(candidate) as archive:
+        names = archive.namelist()
+        assert names and all(name.startswith(TOP + '/') for name in names), 'ZIP 顶层目录错误'
+        archive.extractall(unpacked)
+    root = unpacked / TOP
+    assert list(unpacked.iterdir()) == [root]
+    files = {p.relative_to(root).as_posix() for p in root.rglob('*') if p.is_file()}
+    assert len(files) == len(names)
+    assert {f for f in files if not f.startswith('assets/')} == {
+        'index.html', 'app.min.js', 'css/app.min.css', 'locales/zh-CN.min.js',
+        'locales/i18n.min.js', 'src/ui/star-map-frame.html'}, '渠道代码或语言包清单不符'
+    assert all(p.parts[1] in ASSET_DIRS for p in map(Path, files) if p.parts[0] == 'assets')
+    _assert_assets(str(root), ASSET_DIRS)
+    _verify_network_features(root)
 
-# ---------- 判据 ②：真解压 ----------
-TMP = os.path.join(os.environ.get('TEMP') or tempfile.gettempdir(), 'sb-rc03-unzip-verify')
-if os.path.isdir(TMP):
-    shutil.rmtree(TMP)
-os.makedirs(TMP)
-with zipfile.ZipFile(OUT) as z:
-    z.extractall(TMP)
-entries = os.listdir(TMP)
-dirs = [e for e in entries if os.path.isdir(os.path.join(TMP, e))]
-files = [e for e in entries if os.path.isfile(os.path.join(TMP, e))]
-print('② 解压根下 =', entries, '文件夹 =', dirs, '游离文件 =', files)
-print('  ->', 'PASS' if len(dirs) == 1 and not files else 'FAIL')
-
-root = os.path.join(TMP, dirs[0])
-inner = sorted(os.listdir(root))
-print('  该层内容 =', inner)
-print('  index.html 在里面 ->', 'PASS' if 'index.html' in inner else 'FAIL')
-
-total = sum(len(f) for _, _, f in os.walk(root))
-print('  解压后文件总数 =', total, '(打包写入 %d)' % n, '->', 'PASS' if total == n else 'FAIL')
-
-# ---------- 判据 ③：解压出来的壳厚必须是 50 万、广告位必须已回填 ----------
-with open(os.path.join(root, 'src', 'config.js'), encoding='utf-8') as f:
-    lines = [ln.strip() for ln in f]
-got = [ln for ln in lines if 'ICE_SHELL:' in ln]
-print('③ 解压后 config.js 壳厚 =', got, '->', 'PASS' if 'ICE_SHELL: 500000' in got[0] else 'FAIL')
-sid = [ln for ln in lines if 'SPACE_ID:' in ln]
-print('   解压后 AD.SPACE_ID   =', sid,
-      '->', 'PASS' if sid and "'1054324'" in sid[0] else 'FAIL')
-
-# ---------- 判据 ④：解压后的 index.html 不能带手动倍速、必须带广告控件 ----------
-with open(os.path.join(root, 'index.html'), encoding='utf-8') as f:
-    idx2 = f.read()
-print('④ 解压后 data-spd 数量  =', idx2.count('data-spd'), '->', 'PASS' if 'data-spd' not in idx2 else 'FAIL')
-print('   解压后广告控件 btnAd  =', 'PASS' if 'id="btnAd"' in idx2 else 'FAIL')
-print('   解压后 config 版本号  =',
-      [ln.strip() for ln in idx2.split('\n') if 'src/config.js?v=' in ln])
-
-shutil.rmtree(TMP)
-print('\n临时验证目录已清理')
+    html = (root / 'index.html').read_text(encoding='utf-8')
+    assert 'data-spd' not in html and 'id="btnAd"' in html
+    references = _re.findall(r'<script\s+src="([^"?]+)(?:\?[^"]*)?"', html)
+    assert references == ['locales/zh-CN.min.js', 'locales/i18n.min.js', 'app.min.js']
+    assert _re.search(r'href="css/app\.min\.css\?v=[0-9a-f]+"', html)
+    verify_config = """
+        const fs = require('node:fs'), vm = require('node:vm');
+        const state = {document: {readyState: 'loading', addEventListener() {},
+          getElementById() {return null}, querySelector() {return null}, querySelectorAll() {return []}}};
+        state.window = state;
+        for (const path of process.argv.slice(1)) vm.runInNewContext(fs.readFileSync(path, 'utf8'), state);
+        console.log(JSON.stringify([state.SB.CFG.ICE_SHELL, state.SB.CFG.AD.SPACE_ID]));
+    """
+    config = subprocess.check_output(['node', '-e', verify_config, *references], cwd=root, text=True)
+    assert json.loads(config) == [500000, '1054324'], '合包游戏配置与渠道配置不符'
+    os.replace(candidate, out)
+print(f'TapTap ZIP 验收通过：{out}，{len(files)} 个文件，{out.stat().st_size:,} 字节')
