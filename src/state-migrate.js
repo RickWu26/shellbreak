@@ -685,6 +685,47 @@
       if (_illegal.length) out.techVer = (out.techVer | 0) + 1;   // ⚠️ tech.mul 缓存契约
     }
 
+    var pumpPeriod = (SB.CFG && SB.CFG.OFFLINE_CATCHUP_PUMP > 0) ? SB.CFG.OFFLINE_CATCHUP_PUMP : 8;
+    var rawCp = raw.offlineCheckpoint;
+    if (rawCp && typeof rawCp === 'object' && !Array.isArray(rawCp) && rawCp.v === 1
+        && typeof rawCp.left === 'number' && isFinite(rawCp.left) && rawCp.left > 0
+        && typeof rawCp.secs === 'number' && isFinite(rawCp.secs) && rawCp.secs > 0
+        && typeof rawCp.cap === 'number' && isFinite(rawCp.cap) && rawCp.cap > 0
+        && rawCp.secs <= rawCp.cap + 1e-6 && rawCp.left <= rawCp.secs + 1e-6
+        && typeof rawCp.uncountedSecs === 'number' && isFinite(rawCp.uncountedSecs) && rawCp.uncountedSecs >= 0
+        && typeof rawCp.bPop === 'number' && isFinite(rawCp.bPop) && rawCp.bPop >= 0
+        && typeof rawCp.bShell === 'number' && isFinite(rawCp.bShell) && rawCp.bShell >= 0
+        && typeof rawCp.bFam === 'number' && isFinite(rawCp.bFam) && rawCp.bFam >= 0
+        && typeof rawCp.bFrost === 'number' && isFinite(rawCp.bFrost) && rawCp.bFrost >= 0) {
+      var cleanBefore = {}, bKey;
+      var rawBefore = rawCp.before && typeof rawCp.before === 'object' ? rawCp.before : null;
+      for (bKey in base.res) {
+        var bv = rawBefore ? rawBefore[bKey] : undefined;
+        cleanBefore[bKey] = (typeof bv === 'number' && isFinite(bv) && bv >= 0) ? bv : out.res[bKey];
+      }
+      var tpVal = (typeof rawCp.tp === 'number' && isFinite(rawCp.tp) && rawCp.tp >= 0 && rawCp.tp < pumpPeriod) ? rawCp.tp : 0;
+      out.offlineCheckpoint = {
+        v: 1,
+        left: Math.min(rawCp.left, rawCp.secs),
+        total: rawCp.secs,
+        secs: rawCp.secs,
+        cap: rawCp.cap,
+        tp: tpVal,
+        adActive: rawCp.adActive === true,
+        uncountedSecs: rawCp.uncountedSecs,
+        before: cleanBefore,
+        bPop: rawCp.bPop,
+        bShell: rawCp.bShell,
+        bFam: rawCp.bFam,
+        bFrost: rawCp.bFrost,
+        bBroke: rawCp.bBroke === true,
+        brokeDuring: rawCp.brokeDuring === true,
+        silent: rawCp.silent === true
+      };
+    } else {
+      out.offlineCheckpoint = null;
+    }
+
     return out;
   }
 

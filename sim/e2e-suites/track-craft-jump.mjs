@@ -87,9 +87,30 @@ export function run({ SB, check, sandbox }) {
     captured.sel === '#pane-workshop [data-craft-res="stoneBeam"]', 'sel=' + captured.sel);
 
   /* ⑤ 收尾不变量：每个工坊配方都有 res 键 ⇒ gotoCraft 用的 res 一定能对上
-   *    render-pane-workshop 配方行的 data-craft-res 锚点（② 已确认该锚点已写入源码）。 */
+   *    render-pane-workshop 配方行的 data-craft-res 锚点。 */
   const allHaveRes = (SB.CRAFTS || []).length > 0 &&
     (SB.CRAFTS || []).every(c => typeof c.res === 'string' && c.res);
   check('每个工坊配方都有 res 键（gotoCraft 的落点能对应到配方行）', allHaveRes,
     'n=' + (SB.CRAFTS || []).length);
+
+  /* ⑥ 真实工坊配方 DOM 断言：必须渲染出展开的产物键值（如 data-craft-res="stoneBeam"），
+   *    不能退化成字面量 "c.res"。 */
+  if (SB.ui.render && SB.ui.render.paneCraftRows) {
+    const prevTechs = Object.assign({}, SB.game.run().techs);
+    const s = SB.game.run();
+    s.lvl = s.lvl || {};
+    s.lvl.workshop = Math.max(1, s.lvl.workshop || 0);
+    s.techs = s.techs || {};
+    for (const c of (SB.CRAFTS || [])) {
+      if (c.reqTech) s.techs[c.reqTech] = true;
+    }
+    const html = SB.ui.render.paneCraftRows(s) || '';
+    s.techs = prevTechs;
+    check('paneCraftRows 渲染出 data-craft-res="stoneBeam"（非字面量 c.res）',
+      html.indexOf('data-craft-res="stoneBeam"') >= 0 && html.indexOf('data-craft-res="c.res"') < 0,
+      'hasStoneBeam=' + (html.indexOf('data-craft-res="stoneBeam"') >= 0));
+    check('paneCraftRows 渲染出 data-craft-res="hardCoral"',
+      html.indexOf('data-craft-res="hardCoral"') >= 0,
+      'hasHardCoral=' + (html.indexOf('data-craft-res="hardCoral"') >= 0));
+  }
 }

@@ -272,7 +272,7 @@
       var costParts = [], costKey;
       for (costKey in c.in) costParts.push(SB.RESS[costKey].name + ' ' + c.in[costKey]);
       var cost = englishLocale() ? SB.economy.costTxt(c.in) : costParts.join(' + ');
-      h += '<div class="row" data-craft-res="c.res"><div class="nm">' + productIcon + '<button type="button" class="building-name" data-info-item="craft" data-info-id="' + c.id + '" aria-haspopup="dialog">' + localizedItemName('craft', c) + '</button></div>' +
+      h += '<div class="row" data-craft-res="' + escAttr(c.res) + '"><div class="nm">' + productIcon + '<button type="button" class="building-name" data-info-item="craft" data-info-id="' + c.id + '" aria-haspopup="dialog">' + localizedItemName('craft', c) + '</button></div>' +
         '<div class="ds">' + tr('ui.workshop.crafting.cost_label', null, '每次：') + ' ' + cost +
         ' ⇒ <b>' + SB.economy.fmtAmt(c.out * mul) + '</b>' +
         tr('ui.workshop.craft.efficiency_bonus', {

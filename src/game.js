@@ -222,6 +222,7 @@
   function clearLog() { logLines = []; var n = document.getElementById('log'); if (n) n.innerHTML = ''; }
 
   function startRun(options) {
+    loop.job = null;
     /* 旧版本中尚未写入永久解锁旗的存档，也在离开已建卫星的周目时补记。 */
     if (S && S.lvl && S.lvl.satellite >= 1) unlockStardustShop();
     /* 局数 / 轮回两个计数在这里彻底分开（2026-11-06 用户拍板）：
@@ -333,7 +334,8 @@
   }
 
   // 继续未完成的上一周目（刷新页面时）
-  function resumeRun(saved) {
+  function resumeRun(saved, restartGap) {
+    loop.job = null;
     S = saved;
     if (SB.faith && SB.faith.syncRun && SB.faith.syncRun(S)) markDirty();
     /* 季长自愈（2026-10-31）：除了「缺版本号」的老档，还有一种格局要重算 ——
@@ -416,6 +418,9 @@
       hours: (S.t / 3600).toFixed(2), shellThickness: Math.round(S.shell)
     }, '已恢复上次进度：已游玩 {hours} 小时，壳厚 {shellThickness}。'));
     renderAll();
+    if (S.offlineCheckpoint && S.offlineCheckpoint.v === 1) {
+      resumeOfflineCheckpoint(S, S.offlineCheckpoint, restartGap || 0);
+    }
   }
 
   function nextCycle() {
@@ -436,6 +441,7 @@
   /* 硬重置「清空存档」：连 meta 一起抹掉，回第 1 周目的全新档。
    * 这是唯一会毁掉跨周目进度的操作，必须走弹窗 + 显式勾选确认，绝不做静默清空。 */
   function wipeSave() {
+    loop.job = null;
     SB.ui.render.hideModal();
     SB.state.clearRun();
     /* 2026-10-29：尸检副本也要一起清。它是自动留的、玩家不知道它的存在，
@@ -1766,7 +1772,7 @@
     for (k in s.res) before[k] = s.res[k];
     var adActive = !!(s.ad && s.ad.on && s.ad.ms > 0);  // 起点若双倍银行在线，整段按覆盖情况吃 2×
     loop.job = {
-      s: s, left: secs, total: secs, secs: secs, cap: cap, adActive: adActive,
+      s: s, left: secs, total: secs, secs: secs, cap: cap, tp: 0, adActive: adActive,
       uncountedSecs: Math.max(0, gap - secs),
       before: before, bPop: s.pop, bShell: s.shell,
       bFam: s.famineDeaths, bFrost: s.frostDeaths,
@@ -1810,6 +1816,86 @@
     if (secs < gap) log(gameText('game.offline.catchup.cap_notice', {
       capDuration: fmtDur(cap), uncountedDuration: fmtDur(gap - secs)
     }, '补算有上限（{capDuration}），剩余 {uncountedDuration} 不计。'));
+  }
+  function resumeOfflineCheckpoint(s, cp, gap) {
+    if (!s || !cp) return;
+    s.offlineCheckpoint = null;
+    var curCap = offlineCap(s);
+    var extra = Math.max(0, isFinite(gap) ? gap : 0);
+    var rawLeft = Math.max(0, cp.left || 0) + extra;
+    var left = Math.min(curCap, rawLeft);
+    if (!(left > CATCHUP_EPS)) return;
+    var done = Math.max(0, (cp.secs || 0) - (cp.left || 0));
+    var total = done + left;
+    var uncounted = (cp.uncountedSecs || 0) + Math.max(0, rawLeft - left);
+    var before = {}, k, rk = RESS_KEYS();
+    for (var i = 0; i < rk.length; i++) {
+      k = rk[i];
+      var bv = cp.before && cp.before[k];
+      before[k] = (typeof bv === 'number' && isFinite(bv)) ? bv : (s.res[k] || 0);
+    }
+    var adActive = !!(cp.adActive || (s.ad && s.ad.on && s.ad.ms > 0));
+    var silent = !!(cp.silent && extra < OFFLINE_SETTLE_MIN && uncounted <= 0);
+    loop.job = {
+      s: s,
+      left: left,
+      total: total,
+      secs: total,
+      cap: curCap,
+      tp: Math.max(0, Math.min(CATCHUP_PUMP - 1e-6, cp.tp || 0)),
+      adActive: adActive,
+      uncountedSecs: uncounted,
+      before: before,
+      bPop: (typeof cp.bPop === 'number' && isFinite(cp.bPop)) ? cp.bPop : s.pop,
+      bShell: (typeof cp.bShell === 'number' && isFinite(cp.bShell)) ? cp.bShell : s.shell,
+      bFam: (typeof cp.bFam === 'number' && isFinite(cp.bFam)) ? cp.bFam : s.famineDeaths,
+      bFrost: (typeof cp.bFrost === 'number' && isFinite(cp.bFrost)) ? cp.bFrost : s.frostDeaths,
+      bBroke: !!cp.bBroke,
+      brokeDuring: !!cp.brokeDuring,
+      silent: silent
+    };
+    if (!silent) {
+      SB.ui.render.showOfflineModal({
+        title: gameText('game.offline.catchup.progress_label', null, '离线进度补算中…'),
+        body: '<div class="note">' + gameText('game.offline.catchup.modal_description', null,
+          '正在补算你离开期间的进度（食物 / 饿死 / 生育 / 削壳 / 祭坛都包含，长时段按分段方式近似推进）。') + '</div>' +
+          '<div class="note" style="margin-top:8px;color:var(--dim)">' + gameText('game.offline.modal.duration_summary', {
+            duration: fmtDur(total), capNote: '', boostNote: ''
+          }, '离线时长 {duration}') + '</div>' +
+          (uncounted > 0 ? '<div class="note">' + gameText('game.offline.catchup.cap_notice', {
+            capDuration: fmtDur(curCap), uncountedDuration: fmtDur(uncounted)
+          }, '补算有上限（{capDuration}），剩余 {uncountedDuration} 不计。') + '</div>' : '') +
+          (adActive ? '<div class="note is-boost">' + gameText('game.offline.settlement.ad_boost_applied', null,
+            '广告双倍加速在离线期间生效，覆盖时段已按 2× 结算。') + '</div>' : ''),
+        showProgress: true
+      });
+      SB.ui.render.setOfflineProgress(total > 0 ? (total - left) / total : 0);
+    }
+    log(gameText('game.offline.catchup.started_log', { duration: fmtDur(left), boostNote: '' }, '离开 {duration}，正在后台补算…{boostNote}'));
+    if (adActive) log(gameText('game.offline.settlement.ad_boost_applied', null, '广告双倍加速在离线期间生效，覆盖时段已按 2× 结算。'));
+  }
+  function serializeCatchUpCheckpoint(j) {
+    if (!j || j.s !== S || !(j.left > CATCHUP_EPS) || j.breakReached) return null;
+    var beforeCopy = {}, k;
+    if (j.before) for (k in j.before) beforeCopy[k] = j.before[k];
+    return {
+      v: 1,
+      left: j.left,
+      total: j.total,
+      secs: j.secs,
+      cap: j.cap,
+      tp: j.tp || 0,
+      adActive: !!j.adActive,
+      uncountedSecs: j.uncountedSecs || 0,
+      before: beforeCopy,
+      bPop: j.bPop,
+      bShell: j.bShell,
+      bFam: j.bFam,
+      bFrost: j.bFrost,
+      bBroke: !!j.bBroke,
+      brokeDuring: !!j.brokeDuring,
+      silent: !!j.silent
+    };
   }
   /* 分段快进：稳定区间最多跨过一个 2 秒泵周期；事件跨越点提前切开。
    * 暖石还会被熔炉等系统消耗。若本块其他暖石净消耗可能让保温库存跨过阈值，
@@ -1920,6 +2006,7 @@
   }
   function finishCatchUp(j) {
     loop.job = null;
+    if (j && j.s) j.s.offlineCheckpoint = null;
     if (SB.war && SB.war.drainInvasionReports) {
       var invasionMessages = SB.war.drainInvasionReports(j.s);
       for (var invasionMessageIndex = 0; invasionMessageIndex < invasionMessages.length; invasionMessageIndex++)
@@ -1939,6 +2026,9 @@
         if (j.s.challengeOutcome.failed) breakReport.challengeFailure = j.s.challengeOutcome;
         else breakReport.challengeClear = j.s.challengeOutcome;
       }
+    } else if (j && j.s && j.s === S && SB.state && SB.state.saveRun) {
+      /* 补算完结立刻落盘清除 offlineCheckpoint，防止 5 秒自动存档前刷新重复续算。 */
+      SB.state.saveRun(snapshot(j.s));
     }
     /* 2026-10-24 分级离线：静默补算且无终局事件 ⇒ 不弹结算报告，日志一行交代完事。
      * 有 breakReport（离开期间破壳）时不走这里——破壳动画 + 结果窗照弹，见下。 */
@@ -2103,10 +2193,12 @@
    * `_cutBase` / `_cutMir` 是削壳累计量（漏存会让破壳面板少算刷新前的部分）。
    * 真正需要排除的临时字段请显式写进 TEMP_KEYS；未登记的字段一律落盘
    * （migrateRun 会按 freshRun 的键过滤未知顶层字段，写进去也不会污染下次读取）。 */
-  var TEMP_KEYS = ['_ts', '_repairedResources'];   // 诊断字段只在本次读档提示，不进入存档
+  var TEMP_KEYS = ['_ts', '_repairedResources', 'offlineCheckpoint'];   // 诊断与运行期补算快照显式按状态生成，不直接复用旧字段
   function snapshot(s) {
     var o = {}, k;
     for (k in s) if (TEMP_KEYS.indexOf(k) < 0) o[k] = s[k];
+    var cp = serializeCatchUpCheckpoint(loop.job);
+    if (cp) o.offlineCheckpoint = cp;
     o._ts = Date.now();   // 离线补算的墙钟真值，随存档一起落盘
     return o;
   }
@@ -2387,6 +2479,12 @@
        * 于是启动补算与运行期补算共用同一条路径（boot 里不写第二套判定）。 */
       var ts = saved._ts;
       delete saved._ts;
+      if (saved.offlineCheckpoint && typeof ts === 'number' && ts > 0) {
+        var restartGap = Math.max(0, (Date.now() - ts) / 1000);
+        loop._lastWall = Date.now();
+        resumeRun(saved, restartGap);
+        return 'resumed';
+      }
       if (typeof ts === 'number' && ts > 0) loop._lastWall = ts;
       resumeRun(saved);
       return 'resumed';
@@ -2982,6 +3080,7 @@
     var pendingChallengeUI = !!(S && S.broken && S.shellOpened && !S.breakSettled
       && S.challenge && S.challengeDone && !S.challengeReleased
       && SB.challenges && SB.challenges.byId(S.challenge.id));
+    var catchupModalActive = !!(loop.job && !loop.job.silent);
     if (pendingChallengeUI) {
       var pendingReport = SB.prestige.breakReport(S);
       if (!SB.prestige.qualified(S)) { pendingReport.tidePoints = 0; pendingReport.locked = true; }
@@ -2990,7 +3089,7 @@
         else pendingReport.challengeClear = S.challengeOutcome;
       }
       SB.ui.render.showBreakResult(pendingReport);
-    } else {
+    } else if (!catchupModalActive) {
       if (S && S.broken && S.shellOpened && !S.breakSettled) {
         log(gameText('game.run.shell_broken.continue.log', null,
           '天壳已破。发射场、戴森球、星图与星空槽可以继续建设；想结算时点底栏「轮回」。'));
