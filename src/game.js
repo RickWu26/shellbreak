@@ -66,7 +66,7 @@
     /* 信仰页的门 = 完成「神学」（与资源行/产出线的 gate 同源，走 resUnlocked 这一处定义）。
      * 与上面几道闸同一套写法：直达路径（弹窗/测试）走 setTab 也进不去。 */
     if (k === 'faith' && S && !(SB.economy && SB.economy.resUnlocked(S, 'faith'))) return;
-    if (k === 'star-map' && S && !(S.shellOpened && S.shell <= 0)) return;
+    if (k === 'star-map' && !SB.ui.renderParts.starMapUnlocked(S)) return;
     /* 切走帷幕页时把页内视图退回大厅（不碰 DOM，只改视图状态）：
      * 下次点「帷幕」总是先看到三条路径，而不是上次停留的某个装配台。 */
     if (k !== 'veil' && SB.ui.veilHub && SB.ui.veilHub.leave) SB.ui.veilHub.leave();
@@ -2226,7 +2226,7 @@
     }
   }
 
-  /* 导入前先完整验证，并在同一个同步事务里保留现有原始存档。 */
+  /* 导入先验证存档内容和本机备份，再替换主档。 */
   /* 给一份「从外部进来的」存档换成本机的最大序号（2026-10-30）。
    * 【为什么必须有】启动合并三源时按 seq 比新旧（save-storage 的 scanSaveCandidates），
    *   而外部存档带的是**上一台设备 / 上一次会话**的号，本机那份刚把它顶掉的新档
@@ -2242,6 +2242,29 @@
   function stampImportedTime(run) {
     run._ts = Date.now();
     if (run.offlineCheckpoint) run.offlineCheckpoint.wallAt = run._ts;
+  }
+  function installXhsSave(metaRaw, runRaw, recovery) {
+    if (suppressExitSave) return false;
+    // 暂停在线与离线保存，直到平台写入和回读完成。
+    suppressExitSave = true;
+    return Promise.resolve().then(function () {
+      return root.shellbreakXhsStorage.replaceSavePair(metaRaw, runRaw);
+    }).then(function (result) {
+      if (result.unavailable) throw gameError('save.xhs_storage.unavailable', null, '');
+      if (result.backupFailed) {
+        throw gameError(recovery ? 'game.save.restore_backup_failed' : 'game.save.import_backup_failed',
+          { error: result.error }, recovery ? '无法先备份当前原始存档，恢复已取消：{error}' : '无法先备份当前存档，导入已取消：{error}');
+      }
+      if (!result.ok) {
+        throw gameError(recovery ? 'game.save.restore_write_failed' : 'game.save.import_write_failed',
+          { error: result.error }, recovery ? '恢复原始存档失败，现有数据已另存到本机备份：{error}' : '导入写入失败，已尝试恢复当前存档：{error}');
+      }
+      root.location.reload();
+      return true;
+    }).catch(function (error) {
+      suppressExitSave = false;
+      throw error;
+    });
   }
   function installImportedSave(bundle) {
     if (!bundle || bundle.format !== 'shellbreak-save' || bundle.version !== 1 || !bundle.save)
@@ -2264,6 +2287,7 @@
     stampFreshSeq(incomingRun);
     stampImportedTime(incomingRun);
     var serializedMeta = JSON.stringify(incomingMeta), serializedRun = JSON.stringify(incomingRun);
+    if (root.shellbreakXhsStorage) return installXhsSave(serializedMeta, serializedRun, false);
     if (!root.localStorage) throw gameError('save.import.error.local_storage_unavailable.restore', null,
       '本机存储不可用，未恢复。');
     var oldMetaRaw, oldRunRaw;
@@ -2406,6 +2430,7 @@
         || !(raw.run === null || typeof raw.run === 'string')
         || (raw.meta === null && raw.run === null))
       throw gameError('save.import.error.invalid_recovery_bundle', null, '原始救援包格式无效。');
+    if (root.shellbreakXhsStorage) return installXhsSave(raw.meta, raw.run, true);
     if (!root.localStorage) throw gameError('save.import.error.local_storage_unavailable.restore', null,
       '本机存储不可用，未恢复。');
     var oldMetaRaw, oldRunRaw;

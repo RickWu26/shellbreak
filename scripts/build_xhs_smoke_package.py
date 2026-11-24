@@ -137,55 +137,24 @@ def patch_references(package: Path, retained: set[str]) -> tuple[int, list[str]]
 
 
 def patch_container_blockers(package: Path) -> dict[str, int]:
-    result = {"removedExtraHtml": 0, "removedStarMapTab": 0, "disabledStarMapIframe": 0, "removedStarMapPostMessageBranch": 0}
-    extra_html = package / "src" / "ui" / "star-map-frame.html"
-    if extra_html.exists():
-        extra_html.unlink()
-        result["removedExtraHtml"] = 1
-
-    tab_path = package / "index.html"
-    index_text = tab_path.read_text(encoding="utf-8")
-    index_text, result["removedStarMapTab"] = re.subn(
-        r"\s*<div class=\"tab locked\" id=\"tab-star-map\"[\s\S]*?</div>",
+    star_map_css = "css/xhs-star-map.css"
+    star_map_runtime = "src/ui/xhs-star-map.js"
+    index_path = package / "index.html"
+    index = index_path.read_text(encoding="utf-8")
+    for file_name in (star_map_css, star_map_runtime):
+        (package / file_name).unlink()
+    index = re.sub(r'^<link rel="stylesheet" href="css/xhs-star-map\.css">\n', "", index, flags=re.M)
+    index = re.sub(r'^<script src="src/ui/xhs-star-map\.js(?:\?[^"]*)?"></script>\n', "", index, flags=re.M)
+    index, tab_removed = re.subn(
+        r'\s*<div class="tab locked" id="tab-star-map"[\s\S]*?</div>',
         "",
-        index_text,
+        index,
         count=1,
     )
-    if result["removedStarMapTab"] != 1:
-        raise SystemExit("Could not remove the test-only star-map tab from the XHS package")
-    tab_path.write_text(index_text, encoding="utf-8", newline="")
-
-    game_path = package / "src" / "game.js"
-    game_text = game_path.read_text(encoding="utf-8")
-    old_gate = "if (k === 'star-map' && S && !(S.shellOpened && S.shell <= 0)) return;"
-    if old_gate not in game_text:
-        raise SystemExit("Could not safely reroute the unsupported star-map tab")
-    game_text = game_text.replace(old_gate, "if (k === 'star-map') k = 'village';", 1)
-    game_path.write_text(game_text, encoding="utf-8", newline="")
-
-    pane_path = package / "src" / "ui" / "render-pane-star-map.js"
-    pane_path.write_text(
-        "(function(root){'use strict';var SB=root.SB||(root.SB={});SB.ui=SB.ui||{};"
-        "var parts=SB.ui.renderParts||(SB.ui.renderParts={});parts.paneStarMap=function(){return '';};"
-        "})(window);\n",
-        encoding="utf-8",
-        newline="",
-    )
-    result["disabledStarMapIframe"] = 1
-
-    render_path = package / "src" / "ui" / "render.js"
-    render_text = render_path.read_text(encoding="utf-8")
-    pattern = re.compile(
-        r"      if \(k === 'star-map'\) \{[\s\S]*?(?=      \} else if \(k === 'folk')"
-    )
-    render_text, result["removedStarMapPostMessageBranch"] = pattern.subn(
-        "      if (k === 'star-map') {\n        node.innerHTML = cardHeadHTML(k);\n",
-        render_text,
-        count=1,
-    )
-    if result["removedStarMapPostMessageBranch"] != 1:
-        raise SystemExit("Could not safely remove the unsupported star-map iframe bridge")
-    render_path.write_text(render_text, encoding="utf-8", newline="")
+    if tab_removed != 1:
+        raise SystemExit("Could not remove the star-map tab from the XHS smoke package")
+    index_path.write_text(index, encoding="utf-8", newline="")
+    result = {"removedStarMapTab": tab_removed, "removedStarMapAssets": 2}
 
     # Keep stale TapTap implementation notes from looking like active forbidden markup
     # to simple package scanners. These are comment-only edits in the test copy.
@@ -268,7 +237,7 @@ def main() -> None:
         "zipEntryCount": archive_count,
         "zipIntegrityError": bad_member,
         "rootIndexHtml": has_root_entry,
-        "visualScope": "Starter, resource, company, talent and selected UI art retained; optional and later-era illustrations use a shared placeholder. The star-map iframe feature is omitted in this test-only package.",
+        "visualScope": "Starter, resource, company, talent and selected UI art retained; optional and later-era illustrations use a shared placeholder. The Star Map is omitted in this test-only package.",
     }
     if file_count > MAX_PACKAGE_FILES:
         report["status"] = "failed-file-count"

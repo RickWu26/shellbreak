@@ -1352,7 +1352,7 @@ html>body{padding:0}</style>
 <div class="sm-star"><span class="sm-star-label">星空探索</span><div class="sm-star-track"><div class="sm-star-fill"></div></div><span class="sm-star-num"></span></div>
 <div class="sm-foot">已发射卫星与空间站沿欧罗巴局部轨道运行；欧罗巴同时绕萨图恩行星运行。</div>
 </section>
-<script>
+<script id="star-map-runtime">
 function _smMount(report, initiallyActive) {
 // ---- 行星 Canvas 纹理与渲染 ----
 const _PLANET_SPEEDS  = { jupiter:0.0008, saturn:0.0007, titan:0.0010 };
@@ -1954,7 +1954,8 @@ return {
 };
 }
 
-// Web iframe entry point
+</script>
+<script id="star-map-frame-entry">
 const _smIframe = _smMount(data => window.parent.postMessage(data, "*"), window.parent === window);
 window.addEventListener("message", event => {
   if (event.source === window.parent) _smIframe.update(event.data);

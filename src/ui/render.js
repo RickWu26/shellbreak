@@ -3389,7 +3389,7 @@
     }
     var sm = document.querySelector('.tab[data-tab="star-map"]');
     if (sm) {
-      var ss = res(), sop = !!(ss && (ss.shellOpened || ss.breakSettled) && ss.shell <= 0);
+      var sop = SB.ui.renderParts.starMapUnlocked(res());
       sm.classList.toggle('locked', !sop);
       sm.title = sop ? '' : tr('ui.render.sync_tab_locks.break_through_the_shell_to_unlock_the');
     }
@@ -3563,7 +3563,7 @@
            * 走 resUnlocked 而不是直接读 s.civics.theology：门只有一处定义。 */
           if (node.dataset.tab === 'faith' &&
               !(SB.economy && SB.economy.resUnlocked(res(), 'faith'))) return;
-          if (node.dataset.tab === 'star-map' && !(res() && (res().shellOpened || res().breakSettled) && res().shell <= 0)) return;
+          if (node.dataset.tab === 'star-map' && !SB.ui.renderParts.starMapUnlocked(res())) return;
           /* 帷幕页的门 = 已掀过幕（meta.veil）。与 setTab 里那道重复是刻意的。 */
           if (node.dataset.tab === 'veil' && !(meta() && meta().veil)) return;
           /* 高亮不在这里翻 —— 它是 setTab 的一部分（见 game.js 那段注释：

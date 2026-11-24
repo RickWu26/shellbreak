@@ -6,8 +6,7 @@
   var parts = SB.ui.renderParts || (SB.ui.renderParts = {});
   var selectedBody = 'europa';
   var starMapView = 'phase1';
-  var starMapFrame = null;
-  var inlineStarMap = null;
+  var mountedMap = null;
   var BODY_BUILDINGS = {
     europa: ['satellite', 'spacestation'],
     rhea: ['rheamine'],
@@ -123,10 +122,6 @@
       if (active) SB.ui.render.syncStarMapGameData();
       return;
     }
-    if (data.type === 'sb-star-map-height') {
-      if (starMapFrame) starMapFrame.style.height = Math.max(600, Math.min(1200, Number(data.height) || 780)) + 'px';
-      return;
-    }
     if (data.type === 'sb-star-map-view') {
       starMapView = data.view === 'phase2' ? 'phase2' : 'phase1';
       if (starMapView === 'phase2') {
@@ -140,37 +135,28 @@
     selectedBody = data.body;
     renderSelectedBody(SB.game && SB.game.run ? SB.game.run() : null);
   }
-  function onStarMapMessage(event) {
-    if (starMapFrame && event.source === starMapFrame.contentWindow) receiveStarMapMessage(event.data);
-  }
-  if (root.addEventListener) root.addEventListener('message', onStarMapMessage);
-
   function mountStarMap(pane) {
-    if (inlineStarMap) inlineStarMap.dispose();
+    if (mountedMap) mountedMap.dispose();
     selectedBody = 'europa';
     starMapView = 'phase1';
-    starMapFrame = pane.querySelector('iframe.starmap-frame');
-    var map = parts.mountInlineStarMap && pane.querySelector('#star-map-mock');
-    inlineStarMap = map ? parts.mountInlineStarMap(receiveStarMapMessage, false) : null;
+    mountedMap = parts.starMapHost ? parts.starMapHost.mount(pane, receiveStarMapMessage) : null;
   }
 
   function sendStarMapMessage(data) {
-    if (inlineStarMap) inlineStarMap.update(data);
-    else if (starMapFrame && starMapFrame.contentWindow) starMapFrame.contentWindow.postMessage(data, '*');
+    if (mountedMap) mountedMap.update(data);
   }
 
   function starMapUnlocked(s) {
-    return !!(s && (s.shellOpened || s.breakSettled) && s.shell <= 0);
+    var platform = root.shellbreakPlatform;
+    var preview = platform && platform.runtime === 'xiaohongshu' && platform.testUnlockStarMap === true;
+    return !!(parts.starMapHost && s && (preview || ((s.shellOpened || s.breakSettled) && s.shell <= 0)));
   }
 
   function paneStarMap() {
     var s = SB.game && SB.game.run ? SB.game.run() : null;
     if (!starMapUnlocked(s))
       return '<div class="note">' + escapeHtml(tr('ui.star_map.locked_hint')) + '</div>';
-    var map = parts.inlineStarMapMarkup || '<div class="starmap-frame-wrap">' +
-      '<iframe class="starmap-frame" sandbox="allow-scripts" ' +
-      'src="src/ui/star-map-frame.html?v=11" title="' + escapeHtml(tr('ui.star_map.frame.title')) + '" ' +
-      'style="width:100%;height:780px;border:0;border-radius:12px;background:#07111d"></iframe></div>';
+    var map = parts.starMapHost.markup(escapeHtml(tr('ui.star_map.frame.title')));
     return map + '<div id="star-map-buildings" class="star-map-buildings"></div>';
   }
 

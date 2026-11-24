@@ -100,12 +100,12 @@ function fixture(script) {
 export function run({ check }) {
   console.log('\n=== 星图动画启停与高刷回归 ===');
   const source = fs.readFileSync(path.join(ROOT, 'src/ui/star-map-frame.html'), 'utf8');
-  const script = [...source.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)]
-    .map(match => match[1]).find(body => body.includes('function _smMount('));
-  check('星图动画：读取生产运行时', !!script);
-  if (!script) return;
+  const runtime = /<script id="star-map-runtime">([\s\S]*?)<\/script>/.exec(source)?.[1];
+  const entry = /<script id="star-map-frame-entry">([\s\S]*?)<\/script>/.exec(source)?.[1];
+  check('星图动画：读取生产运行时和 iframe 入口', !!runtime && !!entry);
+  if (!runtime || !entry) return;
 
-  const f = fixture(script);
+  const f = fixture(runtime + '\n' + entry);
   f.setIntersecting('phase1', true);
   check('星图动画：iframe 等待宿主启用', f.pending.size === 0 && f.messages[0]?.type === 'sb-star-map-ready');
   f.setActive(true);
@@ -166,7 +166,7 @@ export function run({ check }) {
   check('星图动画：反复切页后只保留一个卫星回调，刷新存档时保留视图',
     f.view() === 'phase1' && f.pending.size === 1 && f.pending.values().next().value.name === 'animate');
 
-  const pane = fs.readFileSync(path.join(ROOT, 'src/ui/render-pane-star-map.js'), 'utf8');
+  const pane = fs.readFileSync(path.join(ROOT, 'src/ui/star-map-iframe.js'), 'utf8');
   const version = Number(/star-map-frame\.html\?v=(\d+)/.exec(pane)?.[1]);
   check('星图动画：iframe 地址带新缓存版本', version >= 11, 'v=' + version);
 }
