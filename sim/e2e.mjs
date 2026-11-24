@@ -2594,7 +2594,7 @@ console.log('\n=== 轮回遗产科技同构（tick === rates）===');
   m.memorialWonders = bak.mw;   // 还原，不污染后续存档断言
 }
 
-await runPersistence({ SB, check, sandbox, doc, makeDoc, loadAll, errors });
+await runPersistence({ SB, check, sandbox, doc, makeDoc, loadAll, errors, store });
 /* 设备级 UI 偏好（2026-11-05）：放在硬重置之后，正好能证明「清档不清」；
  * 它用 loadNoDom 开独立会话，不继承主沙箱的 SB，不会污染后面的 boot-gate。 */
 await runUiPrefs({ SB, check, sandbox, loadNoDom, g });

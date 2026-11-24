@@ -325,17 +325,23 @@ console.log('\n=== 工坊：青铜工具 ===');
 
   /* 镐的落点是 stone + silt + warmstone 三行，所以金属与暖石要一起验
    * —— 只乘 stone 那一行会让「暖石」这款伴生品漏掉工具加成。 */
-  const rSilt0 = SB.economy.rates(wt).silt, rWarm0 = SB.economy.rates(wt).warmstone;
+  const beforePick = SB.economy.ratesParts(wt);
   wt.tools.tool_pick = true;
   check('青铜镐抬石头产出 ×1.8（采石工那条线）',
     Math.abs(SB.economy.rates(wt).stone / rStone0 - 1.8) < 1e-9,
     rStone0.toFixed(2) + ' → ' + SB.economy.rates(wt).stone.toFixed(2));
-  check('青铜镐同时管采矿：金属一同 ×1.8',
-    Math.abs(SB.economy.rates(wt).silt / rSilt0 - 1.8) < 1e-9,
-    rSilt0.toFixed(2) + ' → ' + SB.economy.rates(wt).silt.toFixed(2));
+  // 矿镐只放大矿工的产出。已开炉的周目同时有原料消耗，面板净值只增加对应的产出差额。
+  const afterPick = SB.economy.ratesParts(wt);
+  function pickBoostsProduction(resource, line) {
+    const before = beforePick.parts[resource].find(part => part.l === line)?.v;
+    const after = afterPick.parts[resource].find(part => part.l === line)?.v;
+    const netGain = afterPick.rate[resource] - beforePick.rate[resource];
+    return before > 0 && Math.abs(after / before - 1.8) < 1e-9 &&
+      Math.abs(netGain - (after - before)) < 1e-9;
+  }
+  check('青铜镐同时管采矿：金属一同 ×1.8', pickBoostsProduction('silt', '矿工'));
   check('青铜镐同时管伴生暖石（三行一起，漏一行就是「买了镐暖石没变」）',
-    Math.abs(SB.economy.rates(wt).warmstone / rWarm0 - 1.8) < 1e-9,
-    rWarm0.toFixed(2) + ' → ' + SB.economy.rates(wt).warmstone.toFixed(2));
+    pickBoostsProduction('warmstone', '矿工伴生'));
   check('🚨 买了斧头又买镐，珊瑚仍是 ×1.8 —— 采石工具不许回头抬珊瑚',
     Math.abs(SB.economy.rates(wt).coral / rCoral0 - 1.8) < 1e-9,
     rCoral0.toFixed(2) + ' → ' + SB.economy.rates(wt).coral.toFixed(2));
