@@ -134,12 +134,12 @@ async function main() {
   outHtml = outHtml.replace(/href="css\/main\.css(?:\?v=[^"]*)?"/, () => 'href="' + versioned('css/app.min.css') + '"');
   if (tap) {
     // This package ships the Chinese dictionary and helper as ordinary head scripts.
-    const loader = /document\.write\([^\n]+\);\s*<\/script>/;
+    const loader = /\/\*HEAD_LOCALE_LOADER_START\*\/[\s\S]*?\/\*HEAD_LOCALE_LOADER_END\*\/\s*<\/script>/;
     if (!loader.test(outHtml)) throw new Error('Missing head locale loader');
     outHtml = outHtml.replace(loader, '</script>\n<!--TAPTAP_LOCALES-->');
   } else {
     for (const [src, dst] of localeMap) {
-      const reference = new RegExp(src.replaceAll('.', '\\.') + '(?:\\?v=\\d+)?');
+      const reference = new RegExp(src.replaceAll('.', '\\.') + '(?:\\?v=\\d+)?', 'g');
       if (!reference.test(outHtml)) throw new Error('Missing locale reference: ' + src);
       outHtml = outHtml.replace(reference, versioned(dst));
     }

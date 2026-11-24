@@ -405,7 +405,7 @@
         var lvTitle = b.maxLvl ? tr('village.building.level.current_cap.label', null, '建筑等级（当前/上限）')
           : tr('village.building.level.tooltip', { levelText: lvValueTxt }, '建筑等级 ' + lvValueTxt);
         if (b.id === 'library' && SB.wonder && SB.wonder.libBonus(s) > 0 && !b.maxLvl) {
-          lvTitle = tr('village.building.level.virtual_bonus.tooltip', { wonderName: buildingName('great_library', '大潮纹馆') }, '含大潮纹馆虚级（只算科技产出效果，不算建筑等级、不加建造成本）');
+          lvTitle = tr('village.building.level.virtual_bonus.tooltip', { wonderName: buildingName('great_library', '大潮纹馆') }, '含大潮纹馆提供的额外等效等级（计入科技产出，不计建筑等级，也不提高建造成本）');
         }
         var rowState = 'bld-row' + (lv > 0 ? ' is-owned' : '') + (blocked || canalCap ? ' is-blocked' : '') +
           (ready ? ' is-ready' : '') +

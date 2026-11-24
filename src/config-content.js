@@ -551,7 +551,7 @@
     { id: 'upg_warmalgalfarm', name: '温水藻场升级', need: 'sealbin',
       algalfarmSci: 0.5,
       cost: { tiplate: 300, science: 200000 },
-      desc: '温水藻场：每级（× 藻场等级）额外 +0.5 科技/秒，不受季节、耗 0.05 热液能（首版简化为科学加成）。' },
+      desc: '温水藻场每级额外产出 +0.5 科技/秒（按藻场等级倍增），不受季节影响，耗 0.05 热液能/秒。' },
 
     /* ── ERA7 工艺升级（2026-10-21 调整 · 自动化钻探）──
      * 【自动化钻探】在巢穴面板启停砂矿坑；每座运行矿坑给钛、铀对应产线的自身份额 +100%，
@@ -574,7 +574,7 @@
     { id: 'upg_boomcraft', name: '可控爆炸工艺', need: 'crewed',
       cost: { tiplate: 400, resonantDrill: 200, science: 1000000 },
       boomcraftMul: 0.05,
-      desc: '工艺制作产出 ×1.05（新增乘区，不影响成本）。' },
+      desc: '工艺制作产出 ×1.05（独立倍率，不增加材料消耗）。' },
     /* ERA7（spec §4）：复合型工厂 —— +1 自动工艺槽位（workshop.slotCap 同源叠加）。
      *   cost 科技点 2,100,000 = 《复合型工厂》自身 cost；材料提议值。 */
     { id: 'upg_complexf', name: '复合型工厂', need: 'complexf',
@@ -871,7 +871,7 @@
     { id: 'wonder_bolocillo', name: '博洛西洛漂浮发射场', era: 7, needCivic: 'space_race',
       cost: { tiplate: 1000, sealbin: 80 },
       effect: { mannedRocket: 1.0 },
-      desc: '载人火箭工艺效率 +100%（工艺制作乘区 ×2，economy 载人火箭工艺段读 wonder.mannedRocketMul）。' },
+      desc: '载人火箭工艺效率 +100%（独立倍率 ×2）。' },
     { id: 'wonder_goddard_rod', name: '上帝之杖', era: 7, need: 'crewed',
       cost: { tiplate: 4000, rocketEngine: 50 },
       effect: { soldierOutputBonus: 0.10, spacecraftSoldierOutputBonus: 0.05 },
@@ -893,7 +893,7 @@
       cost: { rocketEngine: 100, tiplate: 1600 },
       effect: {},
       desc: '星际探测的起点：星空进度未满 25% 时每秒 +100 星空探索，满 25% 后转为每秒 +25 且学者产出 +10%。' },
-    { id: 'wonder_saturn', name: '萨图恩巨星气行星轨道采集站', era: 8, need: 'gascloud',
+    { id: 'wonder_saturn', name: '萨图恩气态巨行星轨道采集站', era: 8, need: 'gascloud',
       cost: { thetaMetal: 500, rocketEngine: 50 },
       effect: { hydroBonus: 30, fuelBonus: 30, starBonus: 10 },
       desc: '气态巨行星的轨道工厂：热液能 +30/秒、燃料 +30/秒、星空探索 +10/秒。' },

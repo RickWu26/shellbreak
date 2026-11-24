@@ -16,6 +16,9 @@
   function englishLocale() {
     return !!(SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US');
   }
+  function nonDefaultLocale() {
+    return !!(SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() !== 'zh-CN');
+  }
   function infoParts() { return SB.ui && SB.ui.renderParts && SB.ui.renderParts.info; }
   function localizedItemName(type, item) {
     var info = infoParts();
@@ -289,7 +292,7 @@
       var productIcon = c.res ? '<img class="craft-icon" src="assets/resource-icons/' + c.res + '.png?v=2" alt="" aria-hidden="true" width="36" height="36" decoding="async">' : '';
       var costParts = [], costKey;
       for (costKey in c.in) costParts.push(SB.RESS[costKey].name + ' ' + c.in[costKey]);
-      var cost = englishLocale() ? SB.economy.costTxt(c.in) : costParts.join(' + ');
+      var cost = nonDefaultLocale() ? SB.economy.costTxt(c.in) : costParts.join(' + ');
       h += '<div class="row" data-craft-res="' + escAttr(c.res) + '"><div class="nm">' + productIcon + '<button type="button" class="building-name" data-info-item="craft" data-info-id="' + c.id + '" aria-haspopup="dialog">' + localizedItemName('craft', c) + '</button></div>' +
         '<div class="ds">' + tr('ui.workshop.crafting.cost_label', null, '每次：') + ' ' + cost +
         ' ⇒ <b>' + SB.economy.fmtAmt(c.out * mul) + '</b>' +
@@ -337,7 +340,7 @@
     var steps = SB.workshop.steps || [], smallOption = steps[0] ? steps[0].label : '+1';
     var largeOption = steps[2] ? steps[2].label : '+100';
     var fullOption = steps.length ? steps[steps.length - 1].label : '100%';
-    var help = englishLocale() ? tr('ui.workshop.craft.amount_help', {
+    var help = nonDefaultLocale() ? tr('ui.workshop.craft.amount_help', {
       smallBatchOption: smallOption,
       largeBatchOption: largeOption,
       fullMaterialsPercent: fullOption
@@ -374,7 +377,7 @@
     if (!on) {
       var full = !assigned && ((s.autoSlots && s.autoSlots.length) || 0) >= cap;
       h += '<button class="btn tog" data-aslot="' + c.id + '" ' + (batchRequired ? 'data-abatch="' + batch + '"' : 'data-apct="0.5"') +
-        (full ? ' disabled title="' + (englishLocale() ? tr('ui.workshop.automation_slots.full_tooltip', {
+        (full ? ' disabled title="' + (nonDefaultLocale() ? tr('ui.workshop.automation_slots.full_tooltip', {
           autoSlotCapacity: cap
         }, '') : '自动槽已用完（' + cap + '/' + cap + '）') + '"' : '') + '>' +
         tr(full ? 'ui.workshop.automation_slots.full_button' : 'ui.workshop.automation_slots.add_button', null, full ? '槽位已满' : '＋自动') + '</button>';
@@ -385,7 +388,7 @@
           var p = P[i];
           var selectedPct = !batchMode && p === pct;
           h += '<button class="btn tog' + (selectedPct ? ' on' : '') + '" aria-pressed="' + selectedPct + '" data-aslot="' + c.id + '"' +
-            ' data-apct="' + p + '" title="' + (englishLocale() ? tr('ui.workshop.automation_slots.percent_tooltip', {
+            ' data-apct="' + p + '" title="' + (nonDefaultLocale() ? tr('ui.workshop.automation_slots.percent_tooltip', {
               conversionPercent: p * 100
             }, '') : '任一有上限原料攒到「上限 × ' + (p * 100) + '%」时自动转制，转制当时可造量的 ' + (p * 100) + '%；转完会跌到该档位以下再重新攒，所以不会保持满仓（100% = 满仓才转）') + '">' +
             (p * 100) + '%</button>';
@@ -394,7 +397,7 @@
       if (batchRequired) {
         h += '<button class="btn tog' + (batchMode ? ' on' : '') + '" data-abatch-edit="' + c.id + '"' +
           ' title="' + tr('ui.workshop.automation_slots.batch_tooltip', null, '库存够造一整批时自动制造；多出的材料保留') + '">' +
-          (englishLocale() ? tr('ui.workshop.automation_slots.batch_button', { batchCount: batch }, '')
+          (nonDefaultLocale() ? tr('ui.workshop.automation_slots.batch_button', { batchCount: batch }, '')
             : '批次 ' + batch + ' 次 · 点击填写次数') + '</button>';
       }
       h += '<button class="btn tog" data-aoff="' + c.id + '" title="' + tr('ui.workshop.automation_slots.disable.tooltip', null, '腾出这个自动槽') + '">' +
@@ -420,14 +423,14 @@
   function autoSlotSummary(s) {
     var cap = SB.workshop.slotCap(s);
     if (cap <= 0) {
-      var lockedSummary = englishLocale() ? tr('ui.workshop.automation_slots.locked_summary', {
+      var lockedSummary = nonDefaultLocale() ? tr('ui.workshop.automation_slots.locked_summary', {
         automaticWorkshopSlots: 1, prestigeShopSlots: 3
       }, '') : '自动制作槽：未解锁。装上工坊升级项「自动工坊」自带 1 个，轮回商店可再买 3 个。';
       return '<div class="note">' + lockedSummary + '</div>';
     }
     var used = (s.autoSlots && s.autoSlots.length) || 0;
     var percentageOptions = SB.workshop.pcts().map(function (percent) { return percent * 100 + '%'; }).join(' / ');
-    var summary = englishLocale() ? tr('ui.workshop.automation_slots.summary', {
+    var summary = nonDefaultLocale() ? tr('ui.workshop.automation_slots.summary', {
       usedSlots: used, slotCapacity: cap, percentageOptions: percentageOptions
     }, '') : '自动制作槽 <b>' + used + '/' + cap + '</b>：' +
       '全部原料有上限的配方：任一原料攒到「上限 × 所选档位」时自动转制，转制当时可造量的该档位%（25 / 50 / 75 / 100%），转完跌回档位以下再攒；' +
@@ -438,7 +441,7 @@
   function paneWorkshopLocked() {
     return '<div class="secttl">' + tr('ui.workshop.title', null, '工坊') + '</div>' +
       '<div class="row"><div class="nm">' + tr('ui.workshop.not_built.heading', null, '工坊尚未建成') + '</div>' +
-      '<div class="ds">' + (englishLocale() ? tr('ui.workshop.locked.description', null, '')
+      '<div class="ds">' + (nonDefaultLocale() ? tr('ui.workshop.locked.description', null, '')
         : '先把工坊立起来（' + SB.habitat.habitatName(SB.game.run()) + '页那一座），这里才会给出加工线。') + '</div></div>';
   }
 
@@ -465,7 +468,7 @@
       var ctxt = SB.economy.costOwnedTxt(s, t.cost);
       var whyText = localizedWhy('tool', t, s, why);
       var reqBlocked = requirementBlocked('tool', t, s);
-      var label = englishLocale()
+      var label = nonDefaultLocale()
         ? owned ? tr('ui.workshop.tool.status.owned', null, '')
           : why ? (t.wip ? tr('workshop.tool.work_in_progress', null, '')
             : reqBlocked ? tr('ui.status.not_unlocked', null, '')
@@ -485,7 +488,7 @@
     if (!shown) return '<div class="row"><div class="nm">' +
       tr(hideDone() && doneCount(s) > 0 ? 'ui.workshop.tool.empty.completed' : 'ui.workshop.tool.empty.available', null,
         hideDone() && doneCount(s) > 0 ? '（可买的都买完了）' : '（还没有可买的工具）') + '</div></div>';
-    return h + '<div class="note">' + (englishLocale() ? tr('ui.workshop.tools.requirement_note', null, '')
+    return h + '<div class="note">' + (nonDefaultLocale() ? tr('ui.workshop.tools.requirement_note', null, '')
       : '门槛是建成工坊本身，不是青铜术——青铜术是纪元一最贵的科技，等它解锁工具就晚到了。') + '</div>';
   }
 
@@ -513,7 +516,7 @@
       var ctxt = SB.economy.costOwnedTxt(s, cost);
       var whyText = localizedWhy('upgrade', u, s, why);
       var reqBlocked = requirementBlocked('upgrade', u, s);
-      var label = englishLocale()
+      var label = nonDefaultLocale()
         ? on ? tr('ui.workshop.upgrade.status.installed', null, '')
           : why ? (reqBlocked ? tr('ui.status.not_unlocked', null, '')
             : tr('ui.workshop.upgrade.install.unaffordable', { costSummary: ctxt }, ''))

@@ -25,16 +25,20 @@
   'use strict';
   var SB = root.SB || (root.SB = {});
 
-  function isEnglishLocale() {
-    return !!(SB.i18n && SB.i18n.isEnabled && SB.i18n.isEnabled() &&
-      SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US');
+  function activeNonDefaultLocale() {
+    var loc = SB.i18n && SB.i18n.getLocale ? SB.i18n.getLocale() : 'zh-CN';
+    return (SB.i18n && SB.i18n.isEnabled && SB.i18n.isEnabled() && loc !== 'zh-CN') ? loc : '';
   }
-  function hasEnglishKey(key) {
-    var english = root.ShellbreakLocales && root.ShellbreakLocales['en-US'];
-    return !!(english && typeof english[key] === 'string');
+  function isEnglishLocale() { return activeNonDefaultLocale() === 'en-US'; }
+  function isLocalizedLocale() { return !!activeNonDefaultLocale(); }
+  function hasLocaleKey(loc, key) {
+    var dict = loc && root.ShellbreakLocales && root.ShellbreakLocales[loc];
+    return !!(dict && typeof dict[key] === 'string');
   }
+  function hasActiveLocaleKey(key) { return hasLocaleKey(activeNonDefaultLocale(), key); }
   function tr(key, params, fallback) {
-    var value = isEnglishLocale() && hasEnglishKey(key) && SB.i18n.t
+    var loc = activeNonDefaultLocale();
+    var value = loc && hasLocaleKey(loc, key) && SB.i18n.t
       ? SB.i18n.t(key, params) : '';
     return value || fallback || '';
   }
@@ -808,11 +812,11 @@
 
   function condShort(s, c) {
     var old = condShortZh(s, c);
-    if (!old || !isEnglishLocale() || !c) return old;
+    if (!old || !isLocalizedLocale() || !c) return old;
     var key = '', params = {}, now = old.now, need = old.need, txt;
     switch (c.t) {
       case 'built': key = 'built'; params = { buildingName: bName(c.b), current: now, required: need }; break;
-      case 'all': return { txt: tr('tech.condition.progress.all_needed', { conditions: (c.of || []).map(condText).join('; ') }, old.txt), now: now, need: need };
+      case 'all': return { txt: tr('tech.condition.progress.all_needed', { conditions: (c.of || []).map(condText).join(isEnglishLocale() ? '; ' : '；') }, old.txt), now: now, need: need };
       case 'geekTerra': return { txt: tr(s.geek && s.geek.terraDone ? 'tech.condition.geek_terra.complete' : 'tech.condition.geek_terra.required', null, old.txt), now: now, need: need };
       case 'total': key = 'total_buildings'; params = { current: now, required: need }; break;
       case 'res': key = 'resource_stock'; params = { resourceName: resName(c.r), current: Math.floor(now), required: need }; break;
@@ -894,7 +898,7 @@
     var upgrades = SB.UPGRADES || [];
     for (var i = 0; i < upgrades.length; i++) if (upgrades[i].id === id) {
       var key = 'upgrade.' + snakeCase(id) + '.name';
-      if (!hasEnglishKey(key)) key = 'content.' + snakeCase(id) + '.name';
+      if (!hasActiveLocaleKey(key)) key = 'content.' + snakeCase(id) + '.name';
       return localizedName(key, upgrades[i].name);
     }
     return '未知工坊升级';
@@ -1375,7 +1379,7 @@
   }
 
   function translatedTemplate(key, source, special) {
-    if (!isEnglishLocale() || !hasEnglishKey(key)) return '';
+    if (!isLocalizedLocale() || !hasActiveLocaleKey(key)) return '';
     var info = SB.ui && SB.ui.renderParts && SB.ui.renderParts.info;
     var params = info && info.englishTemplateParams
       ? info.englishTemplateParams(key, source, special) : (special || {});
@@ -1384,7 +1388,7 @@
   }
   function localizedEffectSummary(t, includeUnlockDesc) {
     includeUnlockDesc = includeUnlockDesc !== false;
-    if (!isEnglishLocale()) {
+    if (!isLocalizedLocale()) {
       var source = effectText(t);
       if (source === '（无直接效果）') source = t.effectDesc || '无直接数值加成';
       if (includeUnlockDesc && t.unlockDesc) source += '；' + t.unlockDesc;
@@ -1418,12 +1422,12 @@
             if (recipeLine) out.push(recipeLine);
           }
         } else if (k === 'unlockBuild') {
-          var buildingNames = (v || []).map(function (b) { return bName(b) + coBuildTagHtml(b); }).join(', ');
+          var buildingNames = (v || []).map(function (b) { return bName(b) + coBuildTagHtml(b); }).join(isEnglishLocale() ? ', ' : '、');
           var buildingLine = translatedTemplate('tech.effect.unlock_buildings', '', { buildingNames: buildingNames });
-          if (!buildingLine) buildingLine = 'Unlocks buildings: ' + buildingNames;
+          if (!buildingLine) buildingLine = (isEnglishLocale() ? 'Unlocks buildings: ' : '解鎖建築：') + buildingNames;
           if (buildingLine) out.push(buildingLine);
         } else if (k === 'unlockJob') {
-          var jobNames = (v || []).map(jobName).join(', ');
+          var jobNames = (v || []).map(jobName).join(isEnglishLocale() ? ', ' : '、');
           var jobLine = translatedTemplate('tech.effect.unlock_jobs', '', { jobNames: jobNames });
           if (jobLine) out.push(jobLine);
         } else if (k === 'season') {
@@ -1433,7 +1437,7 @@
           if (seasonLine) out.push(seasonLine);
         } else {
           key = labelKeys[k] ? 'tech.effect.label.' + labelKeys[k] : '';
-          if (!key || !hasEnglishKey(key)) continue;
+          if (!key || !hasActiveLocaleKey(key)) continue;
           var effectName = tr(key, null, '');
           var effectLine = ADD[k]
             ? tr('tech.effect.additive', { effectName: effectName,
@@ -1443,11 +1447,11 @@
           if (effectLine && !/\{[A-Za-z0-9_]+\}/.test(effectLine)) out.push(effectLine);
         }
       }
-      summary = out.join('; ') || tr('tech.effect.none', null, 'No direct effect.');
+      summary = out.join(isEnglishLocale() ? '; ' : '；') || tr('tech.effect.none', null, 'No direct effect.');
     }
-    if (includeUnlockDesc && t.unlockDesc && hasEnglishKey('tech.' + t.id + '.unlock_desc')) {
+    if (includeUnlockDesc && t.unlockDesc && hasActiveLocaleKey('tech.' + t.id + '.unlock_desc')) {
       var unlock = translatedTemplate('tech.' + t.id + '.unlock_desc', t.unlockDesc);
-      if (unlock) summary += '; ' + unlock;
+      if (unlock) summary += (isEnglishLocale() ? '; ' : '；') + unlock;
     }
     return summary || tr('tech.effect.no_direct_numeric_bonus', null, 'No direct numerical bonus.');
   }
@@ -1497,7 +1501,7 @@
     if (!slug) return era[field] || '';
     var key = field === 'description' && era.id === 5
       ? 'research.era.shellbreak.description' : 'tech.era.' + slug + '.' + field;
-    if (!hasEnglishKey(key)) return era[field] || '';
+    if (!hasActiveLocaleKey(key)) return era[field] || '';
     var params = era.id === 5 && field === 'description' ? { shellThicknessPercent: 25 } : null;
     return tr(key, params, era[field] || '');
   }
@@ -1623,7 +1627,7 @@
   }
   function condText(c) {
     var old = condTextZh(c);
-    if (!old || !isEnglishLocale() || !c) return old;
+    if (!old || !isLocalizedLocale() || !c) return old;
     var key = '', params = {};
     switch (c.t) {
       case 'built': key = 'built'; params = { amount: c.n, buildingName: bName(c.b) }; break;
@@ -1677,7 +1681,7 @@
   function jobName(id) {
     for (var i = 0; SB.JOBS && i < SB.JOBS.length; i++) if (SB.JOBS[i].id === id) {
       var key = 'job.' + id + '.name';
-      if (!hasEnglishKey(key)) key = 'job.name.' + id;
+      if (!hasActiveLocaleKey(key)) key = 'job.name.' + id;
       return localizedName(key, SB.JOBS[i].name);
     }
     return '未知职业';

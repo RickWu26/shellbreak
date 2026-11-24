@@ -93,7 +93,7 @@
      *   以为只有这项才给。 */
     { id: 'waterpollution', achievementKey: 'pollutionClear', name: '水体污染', icon: '☣', badge: 'assets/challenges/challenge-waterpollution-illustrated.webp', badgeThumb: 'assets/challenges/thumbs/challenge-waterpollution-illustrated.webp', kind: '单次挑战',
       summary: '热液能产出即排污，五个阶段逐级侵蚀幸福、藻食与人口。',
-      rule: '热液能建筑每秒排放与产出等值的污染（星屑树乘区不计）；污染达 1000 / 4 万 / 16 万 / 640 万依次进入浊流、赤潮、死区、腐渊，逐级扣幸福、削藻食与珊瑚，并按秒掷死亡；每名死者永久提高幸福消耗（墓地限额内 0.3%、超限 3%）。',
+      rule: '热液能建筑每秒排放与产出等值的污染（不计星屑树加成）；污染达 1000 / 4 万 / 16 万 / 640 万依次进入浊流、赤潮、死区、腐渊，逐级扣幸福、削藻食与珊瑚，并按秒掷死亡；每名死者永久提高幸福消耗（墓地限额内 0.3%、超限 3%）。',
       reward: '永久星屑产出 +10% · 商人奢侈品产出 +50% · 初始人口 +2',
       goal: { t: 'dyson' }, goalText: '完成戴森球工程（达成飞升虚境亦算）',
       /* 排行榜「最低污染通关」（db 待建 · CFG.RANK.MAP.pollution，asc + best）：

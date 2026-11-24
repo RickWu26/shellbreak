@@ -2,13 +2,20 @@
 (function (root) {
   'use strict';
   var SB = root.SB || (root.SB = {});
-  function englishLocaleEnabled() {
+  function activeLocaleCode() {
     return SB.i18n && SB.i18n.isEnabled && SB.i18n.isEnabled() &&
-      SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US';
+      SB.i18n.getLocale ? SB.i18n.getLocale() : 'zh-CN';
+  }
+  function englishLocaleEnabled() {
+    return activeLocaleCode() === 'en-US';
+  }
+  function nonDefaultLocaleEnabled() {
+    return activeLocaleCode() !== 'zh-CN';
   }
   function tr(key, params, fallback) {
-    var english = root.ShellbreakLocales && root.ShellbreakLocales['en-US'];
-    var value = englishLocaleEnabled() && english && typeof english[key] === 'string' && SB.i18n.t
+    var loc = activeLocaleCode();
+    var activeDict = root.ShellbreakLocales && root.ShellbreakLocales[loc];
+    var value = nonDefaultLocaleEnabled() && activeDict && typeof activeDict[key] === 'string' && SB.i18n.t
       ? SB.i18n.t(key, params) : '';
     return value || fallback || '';
   }
@@ -23,16 +30,17 @@
   }
   var exactLocaleKeyCache = Object.create(null);
   function exactLocaleKey(prefix, suffix, sourceValue) {
-    var cacheKey = prefix + '|' + suffix;
+    var loc = activeLocaleCode();
+    var cacheKey = loc + '|' + prefix + '|' + suffix;
     var map = exactLocaleKeyCache[cacheKey];
     if (!map) {
       map = Object.create(null);
       var zh = root.ShellbreakLocales && root.ShellbreakLocales['zh-CN'] || {};
-      var en = root.ShellbreakLocales && root.ShellbreakLocales['en-US'] || {};
+      var target = root.ShellbreakLocales && root.ShellbreakLocales[loc] || {};
       var keys = Object.keys(zh);
       for (var i = 0; i < keys.length; i++) {
         var key = keys[i];
-        if (key.indexOf(prefix) !== 0 || key.slice(-suffix.length) !== suffix || typeof en[key] !== 'string') continue;
+        if (key.indexOf(prefix) !== 0 || key.slice(-suffix.length) !== suffix || typeof target[key] !== 'string') continue;
         if (typeof zh[key] === 'string' && !Object.prototype.hasOwnProperty.call(map, zh[key])) map[zh[key]] = key;
       }
       exactLocaleKeyCache[cacheKey] = map;
@@ -1062,7 +1070,7 @@
     var scribeName = SB.folk.jobName(s, 'scribe');
     return '<div class="secttl">' + tr('ui.research.type.civics', null, '市政') + '</div>' +
       '<div class="row"><div class="nm">' + tr('civic.page.locked.title', null, '市政页未开启') + '</div>' +
-      '<div class="ds">' + (SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US'
+      '<div class="ds">' + (nonDefaultLocaleEnabled()
         ? tr('civic.panel.council_hall.prerequisite', null, why || '') : (why || '')) + '</div></div>' +
       '<div class="note">' + tr('civic.pane.unlock_hint', { scribeJob: tr('job.name.scribe', null, scribeName) },
         '议事厅由「石工」解锁，它同时是' + scribeName + '这个职业的来源——建起来之后这里会给出：政体、政策卡槽，以及三条市政。') + '</div>';
@@ -1176,12 +1184,19 @@
     var n = 0, k, out = [];
     for (k in (g.slots || {})) {
       if (!(g.slots[k] > 0)) continue;
-      out.push(englishLocaleEnabled()
-        ? g.slots[k] + ' ' + slotTypeLabel(k) + ' ' + (g.slots[k] === 1 ? 'slot' : 'slots')
+      out.push(nonDefaultLocaleEnabled()
+        ? (englishLocaleEnabled()
+          ? g.slots[k] + ' ' + slotTypeLabel(k) + ' ' + (g.slots[k] === 1 ? 'slot' : 'slots')
+          : g.slots[k] + ' ' + slotName(k))
         : g.slots[k] + ' ' + SB.civic.slotTypeName(k));
       n += g.slots[k];
     }
-    if (hasAnarchyBonusSlot()) { out.push(englishLocaleEnabled() ? '1 Universal slot' : '1 万能槽（安那其主义奖励）'); n++; }
+    if (hasAnarchyBonusSlot()) {
+      out.push(englishLocaleEnabled() ? '1 Universal slot'
+        : nonDefaultLocaleEnabled() ? '1 ' + slotName('wild') + '（安那其主義獎勵）'
+          : '1 万能槽（安那其主义奖励）');
+      n++;
+    }
     if (!n) return tr('civic.policy.slots.none', null, '不提供政策卡槽');
     return out.join(englishLocaleEnabled() ? ' + ' : ' ＋ ');
   }
@@ -1209,8 +1224,8 @@
     var C = SB.civic, list = C.slotList(s), i;
     var armedCard = SB.ui.render.armedCard();
     var emptyCount = emptyCivicSlotCount(s, C, list);
-    var emptySlotText = englishLocaleEnabled()
-      ? tr('civic.policy.slot.empty', null, '空槽') + ': ' + emptyCount
+    var emptySlotText = nonDefaultLocaleEnabled()
+      ? tr('civic.policy.slot.empty', null, '空槽') + (englishLocaleEnabled() ? ': ' : ' ') + emptyCount
       : '空槽 ' + emptyCount;
     var h = '<div class="secttl civic-policy-heading">' + tr('civic.policy.slots.heading', null, '政策卡槽') + ' <span class="tag">' + list.length + '</span>' +
       (emptyCount > 0 ? '<span class="civic-slot-warning"><i aria-hidden="true"></i>' + emptySlotText + '</span>' : '') + '</div>';

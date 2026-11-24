@@ -50,15 +50,15 @@
     { key: 'abyss',        challengeAchievement: true, steamApiName: 'SHELLBREAK_ABYSS', name: '深渊重压', icon: 'assets/achievements/thumbs/achv-abyss.webp',
       desc: '三档全通——在全产出大幅削减下走完整局。' },
     { key: 'firstRebirth', steamApiName: 'SHELLBREAK_FIRST_REBIRTH', name: '首次轮回', icon: 'assets/achievements/thumbs/achv-first-rebirth.webp',
-      desc: '第一次完成真正的轮回结算——推倒重来，是深渊文明的成人礼。' },
+      desc: '完成第一次合格的轮回结算。带着旧海的记忆，重新出发。' },
     { key: 'shellBreak',   steamApiName: 'SHELLBREAK_SHELL_BREAK', name: '首次破壳', icon: 'assets/achievements/thumbs/achv-shell-break.webp',
-      desc: '第一次真正凿穿天壳。冰层崩塌的那一刻，深海之上第一次照进星光。' },
+      desc: '第一次凿穿天壳。冰层碎裂之时，星光第一次落进深海。' },
     { key: 'dysonEnd',     steamApiName: 'SHELLBREAK_DYSON_END', name: '控星之人', icon: 'assets/achievements/thumbs/achv-dyson-end.webp',
-      desc: '建成完整的戴森球，把整颗恒星纳入掌心——在未飞升虚境的那条路上，这就是文明的顶点。' },
+      desc: '在未踏入虚境的前提下建成完整戴森球，把整颗恒星收入囊中。' },
     { key: 'voidEnd',      steamApiName: 'SHELLBREAK_VOID_END', name: '虚境飞升', icon: 'assets/achievements/thumbs/achv-void-end.webp',
-      desc: '掌握《飞升虚境》之后竣工戴森球——文明没有停步星海，而是跃入了虚境之中。' },
+      desc: '掌握《飞升虚境》后竣工戴森球，携整个文明跃入虚境。' },
     { key: 'speedrun',     challengeAchievement: true, steamApiName: 'SHELLBREAK_SPEEDRUN', name: '逐光竞速', icon: 'assets/achievements/thumbs/achv-speedrun.webp',
-      desc: '在「逐光竞速」挑战的 4 小时档内凿穿天壳——与时间赛跑，并且跑赢。' },
+      desc: '在「逐光竞速」4 小时档内凿穿天壳。' },
     { key: 'driftTerra',   challengeAchievement: true, steamApiName: 'SHELLBREAK_DRIFT_TERRA', name: '流浪泰拉', icon: 'assets/achievements/thumbs/achv-drift-terra.webp',
       desc: '建成 50 座行星发动机，并把星核炉芯池灌满 50M 热液能。' },
     /* 2026-11-03 补登记：水体污染 2026-11-02 实装时只做了挑战定义，**漏了成就条目**
@@ -66,7 +66,7 @@
      *   通关能发奖励、能写 meta.challenges.completed，但成就墙与平台都不会亮。
      * icon 复用挑战徽章（64×64 SVG，img 自动缩放），暂不另做 PNG。 */
     { key: 'pollutionClear', challengeAchievement: true, steamApiName: 'SHELLBREAK_POLLUTION_CLEAR', name: '海渊澄明', icon: 'assets/challenges/thumbs/challenge-waterpollution-illustrated.webp',
-      desc: '在「水体污染」挑战里让戴森球竣工——带着最脏的海，走到了群星之间。' },
+      desc: '在「水体污染」挑战中让戴森球竣工。哪怕身处最浑浊的海，也要望见群星。' },
     /* 新增的挑战专属成就，文案由 i18n 词条提供；图标复用对应挑战徽章。 */
     { key: 'challengeDysonRush', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_DYSON_RUSH', icon: 'assets/challenges/challenge-speedrun.svg' },
     { key: 'challengeAnarchy', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_ANARCHY', icon: 'assets/challenges/thumbs/challenge-anarchy.webp' },
@@ -96,21 +96,21 @@
     { key: 'challengeVeilCramped', challengeAchievement: true, steamApiName: 'SHELLBREAK_CHALLENGE_VEIL_CRAMPED', name: '繁盛市场今在此', icon: 'assets/challenges/thumbs/challenge-veil-cramped-illustrated.webp',
       desc: '在所有仓储上限被压缩 70% 的逼仄仓廪里研成《掀起帘幕》——螺蛳壳里做道场。' },
     { key: 'starComplete', steamApiName: 'SHELLBREAK_STAR_COMPLETE', name: '太空时代', icon: 'assets/achievements/thumbs/achv-star-complete.webp',
-      desc: '破壳之后把星空槽完全填满——深海的族民，终于把目光投向了整片星海。' },
+      desc: '破壳之后填满全部星空槽，将深海的目光投向整片星海。' },
     { key: 'religion',     steamApiName: 'SHELLBREAK_RELIGION', name: '立教', icon: 'assets/achievements/thumbs/achv-religion.webp',
-      desc: '第一次为你的文明命名——从这一刻起，轮回之门为之开启。' },
+      desc: '首次为你的文明命名，推开轮回之门。' },
     { key: 'rebirth10',    steamApiName: 'SHELLBREAK_REBIRTH_10', name: '十次轮回', icon: 'assets/achievements/thumbs/achv-rebirth-10.webp',
-      desc: '完成十次真正的轮回结算——每一次推倒重来，都比上一次走得更远。' },
+      desc: '累计完成十次合格的轮回结算。' },
     { key: 'relic10',      steamApiName: 'SHELLBREAK_RELIC_10', name: '旧日遗珍', icon: 'assets/achievements/thumbs/achv-relic-10.webp',
-      desc: '让十座独特奇观跨周目入藏纪念馆——旧日的辉煌，没有被遗忘。' },
+      desc: '跨周目将十座独特奇观收入纪念馆。' },
     { key: 'relic25',      steamApiName: 'SHELLBREAK_RELIC_25', name: '遗珍全集', icon: 'assets/achievements/thumbs/achv-relic-25.webp',
-      desc: '二十五座独特奇观全部入藏——整部文明史，都收进了这座纪念馆。' },
+      desc: '将全部二十五座独特奇观收入纪念馆，留存一整部文明史。' },
     { key: 'techAll',      steamApiName: 'SHELLBREAK_TECH_ALL', name: '科技大成', icon: 'assets/achievements/thumbs/achv-tech-all.webp',
-      desc: '在同一个周目内掌握全部 83 项科技——从结绳记事到大统一方程，一条路走到头。' },
+      desc: '在单个周目内研成全部 83 项科技，从结绳记事直抵大统一方程。' },
     { key: 'civicAll',     steamApiName: 'SHELLBREAK_CIVIC_ALL', name: '市政大成', icon: 'assets/achievements/thumbs/achv-civic-all.webp',
-      desc: '在同一个周目内完成全部 69 项市政——从法典到神们自己，一个都不落下。' },
+      desc: '在单个周目内完成全部 69 项市政，从法典直抵神们自己。' },
     { key: 'halfDyson',    steamApiName: 'SHELLBREAK_HALF_DYSON', name: '半程星环', icon: 'assets/achievements/thumbs/achv-half-dyson.webp',
-      desc: '戴森球进度达到 50%——半个恒星已经属于你，剩下的只是时间问题。' }
+      desc: '戴森球进度达到 50%。半颗恒星已在掌中。' }
   ];
 
   /* 56 条「<建筑名>：轻车熟路」从 SB.BUILDINGS 自动派生——新增建筑自动获得成就槽位，

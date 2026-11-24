@@ -78,11 +78,13 @@
     var locale = SB.i18n && SB.i18n.getLocale ? SB.i18n.getLocale() : 'zh-CN';
     var direction = locale === 'en-US'
       ? (v > 0 ? 'raises' : 'lowers')
-      : (v > 0 ? '抬高' : '压低');
+      : locale === 'zh-TW'
+        ? (v > 0 ? '抬高' : '壓低')
+        : (v > 0 ? '抬高' : '压低');
     return '<i class="cap">' + tr('ui.happiness.bonus_offset', {
       happinessOffset: (v > 0 ? '+' : '') + (+v.toFixed(2)),
       effectDirection: direction
-    }, '幸福度效果 {happinessOffset}（常驻，{effectDirection}全产乘区档位）') + '</i>';
+    }, '幸福度效果 {happinessOffset}（常驻，{effectDirection}全局产出档位）') + '</i>';
   }
 
   function treeIconHTML(t, lit, cls) {

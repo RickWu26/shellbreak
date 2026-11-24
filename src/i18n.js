@@ -2,19 +2,23 @@
 
 (function (root) {
   var LOCALE_KEY = 'shellbreak.locale';
-  var SUPPORTED_PREFERENCES = ['steam', 'zh-CN', 'en-US', 'zh-TW'];
   var platform = root.shellbreakPlatform;
+  var isElectron = !!(platform && platform.runtime === 'electron');
+  function dicts() { return root.ShellbreakLocales || Object.create(null); }
+  function localeUrls() { return root.ShellbreakLocaleUrls || null; }
   var canLocalize = !!(
-    platform &&
-    platform.runtime === 'electron' &&
-    platform.localizationEnabled === true
+    platform
+      ? (isElectron ? platform.localizationEnabled === true : platform.localizationEnabled !== false)
+      : !!(localeUrls() || dicts()['en-US'] || dicts()['zh-TW'])
   );
-  var dictionaries = root.ShellbreakLocales || Object.create(null);
+  var SUPPORTED_PREFERENCES = isElectron ? ['steam', 'zh-CN', 'en-US', 'zh-TW'] : ['zh-CN', 'en-US', 'zh-TW'];
   var preference = 'zh-CN';
   var locale = 'zh-CN';
+  var pendingLoads = Object.create(null);
+  var loadSeq = 0;
 
   function steamLanguage() {
-    if (!canLocalize) return '';
+    if (!canLocalize || !isElectron) return '';
     try {
       return new URL(root.location.href).searchParams.get('steamLanguage') || '';
     } catch (e) {
@@ -23,7 +27,7 @@
   }
 
   function isLocaleComplete(code) {
-    var dictionary = dictionaries[code];
+    var dictionary = dicts()[code];
     var coverage = root.ShellbreakLocaleCoverage && root.ShellbreakLocaleCoverage[code];
     return !!(
       dictionary &&
@@ -32,6 +36,13 @@
       Number(coverage.activeKeys) > 0 &&
       Object.keys(dictionary).length >= Number(coverage.activeKeys)
     );
+  }
+
+  function hasLocaleSource(code) {
+    if (code === 'zh-CN') return true;
+    var urls = localeUrls();
+    if (code === 'zh-TW') return isLocaleComplete('zh-TW') || !!(urls && urls['zh-TW']);
+    return !!(dicts()[code] || (urls && urls[code]));
   }
 
   function localeForSteamLanguage(language) {
@@ -46,27 +57,31 @@
 
   function resolveLocale(value) {
     if (!canLocalize) return 'zh-CN';
-    if (value === 'en-US') return dictionaries['en-US'] ? 'en-US' : 'zh-CN';
+    if (value === 'en-US') return dicts()['en-US'] ? 'en-US' : 'zh-CN';
     if (value === 'zh-CN') return 'zh-CN';
     if (value === 'zh-TW') return isLocaleComplete('zh-TW') ? 'zh-TW' : 'zh-CN';
-    return localeForSteamLanguage(steamLanguage());
+    return isElectron ? localeForSteamLanguage(steamLanguage()) : 'zh-CN';
   }
 
   if (canLocalize) {
+    var defaultPreference = isElectron ? 'steam' : 'zh-CN';
     try {
       var saved = root.localStorage.getItem(LOCALE_KEY);
-      preference = SUPPORTED_PREFERENCES.indexOf(saved) >= 0 ? saved : 'steam';
-      if (preference === 'zh-TW' && !isLocaleComplete('zh-TW')) preference = 'steam';
+      preference = SUPPORTED_PREFERENCES.indexOf(saved) >= 0 ? saved : defaultPreference;
+      if ((preference === 'en-US' || preference === 'zh-TW') && !hasLocaleSource(preference)) {
+        preference = defaultPreference;
+      }
     } catch (e) {
-      preference = 'steam';
+      preference = defaultPreference;
     }
   }
   locale = resolveLocale(preference);
 
   function valueFor(key) {
     if (typeof key !== 'string' || !key) return undefined;
-    var active = dictionaries[locale];
-    var baseline = dictionaries['zh-CN'];
+    var all = dicts();
+    var active = all[locale];
+    var baseline = all['zh-CN'];
     if (active && Object.prototype.hasOwnProperty.call(active, key)) return active[key];
     if (baseline && Object.prototype.hasOwnProperty.call(baseline, key)) return baseline[key];
     return undefined;
@@ -163,28 +178,78 @@
     }));
   }
 
+  function syncSelectorValue() {
+    if (!root.document || typeof root.document.querySelector !== 'function') return;
+    var select = root.document.querySelector('[data-language-selector]');
+    if (select && select.value !== preference) select.value = preference;
+  }
+
   function refresh() {
     locale = resolveLocale(preference);
     apply(root.document);
+    syncSelectorValue();
     dispatchLocaleChanged();
   }
 
-  function setLocale(value) {
-    if (!canLocalize || SUPPORTED_PREFERENCES.indexOf(value) < 0) return false;
-    if (value === 'zh-TW' && !isLocaleComplete('zh-TW')) return false;
+  function ensureLocaleLoaded(code, done) {
+    if (code === 'zh-CN' || code === 'steam') { done(true); return; }
+    if (code === 'zh-TW' ? isLocaleComplete('zh-TW') : !!dicts()[code]) { done(true); return; }
+    var urls = localeUrls();
+    var src = urls && urls[code];
+    if (!src || !root.document || !root.document.head) { done(false); return; }
+    if (pendingLoads[code]) {
+      pendingLoads[code].push(done);
+      return;
+    }
+    pendingLoads[code] = [done];
+    var script = root.document.createElement('script');
+    script.src = src;
+    script.async = true;
+    function finish(ok) {
+      var list = pendingLoads[code] || [];
+      delete pendingLoads[code];
+      for (var i = 0; i < list.length; i++) list[i](ok);
+    }
+    script.onload = function () {
+      var ready = code === 'zh-TW' ? isLocaleComplete('zh-TW') : !!dicts()[code];
+      finish(ready);
+    };
+    script.onerror = function () { finish(false); };
+    root.document.head.appendChild(script);
+  }
+
+  function commitLocalePreference(value) {
     preference = value;
     try {
       root.localStorage.setItem(LOCALE_KEY, preference);
     } catch (e) {}
     refresh();
+  }
+
+  function setLocale(value) {
+    if (!canLocalize || SUPPORTED_PREFERENCES.indexOf(value) < 0) return false;
+    if ((value === 'en-US' || value === 'zh-TW') && !hasLocaleSource(value)) return false;
+    var reqSeq = ++loadSeq;
+    var targetCode = (value === 'en-US' || value === 'zh-TW') ? value : '';
+    if (!targetCode || (targetCode === 'zh-TW' ? isLocaleComplete('zh-TW') : !!dicts()[targetCode])) {
+      commitLocalePreference(value);
+      return true;
+    }
+    ensureLocaleLoaded(targetCode, function (ok) {
+      if (reqSeq !== loadSeq) return;
+      if (ok) {
+        commitLocalePreference(value);
+      } else {
+        syncSelectorValue();
+      }
+    });
     return true;
   }
 
   function mountLanguageSelector() {
     var block = root.document && root.document.getElementById('localeSettingBlock');
     if (!block) return;
-    var traditionalChineseAvailable = isLocaleComplete('zh-TW');
-    if (!canLocalize || (!dictionaries['en-US'] && !traditionalChineseAvailable)) {
+    if (!canLocalize || (!hasLocaleSource('en-US') && !hasLocaleSource('zh-TW'))) {
       block.hidden = true;
       return;
     }
@@ -202,15 +267,12 @@
     select.setAttribute('aria-label', translate('ui.settings.language.title'));
     select.setAttribute('data-i18n-aria-label', 'ui.settings.language.title');
     select.setAttribute('data-language-selector', '');
-    var options = [
-      ['steam', 'ui.settings.language.follow_steam'],
-      ['zh-CN', 'ui.settings.language.simplified_chinese'],
-      ['en-US', 'ui.settings.language.english']
-    ];
-    if (traditionalChineseAvailable) options.push(['zh-TW', 'ui.settings.language.traditional_chinese']);
-    options.filter(function (item) {
-      return item[0] !== 'en-US' || dictionaries['en-US'];
-    }).forEach(function (item) {
+    var options = [];
+    if (isElectron) options.push(['steam', 'ui.settings.language.follow_steam']);
+    options.push(['zh-CN', 'ui.settings.language.simplified_chinese']);
+    if (hasLocaleSource('en-US')) options.push(['en-US', 'ui.settings.language.english']);
+    if (hasLocaleSource('zh-TW')) options.push(['zh-TW', 'ui.settings.language.traditional_chinese']);
+    options.forEach(function (item) {
       var option = root.document.createElement('option');
       option.value = item[0];
       option.setAttribute('data-i18n', item[1]);
@@ -221,7 +283,16 @@
     select.addEventListener('change', function () { setLocale(select.value); });
     label.appendChild(title);
     label.appendChild(select);
-    block.replaceChildren(label);
+    if (typeof block.replaceChildren === 'function') {
+      block.replaceChildren(label);
+    } else if (typeof block.appendChild === 'function') {
+      if (typeof block.removeChild === 'function') {
+        while (block.firstChild) block.removeChild(block.firstChild);
+      } else {
+        block.innerHTML = '';
+      }
+      block.appendChild(label);
+    }
     block.hidden = false;
   }
 
@@ -243,8 +314,7 @@
   function boot() {
     apply(root.document);
     mountLanguageSelector();
-    var select = root.document.querySelector('[data-language-selector]');
-    if (select) select.value = preference;
+    syncSelectorValue();
     dispatchLocaleChanged();
   }
 

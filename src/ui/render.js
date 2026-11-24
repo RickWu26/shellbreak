@@ -573,28 +573,32 @@
     "哈'利法": 'wonder.khalifa_space_telescope.name',
     '王座': 'wonder.supreme_throne.name',
     '星炉献礼': 'faith.tenet.star_forge_offering.name',
-    '政体': 'civic.government.heading'
+    '政体': 'civic.government.heading',
+    '科技乘区': 'ui.economy.rate.source.technology_multiplier'
   };
   function rdRateLabel(label) {
     if (!label) return '';
-    if (!SB.i18n || !SB.i18n.getLocale || SB.i18n.getLocale() !== 'en-US') return label;
-    if (!RES_DETAIL_RATE_LABEL_KEYS) {
-      RES_DETAIL_RATE_LABEL_KEYS = Object.create(null);
+    var loc = SB.i18n && SB.i18n.getLocale ? SB.i18n.getLocale() : 'zh-CN';
+    if (loc === 'zh-CN') return label;
+    if (!RES_DETAIL_RATE_LABEL_KEYS) RES_DETAIL_RATE_LABEL_KEYS = Object.create(null);
+    var map = RES_DETAIL_RATE_LABEL_KEYS[loc];
+    if (!map) {
+      map = RES_DETAIL_RATE_LABEL_KEYS[loc] = Object.create(null);
       var dictionaries = root.ShellbreakLocales || {};
       var zh = dictionaries['zh-CN'] || {};
-      var en = dictionaries['en-US'] || {};
+      var target = dictionaries[loc] || {};
       Object.keys(zh).forEach(function (key) {
-        if (key.indexOf('ui.economy.rate.source.') !== 0 || typeof en[key] !== 'string') return;
+        if (key.indexOf('ui.economy.rate.source.') !== 0 || typeof target[key] !== 'string') return;
         var sourceLabel = zh[key];
-        if (Object.prototype.hasOwnProperty.call(RES_DETAIL_RATE_LABEL_KEYS, sourceLabel) &&
-            RES_DETAIL_RATE_LABEL_KEYS[sourceLabel] !== key) {
-          RES_DETAIL_RATE_LABEL_KEYS[sourceLabel] = null;
+        if (Object.prototype.hasOwnProperty.call(map, sourceLabel) &&
+            map[sourceLabel] !== key) {
+          map[sourceLabel] = null;
         } else {
-          RES_DETAIL_RATE_LABEL_KEYS[sourceLabel] = key;
+          map[sourceLabel] = key;
         }
       });
     }
-    var key = RES_DETAIL_RATE_LABEL_ALIASES[label] || RES_DETAIL_RATE_LABEL_KEYS[label];
+    var key = RES_DETAIL_RATE_LABEL_ALIASES[label] || map[label];
     return key ? tr(key, null, label) : label;
   }
   function showResDetail(k) {
@@ -653,7 +657,7 @@
     } else {
       cap = SB.economy.capOf(s, k);
       v = s.res[k] || 0;
-      name = SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() === 'en-US' && SB.i18n.resourceName
+      name = SB.i18n && SB.i18n.getLocale && SB.i18n.getLocale() !== 'zh-CN' && SB.i18n.resourceName
         ? SB.i18n.resourceName(k, SB.RESS[k].name)
         : SB.RESS[k].name;
     }
@@ -1137,7 +1141,7 @@
         currentNodes: nodes.toLocaleString(), nodeCap: nodeCap.toLocaleString()
       }, '太阳帆 {currentSails} / {sailCap} ＋ 戴森球节点 {currentNodes} / {nodeCap} —— 双项均已达标。')) + '</p>'
       + '<p class="muted">' + htmlText(tr('ui.dyson.completion.flavor', null, '母星戴上了一圈星环，文明的火光第一次以恒星计量。')) + ' '
-      + htmlText(tr('ui.dyson.completion.next_steps', null, '你可以立刻轮回结算（轮回点与星屑按现有公式入账），也可以继续留在这一局，攒取更多的轮回点与星屑。')) + '</p>'
+      + htmlText(tr('ui.dyson.completion.next_steps', null, '你可以立刻轮回结算，领取本局的轮回点与星屑，也可以继续留在本局，累积更多发展分与星屑。')) + '</p>'
       + '<div class="break-controls">'
       + '<button class="btn big" type="button" id="dysonBreakNow">' + htmlText(tr('ui.dyson.completion.prestige_action', null, '繁星轮回（结算）')) + '</button>'
       + '<button class="btn" type="button" id="dysonKeepPlaying">' + htmlText(tr('ui.action.keep_playing', null, '继续游玩')) + '</button>'
@@ -1218,7 +1222,7 @@
       + '<p class="void-line">' + C(vergePanelText('line.2', '旧宇宙正在身后崩解。'), 11) + '</p>'
       + '<p class="void-line void-garbled">' + C(vergePanelText('line.3', '另一重现实，正在展开。'), 13) + '</p>'
       + '<p class="void-line">' + C(vergePanelText('line.4', '我们不再是「我们」。'), 17) + '</p>'
-      + '<p class="void-note">' + C(vergePanelText('note', '（这一局到此为止。你可以轮回结算，也可以留在这里看着它继续。'), 19) + '</p>'
+      + '<p class="void-note">' + C(vergePanelText('note', '（这一局到此为止。你可以轮回结算，也可以留在这里看着它继续。）'), 19) + '</p>'
       + '<div class="break-controls">'
       + '<button class="btn big" type="button" id="voidBreakNow">' + C(tr('ui.action.prestige', null, '轮回'), 23) + '</button>'
       + '<button class="btn" type="button" id="voidKeepPlaying">' + C(tr('ui.action.keep_playing', null, '继续游玩'), 29) + '</button>'
@@ -2849,10 +2853,10 @@
           '</div>' +
           '<div class="break-hud"><span class="break-phase"><b>✦</b><span id="breakPhaseName">' + htmlText(animText('drill_charging', '钻机蓄力')) + '</span></span><span id="breakCounter">01 / 04</span></div>' +
           '<div class="break-caption">' +
-            '<div class="break-caption-text break-cap-intro"><small>' + htmlText(animText('finale_the_sky_drill', '终章 · 天穹钻机')) + '</small><h2>' + htmlText(animText('resonance_engage', '共振，启动。')) + '</h2><p>' + htmlText(animText('the_whole_undersea_city_gathers_strength_for', '整座海底城市，为这一击积蓄力量。')) + '</p></div>' +
-            '<div class="break-caption-text break-cap-impact"><small>' + htmlText(animText('past_the_breaking_point', '突破临界点')) + '</small><h2>' + htmlText(animText('the_drill_meets_the_shell', '钻头触壳。')) + '</h2><p>' + htmlText(animText('resonance_spreads_through_the_ice_the_first', '共振沿冰层蔓延，第一道裂纹亮起。')) + '</p></div>' +
-            '<div class="break-caption-text break-cap-gaze"><small>' + htmlText(animText('the_shell_breaks_merfolk_look_up', '天壳崩解 · 鲛人仰望')) + '</small><h2>' + htmlText(animText('the_fracture_spreads', '裂痕，扩散。')) + '</h2><p>' + htmlText(animText('merfolk_swim_toward_the_drill_and_watch', '鲛人游向钻机，望向逐渐打开的天穹。')) + '</p></div>' +
-            '<div class="break-caption-text break-cap-ending"><small>' + htmlText(animText('a_new_era_for_civilization', '文明的新纪元')) + '</small><h2>' + htmlText(animText('beyond_the_shell', '天壳之外。')) + '</h2><p>' + htmlText(animText('the_boundary_we_once_looked_up_to', '曾经仰望的边界，如今已在身后。')) + '</p></div>' +
+            '<div class="break-caption-text break-cap-intro"><small>' + htmlText(animText('finale_the_sky_drill', '终章 · 天穹钻机')) + '</small><h2>' + htmlText(animText('resonance_engage', '共振启动。')) + '</h2><p>' + htmlText(animText('the_whole_undersea_city_gathers_strength_for', '整座海底城邦屏息以待，所有热流汇向这一击。')) + '</p></div>' +
+            '<div class="break-caption-text break-cap-impact"><small>' + htmlText(animText('past_the_breaking_point', '突破临界点')) + '</small><h2>' + htmlText(animText('the_drill_meets_the_shell', '钻头触壳。')) + '</h2><p>' + htmlText(animText('resonance_spreads_through_the_ice_the_first', '震波沿万丈玄冰蔓延，第一道星光自裂隙渗入。')) + '</p></div>' +
+            '<div class="break-caption-text break-cap-gaze"><small>' + htmlText(animText('the_shell_breaks_merfolk_look_up', '天壳崩解 · 鲛人仰望')) + '</small><h2>' + htmlText(animText('the_fracture_spreads', '裂痕蔓延。')) + '</h2><p>' + htmlText(animText('merfolk_swim_toward_the_drill_and_watch', '鲛人游近钻机，仰望头顶缓缓敞开的天穹。')) + '</p></div>' +
+            '<div class="break-caption-text break-cap-ending"><small>' + htmlText(animText('a_new_era_for_civilization', '文明的新纪元')) + '</small><h2>' + htmlText(animText('beyond_the_shell', '天壳之外。')) + '</h2><p>' + htmlText(animText('the_boundary_we_once_looked_up_to', '世代仰望的尽头，今天成了起点。')) + '</p></div>' +
           '</div>' +
           '<div class="break-end-card"><small>' + htmlText(animText('stage_complete', '阶段完成')) + '</small><strong>' + htmlText(animText('the_shellbreak_era_looking_to_the_stars', '破壳纪 · 仰望群星')) + '</strong></div>' +
         '</div>' +
@@ -3747,6 +3751,12 @@
 
   SB.ui = SB.ui || {};
   if (root.addEventListener) root.addEventListener('shellbreak:locale-changed', function () {
+    lastPaneHTML = Object.create(null);
+    lastMetaHTML = null;
+    lastCivicHTML = null;
+    lastTechHTML = null;
+    lastStarMapHTML = null;
+    STAR_MAP_LOCALE_CACHE = Object.create(null);
     if (!SB.game || !SB.game.run || !SB.game.run()) return;
     _lastIdleTag = -1;
     _omenSig = '';

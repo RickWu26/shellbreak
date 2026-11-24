@@ -80,7 +80,7 @@
        ['矿工镐', toolMul(s, 'miner')],
        ['寒流季', cold],
        ['全局产出', globalMulX(s)],
-       ['科技乘区', 1 + (tech ? tech.warmMul : 0)],
+       ['科技倍率', 1 + (tech ? tech.warmMul : 0)],
        ['矿工契', minerPactMul(s)],
        ['挑战', (SB.challenges ? SB.challenges.warmstoneMul(s) : 1)],
        ['奇观矿脉', (SB.wonder ? SB.wonder.mineMul(s) : 1)]])
@@ -279,7 +279,7 @@
                       ['全局产出', globalMulX(s)],
                       ['矿工契', minerPactMul(s)],
                       ['奇观矿脉', (SB.wonder ? SB.wonder.mineMul(s) : 1)],
-                      ['科技乘区', 1 + (Tr ? Tr.titaniumMul : 0)],
+                      ['科技倍率', 1 + (Tr ? Tr.titaniumMul : 0)],
                       ['自动钻机', autoDrillOutputMul(s)]])
                  : 0)
                  /* ERA9（2026-10-19）：马尔斯工造中心每级 +2 钛/秒（与 tick 的 mars 块逐字同构，含星际物流网乘区）。 */
@@ -402,7 +402,7 @@
                   ['旅行者1号', SB.wonder ? SB.wonder.voyagerScholarMul(s) : 1],
                   ['哈\'利法', (SB.wonder && SB.wonder.khalifaScholarMul ? SB.wonder.khalifaScholarMul(s) : 1)],
                   ['王座', SB.wonder ? SB.wonder.throneSciMul(s) : 1],
-                  ['科技乘区', Tr ? Tr.sci : 1],
+                  ['科技倍率', Tr ? Tr.sci : 1],
                   ['政策·政体·公司·全局·遗产', _sciTail],
                   ['挑战', _sciCM]])
                + part('science', '政策卡', (cv ? (cv.science || 0) : 0) * _sciTail * _sciCM)
