@@ -9,7 +9,7 @@
 | 用途 | 命令 | 结果 |
 | --- | --- | --- |
 | Web | `pnpm run build:web` | `dist/web/` |
-| TapTap | `python3 _repack.py --out dist/taptap/Shellbreak-TapTap.zip` | 校验后可供上传的本地 ZIP |
+| TapTap | `python3 _repack.py` | `dist/taptap/Shellbreak-TapTap.zip` |
 | Electron 桌面调试 | `pnpm start` | 使用桌面壳打开游戏 |
 | Windows Steam 内容包 | `pnpm run package:steam` | `dist/steam-depot/win-unpacked/` |
 

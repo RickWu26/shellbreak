@@ -14,9 +14,11 @@ _PARSER.add_argument('--src')
 _PARSER.add_argument('--out')
 _ARGS, _ = _PARSER.parse_known_args()
 
-REPO = os.path.abspath(_ARGS.repo or os.environ.get('SB_REPO') or (r'D:/shellbreak' if os.name == 'nt' and os.path.isdir(r'D:/shellbreak') else os.path.dirname(os.path.abspath(__file__))))
-SRC = os.path.abspath(_ARGS.src or os.environ.get('SB_TAPTAP_SRC') or (r'D:/shellbreak/TAPTAP-H5-OUTPUT/rc01-upload/shellbreak' if os.name == 'nt' else os.path.join(REPO, 'TAPTAP-H5-OUTPUT', 'rc01-upload', 'shellbreak')))
-OUT = os.path.abspath(_ARGS.out or os.environ.get('SB_TAPTAP_OUT') or (r'D:/shellbreak/TAPTAP-H5-OUTPUT/shellbreak-taptap-public-rc34-v1.0.7.zip' if os.name == 'nt' else os.path.join(REPO, 'TAPTAP-H5-OUTPUT', 'shellbreak-taptap-public-rc34-v1.0.7.zip')))
+REPO = os.path.abspath(_ARGS.repo or os.environ.get('SB_REPO') or os.path.dirname(os.path.abspath(__file__)))
+stage_path = _ARGS.src or os.environ.get('SB_TAPTAP_SRC')
+stage_tmp = None if stage_path else tempfile.TemporaryDirectory(prefix='shellbreak-taptap-stage-')
+SRC = os.path.abspath(stage_path or os.path.join(stage_tmp.name, 'shellbreak'))
+OUT = os.path.abspath(_ARGS.out or os.environ.get('SB_TAPTAP_OUT') or os.path.join(REPO, 'dist', 'taptap', 'Shellbreak-TapTap.zip'))
 TOP = 'shellbreak'
 
 os.makedirs(SRC, exist_ok=True)

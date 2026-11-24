@@ -79,6 +79,10 @@ async function main() {
     concatParts.push('/* === ' + rel + ' === */\n' + fs.readFileSync(full, 'utf8') + '\n;');
   }
   const combinedJs = concatParts.join('\n');
+  const thumbnails = new Set(combinedJs.match(/assets\/(?:achievements|challenges)\/thumbs\/[\w.-]+\.webp/g));
+  for (const ref of thumbnails) {
+    if (!fs.existsSync(path.join(ROOT, ref))) throw new Error('Missing list thumbnail: ' + ref + ' (run assets:thumbs)');
+  }
   const jsMin = await esbuild.transform(combinedJs, {
     loader: 'js',
     minify: true,

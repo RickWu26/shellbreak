@@ -7,6 +7,7 @@
   "packageManager": "pnpm@11.25.0",
   "scripts": {
     "start": "electron .",
+    "assets:thumbs": "python3 scripts/build_list_thumbs.py",
     "build:web": "node scripts/build_web_release.mjs",
     "package:win": "electron-builder --win nsis --x64",
     "package:dir": "electron-builder --dir --win --x64",
@@ -49,7 +50,9 @@
       "assets/resource-icons/**/*",
       "assets/talent-icons/**/*",
       "assets/tech-icons/**/*",
+      "assets/ui/**/*",
       "assets/ui-era/**/*",
+      "assets/veil/**/*",
       "assets/war/**/*",
       "assets/wonders/**/*",
       "!assets/store/**/*",
