@@ -51,6 +51,7 @@ import { run as runTrackCraftJump } from './e2e-suites/track-craft-jump.mjs';
 import { run as runTrackUpgrade } from './e2e-suites/track-upgrade.mjs';
 import { run as runMetaRenderGuard } from './e2e-suites/meta-render-guard.mjs';
 import { run as runWarCampaign } from './e2e-suites/war-campaign.mjs';
+import { run as runDiplomacyI18n } from './e2e-suites/diplomacy-i18n.mjs';
 /* 2026-11-14：军事/文化轮回点节点（第 9 树「枕戈待旦」+ 政经往来「文教节流」）。 */
 import { run as runMilitaryPerks } from './e2e-suites/military-perks.mjs';
 /* 2026-11-17：帷幕之后·大轮回（ERA11）—— 放全量最尾部：它会真掀幕（清账本 + startRun），
@@ -429,6 +430,7 @@ if (process.argv.includes('--offline-only')) {
  * 沿用其它 --xxx-only 惯例，单独跑免得每次都等整局 bot。 */
 if (process.argv.includes('--war-only')) {
   runWarCampaign({ SB, check, noop, doc, timers: sandbox._timeouts });
+  runDiplomacyI18n({ check });
   const failedWar = checks.filter(c => !c.ok);
   console.log(`\n战争系统测试：${checks.length - failedWar.length}/${checks.length} 通过`);
   process.exit(failedWar.length || errors.length ? 1 : 0);
@@ -3241,6 +3243,7 @@ runHeritageClearNodes({ SB, check });/* 2026-11-05：追踪坞「去制造」跳
 runTrackCraftJump({ SB, check, g, sandbox });
 /* 战争系统回归放在最尾部：每项都用独立周目，不依赖整局 bot 状态。 */
 runWarCampaign({ SB, check, noop, doc, timers: sandbox._timeouts });
+runDiplomacyI18n({ check });
 /* 2026-11-14：军事/文化轮回点节点。放全量最尾部——它临时改 meta.perks 并跑
  * 真实 executeAction，虽自带 finally 还原，也别压在整局 bot 前面。 */
 runMilitaryPerks({ SB, check, noop });

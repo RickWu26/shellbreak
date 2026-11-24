@@ -667,13 +667,14 @@
   }
   /* 虚境信仰（card_cycle_terminus，locked 卡）：信仰更名「虚境」并锁死。
    * 装填该卡后，信仰资源名强制为「虚境」，玩家改名框失效（覆盖并锁死，不可逆）。 */
-  /* 锚定名：显示层（faithDisplayName）与权威态（s.religionName，装卡时补写）共用同一常量，避免漂移。 */
+  /* 存档保留锚定名，显示时按当前语言取词。 */
   var VOID_FAITH_NAME = '虚境';
   function faithNameLocked(s) {
     return cardEffective(s, 'card_cycle_terminus');
   }
   function faithDisplayName(s) {
-    return faithNameLocked(s) ? VOID_FAITH_NAME : ((s && s.religionName) || '').trim();
+    if (!faithNameLocked(s)) return ((s && s.religionName) || '').trim();
+    return (SB.i18n && SB.i18n.t && SB.i18n.t('civic.faith.name.verge')) || VOID_FAITH_NAME;
   }
   /* 虚拟现实卡（craftRatioPerPop 1）：工坊效率加法轴 −1%×人口（用户确认加算、Q1 不设护栏）。
    * 返回**负的加值**，workshop.craftRatio 源⑩直加（轴上正源：工坊级/热锻级/科技/政体/卡/perk）。 */

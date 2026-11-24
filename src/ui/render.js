@@ -4005,6 +4005,7 @@
     _omenSig = '';
     syncBuildingIconToggle();
     renderAll();
+    if (SB.ui.heritageDraftOpen && SB.ui.heritageDraftOpen()) SB.ui.showHeritageDraft(SB.game.run());
   });
 
   SB.ui.openIntro = openIntro;     /* 供 index.html 页签「?」按钮 onclick 调用 */

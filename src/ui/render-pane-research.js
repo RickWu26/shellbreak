@@ -179,9 +179,12 @@
     if (typeof policy.shellSpeedPerIdle === 'number') p.hatchSpeedBonusPerIdleMerfolkPercent = Math.round(policy.shellSpeedPerIdle * 100);
     if (typeof policy.civicPerPop === 'number') p.civicPointsPerMerfolkPerSecond = policy.civicPerPop;
     if (typeof policy.luxConsumeMul === 'number') {
-      p.luxuryGoodsConsumptionIncreasePercent = Math.round((policy.luxConsumeMul - 1) * 100);
-      p.luxuryGoodsConsumptionIncreasePerCardPercent = p.luxuryGoodsConsumptionIncreasePercent;
-      p.luxuryGoodsConsumptionReductionPercent = Math.round((1 - policy.luxConsumeMul) * 100);
+      // 公摊面积、延长工时的卡面按总倍率标示，其余卡面按增减量标示。
+      var totalMultiplier = policy.id === 'card_public_share' || policy.id === 'card_overtime';
+      var luxuryChange = Math.round((policy.luxConsumeMul - (totalMultiplier ? 1 : 0)) * 100);
+      p.luxuryGoodsConsumptionIncreasePercent = luxuryChange;
+      p.luxuryGoodsConsumptionIncreasePerCardPercent = luxuryChange;
+      p.luxuryGoodsConsumptionReductionPercent = -luxuryChange;
     }
     if (typeof policy.happyOffset === 'number') p.happinessPenalty = Math.abs(policy.happyOffset);
     if (typeof policy.jobOutMul === 'number') p.jobOutputBonusPercent = Math.round((policy.jobOutMul - 1) * 100);
@@ -195,11 +198,15 @@
     if (typeof policy.spaceBuildSave === 'number') p.spaceBuildingConstructionCostReductionPercent = Math.round(policy.spaceBuildSave * 100);
     if (typeof policy.canalMul === 'number') p.royalCanalEffectBonusPercent = Math.round((policy.canalMul - 1) * 100);
     if (typeof policy.wonderLuxSave === 'number') p.luxuryGoodsConsumptionReductionPerWonderPercent = Math.round(policy.wonderLuxSave * 100);
-    if (typeof policy.faithSatMul === 'number') p.faithOutputBonusPerSatellitePercent = Math.round((policy.faithSatMul - 1) * 100);
-    if (typeof policy.coreSpaceFaithMul === 'number') p.faithOutputBonusPerZoneBuildingLevelPercent = Math.round((policy.coreSpaceFaithMul - 1) * 100);
-    if (typeof policy.craftRatioPerPop === 'number') p.workshopCraftingEfficiencyPenaltyPerPersonPercent = Math.round(policy.craftRatioPerPop * 100);
+    if (typeof policy.faithSatMul === 'number') p.faithOutputBonusPerSatellitePercent = Math.round(policy.faithSatMul * 100);
+    if (typeof policy.coreSpaceFaithMul === 'number') p.faithOutputBonusPerZoneBuildingLevelPercent = Math.round(policy.coreSpaceFaithMul * 100);
+    if (typeof policy.barracksBonusMul === 'number') p.barracksBonusPercent = Math.round(policy.barracksBonusMul * 100);
+    if (typeof policy.craftRatioPerPop === 'number') p.workshopCraftingEfficiencyPenaltyPerPersonPercent = policy.craftRatioPerPop;
     if (typeof policy.craftMul === 'number') p.workshopCraftingEfficiencyMultiplier = policy.craftMul;
-    if (typeof policy.starPerPop === 'number') p.explorationRateBonusPercent = Math.round(policy.starPerPop * 100);
+    if (typeof policy.starPerPop === 'number') {
+      p.explorationRateBonusPerMerfolkPercent = policy.starPerPop;
+      p.explorationRateBonusPercent = policy.starPerPop * ((s && s.pop) || 0);
+    }
     if (typeof policy.planetOutMul === 'number') p.alienBuildingOutputBonusPercent = Math.round((policy.planetOutMul - 1) * 100);
     if (typeof policy.breakStardustMul === 'number') p.stardustGainMultiplier = policy.breakStardustMul;
     if (typeof policy.foodOutMul === 'number') p.foodProductionMultiplier = policy.foodOutMul;
@@ -286,6 +293,19 @@
   }
   function policyName(policy) {
     return policyText(policy, 'name', null, policy && policy.name || '');
+  }
+  function heritageCard(s, id) {
+    var h = SB.heritage, policy = h.policyById(id);
+    if (!policy) return { id: id, name: id, desc: '' };
+    var desc;
+    if (Object.prototype.hasOwnProperty.call(h.HERITAGE_DESC, id)) {
+      var key = 'heritage.' + id + '.desc';
+      desc = SB.i18n && SB.i18n.t ? SB.i18n.t(key, policyParams(policy, s)) : '';
+      if (!desc) desc = h.descOf(id);
+    } else {
+      desc = policyDesc(policy, s);
+    }
+    return { id: id, name: policyName(policy), desc: desc };
   }
   function policyBlockedText(s, policy, why) {
     if (!why) return '';
@@ -1810,7 +1830,7 @@
     paneTech: paneTech, paneCivic: paneCivic,
     /* 活数值原地回填（render.js 每次 renderPanes 结束调一次）。 */
     paintLive: paintLive,
-    policyName: policyName, policyDesc: policyDesc, policyFlavor: policyFlavor,
+    policyName: policyName, policyDesc: policyDesc, policyFlavor: policyFlavor, heritageCard: heritageCard,
     /* 2026-11-01：科技 / 市政页顶部的自动研究拨动开关。回归直接调它断言
      * 「已买=可拨、未买=锁态」，不必先把科技面板的门打开（paneTech 在未开门时
      * 整页换成 paneTechLocked，开关根本不出现 —— 那会测成「没开门 ⇒ 没开关」）。 */

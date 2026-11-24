@@ -274,9 +274,9 @@
     if (heritagePick && heritagePick.dataset) {
       var hpIdx = Number(heritagePick.dataset.heritagePick);
       var hpId = heritagePick.dataset.heritageCard;
-      var hpName = SB.heritage && SB.heritage.nameOf ? SB.heritage.nameOf(hpId) : hpId;
       var hpOk = SB.war && SB.war.chooseHeritage ? SB.war.chooseHeritage(s, hpIdx, hpId) : false;
       if (hpOk) {
+        var hpName = SB.ui.renderParts.research.policyName(SB.heritage.policyById(hpId));
         SB.game.markDirty(); SB.game.renderAll();
         SB.game.log(tr('ui.heritage.picked', { name: hpName }));
       }

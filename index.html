@@ -17,13 +17,13 @@
     try { savedLoc = localStorage.getItem('shellbreak.locale') || ''; } catch (e) {}
     if (locEnabled) {
       window.ShellbreakLocaleUrls = {
-        'en-US': 'electron/locales/en-US.js?v=85',
-        'zh-TW': 'electron/locales/zh-TW.js?v=35'
+        'en-US': 'electron/locales/en-US.js?v=86',
+        'zh-TW': 'electron/locales/zh-TW.js?v=36'
       };
     }
-    var scripts = '<script src="src/locales/zh-CN.js?v=90"><\/script>';
+    var scripts = '<script src="src/locales/zh-CN.js?v=91"><\/script>';
     if (locEnabled && isElectron) {
-      scripts += '<script src="electron/locales/en-US.js?v=85"><\/script><script src="electron/locales/zh-TW.js?v=35"><\/script>';
+      scripts += '<script src="electron/locales/en-US.js?v=86"><\/script><script src="electron/locales/zh-TW.js?v=36"><\/script>';
     } else if (locEnabled && (savedLoc === 'en-US' || savedLoc === 'zh-TW')) {
       scripts += '<scr' + 'ipt src="' + window.ShellbreakLocaleUrls[savedLoc] + '"><\/scr' + 'ipt>';
     }
@@ -435,7 +435,7 @@
      ⚠️ 不复用 warToastStack（role=status 是播报层，塞可交互控件语义不对）；
      ⚠️ 不内嵌 #pane-diplomacy（每 2 秒整块重画会冲掉玩家正在选的榜）。
      榜单状态只存 s.war.heritage.pending，本容器只是渲染层，关掉重开不丢。 -->
-<div class="heritage-draft-layer hidden" id="heritageDraftLayer" role="dialog" aria-modal="false" aria-label="择取传承"></div>
+<div class="heritage-draft-layer hidden" id="heritageDraftLayer" role="dialog" aria-modal="false" aria-label="择取传承" data-i18n-aria-label="ui.heritage.draft_title"></div>
 <!-- 帷幕之后（2026-11-17 晚形态变更）：原 #veilHub / #veilModal 两层遮罩已删除，
      现为普通页签 #pane-veil（见上方 pane 容器）。 -->
 <div class="modal hidden" id="modal" data-page-node-id="wN2xHC3YS6Jc5y9jZxWN9v"><div class="box" id="modalBox" data-page-node-id="9HKPgpQiNuFHXXBIBHsXYm"></div></div>
@@ -461,7 +461,7 @@
      （晚于 economy.js 的**加载**也不要紧，那次调用是运行期才发生的），
      但必须早于 game.js 的首次 pump，否则第一次扫描会漏掉全部市政。 -->
 <script src="src/civics-data.js?v=43"></script>
-<script src="src/civics.js?v=152"></script>
+<script src="src/civics.js?v=153"></script>
 <!-- 传承（2026-11-11）：必须在 civics.js 之后（install() 运行时包装 SB.civic 的效果出口），
      且早于 state-migrate.js（读档白名单校验要用 isPoolCard）与 war.js（吞并发榜）。 -->
 <script src="src/heritage.js?v=4"></script>
@@ -502,7 +502,7 @@
 <script src="src/ui/render-content.js?v=28"></script>
 <script src="src/ui/render-common.js?v=13"></script>
 <script src="src/ui/render-info.js?v=60"></script>
-<script src="src/ui/render-pane-research.js?v=58"></script>
+<script src="src/ui/render-pane-research.js?v=59"></script>
 <script src="src/ui/render-pane-village.js?v=56"></script>
 <script src="src/ui/render-pane-folk.js?v=9"></script>
 <script src="src/ui/render-talent-tree.js?v=7"></script>
@@ -510,18 +510,18 @@
 <script src="src/ui/render-pane-challenges.js?v=37"></script>
 <script src="src/ui/render-pane-company.js?v=6"></script>
 <script src="src/ui/render-pane-faith.js?v=7"></script>
-<script src="src/ui/render-pane-war.js?v=18"></script>
+<script src="src/ui/render-pane-war.js?v=19"></script>
 <!-- 传承三选一浮层：状态只在 s.war.heritage，容器独立于 2 秒重画的面板。 -->
-<script src="src/ui/heritage-draft.js?v=2"></script>
+<script src="src/ui/heritage-draft.js?v=3"></script>
 <!-- 战争结果轻量提示（2026-11-11）：纯 UI 组件，只被结算点在运行期调用，
      不依赖加载顺序；放在战争面板之后便于对照。无 DOM 环境自动 no-op。 -->
-<script src="src/ui/war-toast.js?v=5"></script>
+<script src="src/ui/war-toast.js?v=6"></script>
 <script src="src/ui/render-pane-wonder.js?v=16"></script>
 <script src="src/ui/render-pane-star-map.js?v=17"></script>
 <script src="src/ui/star-map-iframe.js?v=1"></script>
 <script src="src/ui/render-pane-workshop.js?v=32"></script>
 <script src="src/ui/render-environment.js?v=29"></script>
-<script src="src/ui/render.js?v=327"></script>
+<script src="src/ui/render.js?v=328"></script>
 <!-- 帷幕之后 · 飞升路径界面（2026-11-17）：外层三路径卡 + 内层弹窗 + 硅基装配台。
      加载早于 game.js；它对 SB.game 的读取都在运行期（点按钮时），无加载期依赖。 -->
 <script src="src/ui/veil-hub-ui.js?v=21"></script>
@@ -533,7 +533,7 @@
 <script src="src/save-transfer-browser.js?v=1"></script>
 <script src="src/save-transfer.js?v=22"></script>
 <script src="src/redeem.js?v=6"></script>
-<script src="src/ui/input.js?v=203"></script>
+<script src="src/ui/input.js?v=204"></script>
 <script src="src/ai-strategy.js?v=97"></script>
 <script src="src/ui/theme.js?v=8"></script>
 <script src="src/ui/background.js?v=3"></script>
