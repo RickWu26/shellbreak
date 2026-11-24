@@ -1,6 +1,6 @@
 # Shellbreak v1.3.2 开发交接
 
-在本地分支 `feat/perf-ui-overhaul` 接手。发行基准是 v1.3.1（`00b5a2a`），本轮功能改动截至 `0d68071`，其后是本次更新日志和交接文档。分支尚未推送。在仓库根目录运行 `git diff --stat 00b5a2a..0d68071` 可列出两个版本之间改过的文件。给玩家的说明见[中文更新日志](CHANGELOG_v1.3.2.md)。
+本次开发分支为 `RickWu26/shellbreak:feat/perf-ui-overhaul`，合并目标为上游 `tl38t/shellbreak:master`。发行基准是 v1.3.1（`00b5a2a`），本轮功能改动截至 `0d68071`，其后是更新日志和交接文档。在仓库根目录运行 `git diff --stat 00b5a2a..0d68071` 可列出两个版本之间改过的文件。[GitHub 开发分支](https://github.com/RickWu26/shellbreak/tree/feat/perf-ui-overhaul) · [玩家更新日志](CHANGELOG_v1.3.2.md)
 
 ## 改动和代码入口
 
