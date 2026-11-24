@@ -2830,10 +2830,14 @@ check('首次轮回后 setTab(achievements) 可进入（pane-achievements 不再
     /class="bztitle" data-zfold="core"[^>]*style="--hc:#4dd8e6"/.test(vHtml), '');
   check('巢穴页内区标题按区取色（生息区=绿 #4ade80）',
     /class="bztitle" data-zfold="food"[^>]*style="--hc:#4ade80"/.test(vHtml), '');
+  function zoneClasses(html, zone) {
+    const re = new RegExp('<div class="([^"]*)" data-zone="' + zone + '"><div class="bztitle" data-zfold="' +
+      zone + '"[^>]*>[\\s\\S]*?</div><div class="bzbody">');
+    const match = re.exec(html);
+    return match ? match[1].split(/\s+/) : [];
+  }
   check('巢穴页内分区可折叠（.bzone[data-zone] 包 .bztitle + .bzbody）',
-    /<div class="bzone" data-zone="core">/.test(vHtml) &&
-    /<div class="bzone" data-zone="food">/.test(vHtml) &&
-    /class="bzbody"/.test(vHtml), '');
+    zoneClasses(vHtml, 'core').includes('bzone') && zoneClasses(vHtml, 'food').includes('bzone'), '');
   check('ERA1已解锁建筑行显示各自的图标',
     vHtml.includes('assets/building-icons/era-1/era1-nest.png') &&
     vHtml.includes('assets/building-icons/era-1/era1-kelp.png'), '');
@@ -2848,14 +2852,14 @@ check('首次轮回后 setTab(achievements) 可进入（pane-achievements 不再
   check('再次点击开关可恢复图标',
     SB.ui.render.buildingIconsShown() && vIconsOn.includes('era1-nest.png'), '');
   /* 折叠真源是 ZONE_FOLDED：翻一次 → 重画 → 该区带 folded，且**只动那一个区**。 */
-  const coreBefore = /<div class="bzone folded" data-zone="core">/.test(vHtml);
-  const foodBefore = /<div class="bzone folded" data-zone="food">/.test(vHtml);
+  const coreBefore = zoneClasses(vHtml, 'core').includes('folded');
+  const foodBefore = zoneClasses(vHtml, 'food').includes('folded');
   SB.ui.render.toggleZoneFold('core');
   SB.game.markDirty(); SB.ui.render.renderPanes();
   const vFold = doc.getElementById('pane-village-body').innerHTML;
   check('折叠某区：重画后该区带 folded，且只动该区（状态重拼，不怕 2 秒重画）',
-    /<div class="bzone folded" data-zone="core">/.test(vFold) === !coreBefore &&
-    /<div class="bzone folded" data-zone="food">/.test(vFold) === foodBefore, '');
+    zoneClasses(vFold, 'core').includes('folded') === !coreBefore &&
+    zoneClasses(vFold, 'food').includes('folded') === foodBefore, '');
   SB.ui.render.toggleZoneFold('core');   // 翻回原状，别把状态漏给后面的断言
   sVc.lvl = lvBak; sVc.seen = seenBak;
   if (tabBak) SB.game.setTab(tabBak);
