@@ -1154,59 +1154,51 @@ console.log('\n=== 工坊：青铜工具 ===');
       stMax && Math.abs(predMax - realMax) < 1e-9 && predMax > 0,
       'stepOut=' + predMax + ' craft=' + realMax + '（12345 石 ÷ 100 ⇒ 123 份 × 1.05）');
 
-    /* ── 升级项页签「已完成 n / 共 m」+ 未读 NEW（2026-10-17 用户）──
-     * 核心三条：① 页签现算 n/m（doneCount 同源）；② 有未读项时页签角标 NEW，
-     *   且**只在人不在升级项页签上**才亮（正在看就别挂 NEW）；③ 行级 NEW 仅在进入
-     *   页签的快照里打、离开时整批落盘，落盘后角标消失。
-     * ⚠️ workshopView / pendingNew 是跨用例 module 级状态（前面 第⑧⑨ 块动过），
-     *   所以开头先归位到一个干净基态：清 localStorage → 进 upgrades 快照全部 → 回
-     *   making 落盘全部 → 再清空 seen。这样终态是「seen 空、pendingNew=null、
-     *   workshopView='making'」，最符合「玩家从新开局第一次进工坊」的语义。 */
+    /* 已读与实际呈现的工具、升级同步。旧版会把尚未揭示的条目也写入已读数组。 */
     {
-      const RP = SB.ui.renderParts;
-      const SEEN = 'sb.wsSeen.v1';
-      const total = SB.TOOLS.length + SB.workshop.upgrades().length;
-      /* 干净基态（见上段注） */
-      try { sandbox.localStorage.removeItem(SEEN); } catch (e) {}
-      RP.setWorkshopView('upgrades');   // 快照全部未读 → pendingNew = 全部键
-      RP.setWorkshopView('making');     // 落盘全部 → localStorage 满；pendingNew=null
-      try { sandbox.localStorage.removeItem(SEEN); } catch (e) {}  // 现在清空 seen，保留干净基态
-
+      const RP = SB.ui.renderParts, store = sandbox.localStorage;
+      const seenKey = 'sb.wsSeen.v2', legacyKey = 'sb.wsSeen.v1';
       const s = SB.game.run();
-      s.lvl.workshop = 1;               // 建成工坊，解锁面板
-      s.tools = {}; s.upgrades = {};    // 尚未买断任何东西 ⇒ n = 0
-
-      /* (1) 未读态、停在「工坊制造」页签：upgradeTabMeta 计「已完成 0 / 已揭晓 m」且 fresh=true */
+      const later = 'upg_ballast_1', oldTech = s.techs.engineeringT;
+      s.lvl.workshop = 1;
+      s.tools = {}; s.upgrades = {};
+      delete s.techs.engineeringT;
       SB.game.setTab('workshop');
+      store.removeItem(seenKey);
+      store.setItem(legacyKey, JSON.stringify(['t:' + SB.TOOLS[0].id, 'u:' + later]));
       const tm1 = RP.upgradeTabMeta(s);
+      const migrated = JSON.parse(store.getItem(seenKey));
+      check('旧工坊已读迁移保留已揭示的记录，未解锁条目仍可在将来提示',
+        migrated.includes('t:' + SB.TOOLS[0].id) && !migrated.includes('u:' + later));
       check('升级项页签元数据提供「已完成 0 / 已揭晓 m」进度口径',
-        /^已完成 0 \/ 已揭晓 \d+$/.test(tm1.cnt) && tm1.done === 0 && tm1.total > 0,
-        'cnt=' + tm1.cnt);
-      check('有未读升级项且人不在升级页时 fresh=true（点亮一级页签 NEW）',
-        tm1.fresh === true, 'fresh=' + tm1.fresh);
+        /^已完成 0 \/ 已揭晓 \d+$/.test(tm1.cnt) && tm1.done === 0 && tm1.total > 0);
+      check('有未读升级项且人不在升级页时 fresh=true（点亮一级页签 NEW）', tm1.fresh);
 
-      /* (2) 进入「工坊升级」一级页签：行级 NEW 打在尚未看过的条目前；fresh 消掉（正在看） */
       SB.game.setTab('workshop-upgrades');
-      const upHtml = RP.paneWorkshopUpgrades();
-      const tm2 = RP.upgradeTabMeta(s);
+      const html = RP.paneWorkshopUpgrades(), tm2 = RP.upgradeTabMeta(s);
+      const displayed = Array.from(html.matchAll(/ data-(tool|upgrade)="([^"]+)"/g),
+        match => (match[1] === 'tool' ? 't:' : 'u:') + match[2]);
       check('进入「工坊升级」后行前带 NEW（工具/升级项各自），且页签 fresh 消掉（正在看）',
-        /class="tag new">NEW/.test(upHtml) && tm2.fresh === false && upHtml.indexOf(tm2.cnt) >= 0,
-        '行内 NEW: ' + /tag new/.test(upHtml) + '，fresh: ' + tm2.fresh);
-
-      /* (3) 离开「工坊升级」⇒ 整批落盘；再回「工坊制造」时 fresh 仍为 false */
+        /class="tag new">NEW/.test(html) && !tm2.fresh && html.includes(tm2.cnt));
       SB.game.setTab('workshop');
-      const seen = JSON.parse((sandbox.localStorage.getItem(SEEN) || '[]'));
-      check('离开「工坊升级」页签时把未读项整批落盘（localStorage 记满全部条目键）',
-        seen.length === total &&
-        seen.indexOf('t:' + SB.TOOLS[0].id) >= 0 &&
-        seen.indexOf('u:' + SB.workshop.upgrades()[0].id) >= 0,
-        'seen 数量=' + seen.length + ' / 期望 ' + total);
-      const tm3 = RP.upgradeTabMeta(s);
+      const seen = JSON.parse(store.getItem(seenKey));
+      check('离开工坊升级仅将展示过的条目标为已读',
+        displayed.length > 0 && seen.length === displayed.length && displayed.every(key => seen.includes(key)) &&
+        !seen.includes('u:' + later));
       check('落盘后回到「工坊制造」页签，未读角标消失（进度计数保留）',
-        tm3.fresh === false && /^已完成 0 \/ 已揭晓 \d+$/.test(tm3.cnt),
-        'fresh=' + tm3.fresh + ' cnt=' + tm3.cnt);
-    }
+        !RP.upgradeTabMeta(s).fresh && tm2.total === displayed.length);
 
+      s.techs.engineeringT = true;
+      check('新科技揭示的升级会重新点亮页签 NEW', RP.upgradeTabMeta(s).fresh);
+      SB.game.setTab('workshop-upgrades');
+      const newHtml = RP.paneWorkshopUpgrades();
+      const newRow = newHtml.split('<div class="row"').find(row => row.includes('data-upgrade="' + later + '"'));
+      check('首次揭示的压舱库扩容与未读标记同时展示', !!newRow && /class="tag new">NEW/.test(newRow));
+      SB.game.setTab('workshop');
+      check('查看后新升级落盘并熄灭角标', JSON.parse(store.getItem(seenKey)).includes('u:' + later) && !RP.upgradeTabMeta(s).fresh);
+      if (oldTech === undefined) delete s.techs.engineeringT; else s.techs.engineeringT = oldTech;
+      store.removeItem(legacyKey);
+    }
 
     /* ④ 石梁无仓储上限——**用户拍的设计**，用断言钉住，
      *    免得将来有人顺手补个上限，还以为在修 bug。 */

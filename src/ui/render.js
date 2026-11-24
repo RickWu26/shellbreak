@@ -3687,10 +3687,10 @@
     var wkut = doc.querySelector('.tab[data-tab="workshop-upgrades"]');
     if (wkut) {
       var wkUnlocked = workshopTabOpen();
-      var wkOn = !!(wkUnlocked && SB.workshop && SB.workshop.hasPurchasable && SB.workshop.hasPurchasable(s));
-      if (wkut.classList) wkut.classList.toggle('avail', wkOn);
       var upgMeta = (wkUnlocked && SB.ui.renderParts && SB.ui.renderParts.upgradeTabMeta)
         ? SB.ui.renderParts.upgradeTabMeta(s) : null;
+      var wkOn = !!(upgMeta && upgMeta.purchasable);
+      if (wkut.classList) wkut.classList.toggle('avail', wkOn);
       var curTabNow = SB.game && SB.game.getTab ? SB.game.getTab() : '';
       var newTag = doc.getElementById ? doc.getElementById('tabWorkshopUpgradesNew') : null;
       if (newTag) newTag.hidden = !(upgMeta && upgMeta.fresh && curTabNow !== 'workshop-upgrades');

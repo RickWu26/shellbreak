@@ -13,10 +13,8 @@
     return activeLocaleCode() !== 'zh-CN';
   }
   function tr(key, params, fallback) {
-    var loc = activeLocaleCode();
-    var activeDict = root.ShellbreakLocales && root.ShellbreakLocales[loc];
-    var value = nonDefaultLocaleEnabled() && activeDict && typeof activeDict[key] === 'string' && SB.i18n.t
-      ? SB.i18n.t(key, params) : '';
+    if (!nonDefaultLocaleEnabled()) return fallback || '';
+    var value = SB.i18n.t(key, params);
     return value || fallback || '';
   }
   function trComplete(key, params, fallback) {
@@ -283,7 +281,8 @@
     return policyText(policy, 'desc', policyParams(policy, s), policy && policy.desc || '');
   }
   function policyFlavor(policy) {
-    return policyText(policy, 'flavor', null, policy && policy.flavor || '');
+    return policyText(policy, policy && policy.flavorParams ? 'action' : 'flavor',
+      policy && policy.flavorParams, policy && policy.flavor || '');
   }
   function policyName(policy) {
     return policyText(policy, 'name', null, policy && policy.name || '');
@@ -686,10 +685,11 @@
         ' data-track-toggle="tech:' + t.id + '" aria-label="' + tr('research.tech.track_eureka.aria_label', null, '追踪尤里卡条件') + '"' +
         ' title="' + tr(_tk ? 'tree.track.stop' : 'tree.track.eureka', null, _tk ? '取消追踪尤里卡' : '追踪尤里卡') + '">★</span>';
     }
-    var why = done ? null : SB.tech.studyBlocked(s, t.id);
+    var blockKind = done ? '' : SB.tech.studyBlockKind(s, t);
+    var why = SB.tech.studyBlockText(s, t, blockKind);
     /* The study gate returns a specific science shortage reason after all reveal,
      * era, prerequisite, and material gates pass. Keep it as a separate card state. */
-    var scienceShort = !done && lit && typeof why === 'string' && why.indexOf('科技点不足：') === 0;
+    var scienceShort = lit && blockKind === 'science';
     var scienceNow = scienceShort ? Math.max(0, Number(s && s.res && s.res.science) || 0) : 0;
     var scienceCost = scienceShort ? SB.tech.researchCost(s, t) : 0;
     var sciencePct = scienceCost > 0 ? Math.max(0, Math.min(100, scienceNow / scienceCost * 100)) : 0;
@@ -934,10 +934,11 @@
         var lv = SB.tech.level(s, t.id), maxLv = SB.tech.maxLevel(t);
         var done = lv >= maxLv;
         var lit = SB.tech.metOf(s, t);
-        var why = done ? null : SB.tech.studyBlocked(s, t.id);
+        var blockKind = done ? '' : SB.tech.studyBlockKind(s, t);
+        var why = SB.tech.studyBlockText(s, t, blockKind);
         if (flt === 'ready' && (done || !lit || why)) continue;
         if (flt === 'unrevealed' && (done || lit)) continue;
-        var sciShort = !done && lit && typeof why === 'string' && why.indexOf('科技点不足：') === 0;
+        var sciShort = lit && blockKind === 'science';
         var status = done ? tr('tree.detail.status.mastered', null, '已掌握')
           : (lv > 0 && !done) ? tr('research.tech.partial_level.status', { level: lv, maxLevel: maxLv }, '等级 ' + lv + '/' + maxLv)
           : !lit ? tr('tree.detail.status.unrevealed', null, '未揭示')

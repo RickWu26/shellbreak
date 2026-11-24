@@ -1036,6 +1036,12 @@ html[data-ui-theme="day"] .ui-settings-tab.on {
     font-size: 11px;
   }
 
+  .happy-head,
+  .wonder-overview,
+  .wonder-overview-side {
+    flex-wrap: wrap;
+  }
+
   /* 移动端隐藏随行悬浮球，避免遮挡列表与底栏 */
   #walkFab {
     display: none !important;

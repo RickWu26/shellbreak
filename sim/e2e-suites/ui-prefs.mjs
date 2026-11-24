@@ -9,6 +9,13 @@
  *    另一次启动」。断言打在真实的 prefGet / prefSet / prefHydrate 上。
  * ⚠️ 本套件不触碰主沙箱的游戏状态（临时塞的那件工具当场还原），可放在 persistence
  *    之后、boot-gate 之前。 */
+import { readFileSync } from 'node:fs';
+import { Script, createContext } from 'node:vm';
+
+const entry = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
+const localeHead = new Script(entry.split('/*HEAD_LOCALE_LOADER_START*/')[1].split('/*HEAD_LOCALE_LOADER_END*/')[0]);
+const localeRuntime = new Script(readFileSync(new URL('../../src/i18n.js', import.meta.url), 'utf8'));
+
 export async function run({ SB, check, sandbox, loadNoDom, g }) {
   console.log('\n=== 设备级 UI 偏好（隐藏已完成跨重启） ===');
   const PREF_KEY = SB.store.PREF_KEY;
@@ -49,6 +56,45 @@ export async function run({ SB, check, sandbox, loadNoDom, g }) {
     sb.window = sb; sb.globalThis = sb;
     if (tap) sb.tap = tap;
     return { sb, SB: loadNoDom(sb).SB };
+  }
+
+  function localeSession(platform, saved, complete = true) {
+    let scripts = '';
+    const root = createContext({
+      shellbreakPlatform: platform,
+      localStorage: mkStorage({ 'shellbreak.locale': saved }),
+      document: { write(html) { scripts = html; } },
+      ShellbreakLocales: { 'en-US': { 'tech.engineering_t.name': 'Engineering' }, 'zh-TW': { 'tech.engineering_t.name': '工程學' } },
+      ShellbreakLocaleCoverage: { 'en-US': { activeKeys: 1, complete }, 'zh-TW': { activeKeys: 1, complete } }
+    });
+    root.window = root;
+    localeHead.runInContext(root);
+    delete root.document;
+    localeRuntime.runInContext(root);
+    return { api: root.SB.i18n, scripts };
+  }
+
+  {
+    const web = localeSession(undefined, 'en-US');
+    check('Web 重开时按偏好载入单个外语词库，研究页旧键能解析成英语',
+      web.api.getLocale() === 'en-US' && web.api.t('tech.engineeringT.name') === 'Engineering' &&
+      web.scripts.includes('/en-US.js') && !web.scripts.includes('/zh-TW.js'));
+    const fresh = localeSession(undefined, 'zh-CN');
+    check('Web 简中首屏仅加载默认词库，设置可以切换繁中',
+      !fresh.scripts.includes('/en-US.js') && !fresh.scripts.includes('/zh-TW.js') &&
+      fresh.api.setLocale('zh-TW') && fresh.api.t('tech.engineeringT.name') === '工程學');
+    const steam = localeSession({ runtime: 'electron', localizationEnabled: true }, 'steam');
+    check('Electron 保留跟随 Steam 的偏好并预载两个可选词库',
+      steam.api.getPreference() === 'steam' && steam.scripts.includes('/en-US.js') && steam.scripts.includes('/zh-TW.js'));
+    check('渠道端和未知容器始终使用简中，也不读取外语词库',
+      ['taptap', 'xiaohongshu', 'unknown'].every(runtime => {
+        const host = localeSession({ runtime, localizationEnabled: true }, 'en-US');
+        return host.api.getLocale() === 'zh-CN' && !host.api.setLocale('en-US') &&
+          !host.scripts.includes('/en-US.js') && !host.scripts.includes('/zh-TW.js');
+      }));
+    const partial = localeSession(undefined, 'en-US', false);
+    check('未完整导出的英语和繁中词库均不能启用',
+      partial.api.getLocale() === 'zh-CN' && !partial.api.setLocale('en-US') && !partial.api.setLocale('zh-TW'));
   }
 
   /* ① 默认取向：全新设备两个开关都不隐藏，且不写死任何「默认隐藏」的旧键。 */

@@ -952,11 +952,10 @@
   };
   function resName(id) {
     var item = SB.RESS && SB.RESS[id], fallback = item ? item.name : '未知资源';
+    var loc = activeNonDefaultLocale();
+    if (!loc) return fallback;
     var key = RESOURCE_NAME_KEYS[id] || 'resource.' + snakeCase(id) + '.name';
-    if (!root.ShellbreakLocales || !root.ShellbreakLocales['en-US'] || !root.ShellbreakLocales['en-US'][key]) {
-      var contentKey = 'content.' + snakeCase(id) + '.name';
-      if (root.ShellbreakLocales && root.ShellbreakLocales['en-US'] && root.ShellbreakLocales['en-US'][contentKey]) key = contentKey;
-    }
+    if (!hasLocaleKey(loc, key)) key = 'content.' + snakeCase(id) + '.name';
     return localizedName(key, fallback);
   }
   /* `rate` 类尤里卡条件的读数显示名。
@@ -1184,63 +1183,58 @@
   }
   function maxTechLevel(t) { return t && t.maxLevel > 0 ? Math.floor(t.maxLevel) : 1; }
 
-  /* 能否研究。四条门禁缺一不可：已揭示 / 本纪元内 / 尤里卡达成过 / 前置已掌握。 */
+  /* 原因用于卡片状态和研究门禁。可读提示按当前语言生成。 */
+  function studyBlockKind(s, t) {
+    if (techLevel(s, t.id) >= maxTechLevel(t)) return 'mastered';
+    if (!challengeOnlyOk(s, t)) return 'challenge';
+    var met = metOf(s, t);
+    if (!isRevealed(s, t.id) && !met) return 'hidden';
+    if (t.era > (s.era || 1)) return 'era';
+    if (!met) return 'eureka';
+    if (!reqsMet(s, t)) return 'prerequisites';
+    if (!resCostMet(s, t)) return 'material';
+    if (!SB.economy.enough(s.res.science, researchCost(s, t))) return 'science';
+    return '';
+  }
   function canStudy(s, id) {
     var t = byId(id);
-    if (!t) return false;
-    if (techLevel(s, id) >= maxTechLevel(t) || (!isRevealed(s, id) && !metOf(s, t))) return false;
-    if (t.era > (s.era || 1)) return false;      // 纪元闸门：不能跳纪元偷研究
-    if (!challengeOnlyOk(s, t)) return false;
-    /* 尤里卡门禁（2026-09-26 用户拍板「灰掉，必须先达成尤里卡」）。
-     * 它才是本文件顶部那条设计（条件达成 ⇒ 整项从「不可研究」变「可研究」）的**真正落实**：
-     * 在此之前那只是纸面条款 —— revealEra 会在进纪元时把整批节点刷成「已揭示」，
-     * 于是条件没达成的科技照样买得到。 */
-    if (!metOf(s, t)) return false;
-    if (!reqsMet(s, t)) return false;
-    /* ⚠️ 必须与 study 的扣费同口 researchCost（2026-10-17 用户拍板实装折扣断链）：
-     *   旧版裸读 t.cost ⇒ 建科研所后「科技点在折后价~原价之间」时本函数 false、
-     *   而 studyBlocked（折扣口）判 null ⇒ 红点亮、点了没反应，且折扣从未让人更早买得起。 */
-    if (!resCostMet(s, t)) return false;
-    return SB.economy.enough(s.res.science, researchCost(s, t));
+    return !!t && !studyBlockKind(s, t);
+  }
+  function studyBlockText(s, t, kind) {
+    switch (kind) {
+      case 'mastered': return tr('tech.study.status.mastered', null, '已掌握');
+      case 'challenge': return challengeOnlyReason(t);
+      case 'hidden': return tr('tech.study.hidden.eureka_required', null, '未揭露：先达成尤里卡条件');
+      case 'era':
+        var era = eraName(t.era);
+        return tr('tech.era_locked.blocked', { eraName: era }, '纪元未到：属于 ' + era + '，先推进当前纪元');
+      case 'eureka': return tr('tech.study.eureka_required', null, '尤里卡未达成：达成条件后才能研究');
+      case 'prerequisites':
+        var names = t.reqs.filter(function (id) { return !s.techs[id]; }).map(techName).join(isEnglishLocale() ? ', ' : '、');
+        return tr('tech.prerequisites.blocked', { technologyNames: names }, '缺少前置科技：' + names);
+      case 'material':
+        var lack = resCostLack(s, t);
+        var name = SB.i18n && SB.i18n.resourceName ? SB.i18n.resourceName(lack.r, resName(lack.r)) : resName(lack.r);
+        var current = SB.economy.fmtAmt(s.res[lack.r] || 0), required = SB.economy.fmtAmt(lack.n);
+        return tr('tech.material_cost.blocked', { resourceName: name, current: current, required: required },
+          '材料不足：' + name + ' 现有 ' + current + ' / 需求 ' + required);
+      case 'science':
+        var science = SB.economy.fmtAmt(s.res.science), cost = SB.economy.fmtAmt(researchCost(s, t));
+        return tr('tech.research_points.blocked', { current: science, required: cost },
+          '科技点不足：现有 ' + science + ' / 需求 ' + cost);
+      default: return null;
+    }
   }
   function studyBlocked(s, id) {
     var t = byId(id);
-    if (!t) return null;
-    if (techLevel(s, id) >= maxTechLevel(t)) return '已掌握';
-    /* 挑战门排在**最前**（2026-11-02 调整，对齐 civics.blocked 的同一顺序）：
-     *   「你在基游戏，这棵枝永远研究不了」是结构事实，「先达成尤里卡」是实现路径，
-     *   后者对一个永远不会揭示的节点等于误导 —— 玩家会去攒尤里卡，攒完还是灰。
-     *   ⚠️ 顺序也决定 UI 灰按钮的 title；改这里前先看 render-pane-research 的暗态分支。 */
-    if (!challengeOnlyOk(s, t)) return challengeOnlyReason(t);
-    /* ⚠️ 与渲染同源（2026-11-03）：原先只认 isRevealed（eureka 标记），可该标记在读档后
-     *   对所有**已掌握**节点都是缺失的（见 discover 顶部那段）⇒ 多级科技升不了且不报原因。
-     *   metOf 里含「已掌握 / 曾达成 / 现达成」三档，isRevealed 只是其中一档的标记。 */
-    if (!isRevealed(s, id) && !metOf(s, t)) return '未揭露：先达成尤里卡条件';
-    if (t.era > (s.era || 1)) return '纪元未到：属于 ' + eraName(t.era) + '，先推进当前纪元';
-    /* 文案要指得出**该做什么**，不能只说「不行」：这句话会挂成灰按钮的 title，
-     * 而卡片上条件行还写着进度，两者合起来才是完整的一句「你还差什么」。 */
-    if (!metOf(s, t)) return '尤里卡未达成：达成条件后才能研究';
-    if (!reqsMet(s, t)) return '缺少前置科技：' + t.reqs.map(function (r) { return byId(r).name; }).join('、');
-    /* 材料门排在科技点门**之前**：材料是可以靠攒解决的确定门槛，科技点是主进度，
-     * 先报材料玩家才知道该去开矿而不是干等。 */
-    var _lack = resCostLack(s, t);
-    if (_lack) {
-      var _lackName = (SB.RESS && SB.RESS[_lack.r] && SB.RESS[_lack.r].name) || _lack.r;
-      return '材料不足：' + _lackName + ' 现有 ' + SB.economy.fmtAmt(s.res[_lack.r] || 0) +
-        ' / 需求 ' + SB.economy.fmtAmt(_lack.n);
-    }
-    if (!SB.economy.enough(s.res.science, researchCost(s, t))) return '科技点不足：现有 ' + SB.economy.fmtAmt(s.res.science) + ' / 需求 ' + SB.economy.fmtAmt(researchCost(s, t));
-    return null;
+    return t ? studyBlockText(s, t, studyBlockKind(s, t)) : null;
   }
-
-  /* 是否存在「当前即可研究」的科技（面板已开 + 有未掌握且 studyBlocked 为 null 的项）。
-   * 供页签红点用，复用 studyBlocked 这唯一门禁，与节点「可研究」状态同源。 */
+  /* 页签红点与研究按钮共用条件，仅在展示原因时生成文案。 */
   function hasResearchable(s) {
     if (!s || !panelOpen(s)) return false;
     var T = SB.TECHS || [], i;
     for (i = 0; i < T.length; i++) {
-      if (techLevel(s, T[i].id) >= maxTechLevel(T[i])) continue;
-      if (studyBlocked(s, T[i].id) === null) return true;
+      if (!studyBlockKind(s, T[i])) return true;
     }
     return false;
   }
@@ -1769,7 +1763,7 @@
     metOf: metOf,
     panelOpen: panelOpen, popupSeen: popupSeen, markPopupSeen: markPopupSeen,
     reqsMet: reqsMet, known: known, level: techLevel, maxLevel: maxTechLevel,
-    canStudy: canStudy, study: study, studyBlocked: studyBlocked, hasResearchable: hasResearchable, effectText: effectText,
+    canStudy: canStudy, study: study, studyBlocked: studyBlocked, studyBlockKind: studyBlockKind, studyBlockText: studyBlockText, hasResearchable: hasResearchable, effectText: effectText,
     effectDisplayText: function (t) { return localizedEffectSummary(t, false); },
     /* researchCost（2026-10-17）：科技消耗的唯一折扣口（科研所 researchLabSave），供 UI 显示与门禁共用。 */
     researchCost: researchCost, resCostList: resCostList, resCostMet: resCostMet, resCostLack: resCostLack,

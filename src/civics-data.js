@@ -1105,11 +1105,11 @@
     { id: 'card_corvee', name: '征夫发役', civic: 'craft',
       retiredBy: 'guild', replacedBy: 'card_royal_charter',
       wonderBuildSaveEra: 0.20, wonderEraCap: 3,
-      desc: '纪元 1–3 奇观建造消耗 −20%。完成《职业行会》后由「王室特许」取代而退役。', flavor: '消耗建造者一次使用次数，为奇观建造提供20%进度。' },
+      desc: '纪元 1–3 奇观建造消耗 −20%。完成《职业行会》后由「王室特许」取代而退役。', flavor: '消耗建造者一次使用次数，为奇观建造提供20%进度。', flavorParams: { wonderConstructionProgressPercent: 20 } },
     /* 王室特许：纪元 1–5 奇观建造消耗 −20%（取代征夫发役，覆盖到 era5）。挂《职业行会》(guild)，无 retiredBy（链尾）。 */
     { id: 'card_royal_charter', name: '王室特许', civic: 'guild',
       wonderBuildSaveEra: 0.20, wonderEraCap: 5,
-      desc: '纪元 1–5 奇观建造消耗 −20%（取代「征夫发役」）。', flavor: '消耗一位大工程师，提供215产能。' },
+      desc: '纪元 1–5 奇观建造消耗 −20%（取代「征夫发役」）。', flavor: '消耗一位大工程师，提供215产能。', flavorParams: { greatEngineerProduction: 215 } },
     /* 五年计划：精铁 + 钢 产出 +30%。挂《工业化配给》(rationing)，复用 resOutMul 通道（economy iron/steel 行已读 cardResOutMul，零代码）。 */
     { id: 'card_five_year', name: '五年计划', civic: 'rationing', type: 'prod',
       resOutMul: { iron: 1.30, steel: 1.30 },
