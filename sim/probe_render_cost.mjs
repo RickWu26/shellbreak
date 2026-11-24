@@ -196,8 +196,12 @@ for (const pid of PANE_IDS) {
 }
 let resMutations = 0;
 sandbox.document.getElementById('res')._onMut = () => { resMutations++; };
-// 触发一次真实状态变化（解锁/升级），测量单次脏态 renderAll 实际重写的面板数
+// 筛选和密度应保留按钮。切换建筑图标会改变卡片结构。
 SB.ui.renderParts.setVillageDensity('compact');
+SB.ui.renderParts.setVillageFilter('ready');
+renderAll();
+if (paneWriteTotal) throw new Error('筛选和切换密度不应重写建筑列表');
+SB.ui.render.toggleBuildingIcons();
 run.era = 6;
 run.lvl.coral = (run.lvl.coral || 0) + 1;
 run.res.kelp = (run.res.kelp || 0) + 100;

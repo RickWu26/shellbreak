@@ -90,10 +90,20 @@ html[data-ui-theme="day"] .bld-goto-craft {
   border-color: #368b96;
   color: #145e66;
 }
-#pane-village.is-compact .bzone .row .bld-copy .ds {
+/* 筛选只影响当前可见的建筑、分区及空列表提示。 */
+#pane-village[data-build-filter="ready"] .bzone:not(.has-ready),
+#pane-village[data-build-filter="ready"] .bzone .bld-row:not(.is-ready),
+#pane-village[data-build-filter="running"] .bzone:not(.has-owned),
+#pane-village[data-build-filter="running"] .bzone .bld-row:not(.is-owned),
+#pane-village[data-build-filter="all"] .has-buildings > .village-empty,
+#pane-village[data-build-filter="ready"] .village-view.has-ready > .village-empty,
+#pane-village[data-build-filter="running"] .village-view.has-owned > .village-empty {
+  display: none !important;
+}
+#pane-village.is-compact .bzone .bzbody > .row .bld-copy .ds {
   display: none;
 }
-#pane-village.is-compact .bzone .row {
+html[data-era] #pane-village.is-compact .bzone .bzbody > .row {
   padding-top: 8px;
   padding-bottom: 8px;
 }

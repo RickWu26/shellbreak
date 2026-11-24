@@ -239,7 +239,13 @@
       : ((typeof document !== 'undefined') ? document : (root ? root.document : null));
     if (!rootNode || typeof rootNode.querySelectorAll !== 'function') return;
     var els;
-    try { els = rootNode.querySelectorAll('[data-live-cost],[data-live-short]'); }
+    var row = '';
+    if (rootNode.id === 'pane-village-body' && rootNode.parentNode) {
+      var filter = rootNode.parentNode.getAttribute('data-build-filter');
+      if (filter === 'ready') row = '.bld-row.is-ready ';
+      if (filter === 'running') row = '.bld-row.is-owned ';
+    }
+    try { els = rootNode.querySelectorAll(row + '[data-live-cost],' + row + '[data-live-short]'); }
     catch (e) { return; }
     if (!els || !els.length) return;
     var eco = SB.economy || {};
@@ -249,14 +255,14 @@
       if (key) {
         need = Number(el.getAttribute('data-live-need'));
         txt = eco.costItemTxt ? eco.costItemTxt(s, key, need) : '';
-        if (txt) el.textContent = txt;
+        if (txt && el.textContent !== txt) el.textContent = txt;
         continue;
       }
       key = el.getAttribute('data-live-short');
       if (key) {
         need = Number(el.getAttribute('data-live-need'));
         txt = shortfallItemText(s, key, need);
-        if (txt) el.textContent = txt;
+        if (txt && el.textContent !== txt) el.textContent = txt;
       }
     }
   }

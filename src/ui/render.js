@@ -1872,6 +1872,13 @@
     });
   }
 
+  function replacePaneContent(node, html) {
+    /* iOS 可能在移除有焦点的按钮时滚回该行。只释放即将移除的按钮。 */
+    var focus = document.activeElement;
+    if (focus && focus.tagName === 'BUTTON' && node.contains && node.contains(focus)) focus.blur();
+    node.innerHTML = html;
+  }
+
   function renderPanes() {
     if (SB.ui && SB.ui.isPanePointerInteracting && SB.ui.isPanePointerInteracting()) return;
     syncTabLocks();
@@ -1901,11 +1908,6 @@
     var _se = document.scrollingElement || document.documentElement;
     var _sy = _se ? _se.scrollTop : 0;
 
-    var _ae = document.activeElement;
-    if (_ae && _ae.tagName === 'BUTTON' && root.document && root.document.body !== _ae && _ae.blur) {
-      try { _ae.blur(); } catch (e) {}
-    }
-
     var k = activeTab;
     var node = k ? el('pane-' + k) : null;
     var writtenScope = node;
@@ -1913,7 +1915,7 @@
       if (k === 'star-map') {
         var smHtml = cardHeadHTML(k) + PANES[k]();
         if (smHtml !== lastStarMapHTML) {
-          node.innerHTML = smHtml;
+          replacePaneContent(node, smHtml);
           lastStarMapHTML = smHtml;
           SB.ui.renderParts.mountStarMap(node);
         }
@@ -1930,24 +1932,28 @@
           writtenScope = body;
           var bodyHtml = PANES[k]();
           var bodySig = liveSig(bodyHtml);
-          if (bodySig !== lastPaneHTML[k]) { body.innerHTML = bodyHtml; lastPaneHTML[k] = bodySig; }
+          if (bodySig !== lastPaneHTML[k]) {
+            replacePaneContent(body, bodyHtml);
+            lastPaneHTML[k] = bodySig;
+            if (k === 'village') SB.ui.renderParts.syncVillageToolbar();
+          }
         }
       } else if (k === 'meta') {
         var metaHtml = cardHeadHTML(k) + PANES[k]();
         var metaSig = liveSig(metaHtml);
-        if (metaSig !== lastMetaHTML) { node.innerHTML = metaHtml; lastMetaHTML = metaSig; }
+        if (metaSig !== lastMetaHTML) { replacePaneContent(node, metaHtml); lastMetaHTML = metaSig; }
       } else if (k === 'civic') {
         var civicHtml = cardHeadHTML(k) + PANES[k]();
         var civicSig = liveSig(civicHtml);
-        if (civicSig !== lastCivicHTML) { node.innerHTML = civicHtml; lastCivicHTML = civicSig; }
+        if (civicSig !== lastCivicHTML) { replacePaneContent(node, civicHtml); lastCivicHTML = civicSig; }
       } else if (k === 'tech') {
         var techHtml = cardHeadHTML(k) + PANES[k]();
         var techSig = liveSig(techHtml);
-        if (techSig !== lastTechHTML) { node.innerHTML = techHtml; lastTechHTML = techSig; }
+        if (techSig !== lastTechHTML) { replacePaneContent(node, techHtml); lastTechHTML = techSig; }
       } else {
         var paneHtml = cardHeadHTML(k) + PANES[k]();
         var paneSig = liveSig(paneHtml);
-        if (paneSig !== lastPaneHTML[k]) { node.innerHTML = paneHtml; lastPaneHTML[k] = paneSig; }
+        if (paneSig !== lastPaneHTML[k]) { replacePaneContent(node, paneHtml); lastPaneHTML[k] = paneSig; }
       }
     }
 

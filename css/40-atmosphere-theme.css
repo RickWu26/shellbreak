@@ -407,8 +407,8 @@ html[data-power-save="on"] .hydro-live i,
 html[data-power-save="on"] .tree-civic .technode.tree-node.open,
 html[data-power-save="on"] #pane-tech .tree-tech .technode.tree-node.open,
 html[data-power-save="on"] #pane-village .bld-row.void-altar.void-lv-3 .btn.buy::after,
-html[data-power-save="on"] html[data-era] .cardhd::before,
-html[data-power-save="on"] html[data-era] .cardhd::after,
+html[data-power-save="on"][data-era] .cardhd::before,
+html[data-power-save="on"][data-era] .cardhd::after,
 html[data-power-save="on"] .dyson-stage.is-current .dyson-stage-fill::after {
   animation:none !important;
 }

@@ -414,7 +414,7 @@
       return;
     }
     if (d.villageDensity && SB.ui.render.setVillageDensity) {
-      if (SB.ui.render.setVillageDensity(d.villageDensity)) SB.ui.render.renderPanes();
+      SB.ui.render.setVillageDensity(d.villageDensity);
       return;
     }
     if (d.folkFilter && SB.ui.render.setFolkFilter) {
@@ -460,13 +460,7 @@
       return;
     }
 
-    /* 主页面分区卡片的折叠开关（2026-09-30 用户：各个区域可折叠，参考文明6）。
-     * 纯视图动作：只翻卡片元素上的 folded 类（状态记在 render 模块里、可持久化），
-     * **不碰任何游戏状态**，所以不 markDirty、也不补跑科技泵。
-     * ⚠️ 走 document 级委托是必须的：卡片标题会随 pane 每 2 秒的重画被换掉，
-     *    挂在标题节点上的监听随第一次重画一起失效（不报错、只是点不动了）。 */
-    /* 点标题里的 ▾ 箭头 / 文字时 target 是 <span>，d.fold 取不到 ⇒ 往上 closest 兜底
-     * （2026-11-18：玩家报「各区没法折叠」，真实浏览器复现箭头点击丢事件）。 */
+    /* 标题内的文字和图标都通过外层按钮处理折叠。 */
     var foldBtn = d.fold !== undefined ? t : (t.closest && t.closest('[data-fold]'));
     var foldKey = foldBtn && foldBtn.dataset ? foldBtn.dataset.fold : undefined;
     if (foldKey !== undefined && foldKey !== null && foldKey !== '') {
@@ -505,15 +499,7 @@
       SB.ui.render.renderPanes();
       return;
     }
-    /* 工坊「隐藏已完成」（2026-10-05 用户「工坊要能隐藏显示已经完成项目」）：
-     * 同样是纯视图动作（只翻 SB.store 的设备级偏好，2026-11-05 起不再写裸 localStorage），不碰游戏状态。
-     * ⚠️ 与上面两个折叠分支的**关键差别**：卡片/区折叠是翻 DOM 上已有的类，
-     *    而这个开关是「渲染时**跳不跳过这一行**」决定的 ⇒ **必须重画才生效**。
-     *    忘了这次重画的话，按钮的文字会变（因为开关自身在标题行里）
-     *    但列表不变 —— 看起来像只改字不生效。
-     * ⚠️ 这里调 `renderPanes()` 而**不是** `renderAll()`：工坊面板写在 `#pane-workshop`，
-     *    由 renderPanes 填（renderAll 只管顶栏资源与总页）。
-     *    顶栏本来会跟着 2 秒节流重画，但开关要**立即**反馈，不能等。 */
+    /* 已完成项在生成列表时过滤，切换后立即刷新面板。 */
     if (d.hidedone !== undefined && d.hidedone !== null && d.hidedone !== '') {
       SB.ui.render.toggleHideDone();
       SB.ui.render.renderPanes();

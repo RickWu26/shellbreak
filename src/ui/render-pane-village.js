@@ -66,6 +66,7 @@
     villageFilterFallback = val;
     var S = SB.store;
     if (S && S.prefSetStr) S.prefSetStr('village.filter', val, VILLAGE_FILTER_ALLOWED);
+    paintVillageToolbar();
     return true;
   }
   function getVillageDensity() {
@@ -73,18 +74,29 @@
     if (S && S.prefGetStr) return S.prefGetStr('village.density', VILLAGE_DENSITY_ALLOWED, 'detail');
     return villageDensityFallback;
   }
+  function paintVillageToolbar() {
+    var pane = root.document && root.document.getElementById('pane-village');
+    if (!pane) return;
+    var filter = getVillageFilter(), density = getVillageDensity();
+    pane.setAttribute('data-build-filter', filter);
+    pane.classList.toggle('is-compact', density === 'compact');
+    var buttons = root.document.querySelectorAll('[data-village-filter],[data-village-density]');
+    for (var i = 0; i < buttons.length; i++) {
+      var data = buttons[i].dataset;
+      buttons[i].setAttribute('aria-pressed', String(data.villageFilter === filter || data.villageDensity === density));
+    }
+  }
   function setVillageDensity(val) {
     if (VILLAGE_DENSITY_ALLOWED.indexOf(val) < 0) return false;
     villageDensityFallback = val;
     var S = SB.store;
     if (S && S.prefSetStr) S.prefSetStr('village.density', val, VILLAGE_DENSITY_ALLOWED);
+    paintVillageToolbar();
     return true;
   }
 
   function paneVillage() {
     var s = SB.game.run(); let h = '';
-    var vFilter = getVillageFilter();
-    var vDensity = getVillageDensity();
     var buildingIconsShown = !!(SB.ui.render && SB.ui.render.buildingIconsShown && SB.ui.render.buildingIconsShown());
     /* 猫国开局唯一产能是手动点 "Gather catnip"（点一下 +1 猫薄荷）。
      * 本作对应物：点一下 +1 藻食——对齐 docs/DESIGN_v0.3.md §4「采集者 gatherer |
@@ -150,43 +162,16 @@
       '<button class="btn buy" data-gather="coral">' + htmlText(tr('village.gather.coral.button', { gatherAmount: GA.coral }, '采珊瑚 +' + GA.coral)) + '</button>' +
       '</div></div>';
 
-    /* ── 海底火山周期已挪走（2026-09-26 用户要求）──
-     * 它是**读天候的**，和天壳（冰封层厚度）是一类东西，摆在「巢穴」这堆建造动作里
-     * 没有归属感。现在两条一起住在顶上的「自然环境」卡里，实现见 renderEnv。
-     * 拆分口径：巢穴页只答「我要做什么」，自然环境只答「外面现在什么样」。 */
-
-    /* ── 暖石开关已搬走（2026-09-27 用户要求）──
-     * 它原来在这一页，现在住顶上「自然环境」卡里的独立容器 #envWarm（实现见 renderWarm）。
-     * 搬的理由：它的效果**完全由天候决定**（只在寒流季烧），摆在建造成那一堆里，
-     * 玩家是在「外面什么天候」的语境下才会想到它——那正是自然环境卡的语境。
-     * 它**不是**一条环境读数而是一项玩家动作，所以不能塞进同样每帧重画的 #envVolcano，
-     * 而是另开一个容器 + 状态签名节流（细节见 renderWarm）。 */
-    /* ── 建筑按区分组渲染（2026-09-30 纯 UI 分区 A 方案）──
-     * 外层按 BUILD_ZONES 顺序分区，区内沿用上面「露头/解锁」判定；
-     * 某区零可见建筑时整段区标题隐藏（开局只露出礁栖核心 + 生息区，其余随进度展开）。
-     * 露头逻辑与原平铺版完全一致，只是多了一层分区外壳。 */
-    /* 消耗标注（2026-10-17 用户：「所有有消耗的建筑，消耗的东西也要写明，不光是暖石」）。
-     * 只标暖石是**半截口径**：热泉炉同时吃金属、热液工坊吃热液能+金属，玩家挑「开几座」
-     * 时看不到另一样就会开到缺料停摆。三个数全部来自 economy.consumeRates（与结算同式），
-     * UI 不自己算乘区 —— 面板===结算家族。
-     * 顺序由 SB.ui.consumeMeta.BUILDING_CONSUME 维护（与信息卡同源），天然对齐「金属在前 / 热液能在前」的语序。
-     * ⚠️ 行为：该建筑吃的所有类型**始终列出**——满转给数值、停产给「（停产时为 0）」占位，不再「全 0 就不出行」。 */
-    /* 2026-10-17 收口：消耗类型表统一走 SB.ui.consumeMeta（由 render-info.js 挂出），
-     * 巢穴页控件行与信息卡共用同一份「吃哪几样 + IDLE 文案」，不再各写一份（单一数据源）。
-     * ⚠️ 关键行为变更：之前「全 0（停产）就不出行」⇒ 玩家把工坊座数全关（让流给天穹钻机）
-     *   时整行没有任何消耗标注，看着像「热液能消耗漏标」。现在改为**始终列出该建筑吃的所有类型**，
-     *   满转给数值、停产给「（停产时为 0）」占位——与信息卡口径对齐，消耗类型永远可见。 */
-    /* 2026-10-21：drawTag 已提升为共享 SB.ui.drawTag（render-info.js），巢穴页控件行直接调它，
-     * 与信息卡、星图建筑管理三处同源，不再各写一份。 */
+    /* 空分区随建筑解锁显示。运行耗材的种类与信息卡共用 consumeMeta。 */
     h += '<div class="pane-toolbar" role="toolbar" aria-label="' + htmlText(tr('village.toolbar.aria_label', null, '建筑筛选与视图')) + '">' +
       '<div class="pane-filter-group">' +
-        '<button type="button" class="pane-pill' + (vFilter === 'all' ? ' on' : '') + '" data-village-filter="all" aria-pressed="' + (vFilter === 'all') + '">' + htmlText(tr('village.filter.all', null, '全部')) + '</button>' +
-        '<button type="button" class="pane-pill' + (vFilter === 'ready' ? ' on' : '') + '" data-village-filter="ready" aria-pressed="' + (vFilter === 'ready') + '">' + htmlText(tr('village.filter.ready', null, '可建造')) + '</button>' +
-        '<button type="button" class="pane-pill' + (vFilter === 'running' ? ' on' : '') + '" data-village-filter="running" aria-pressed="' + (vFilter === 'running') + '">' + htmlText(tr('village.filter.running', null, '运转中')) + '</button>' +
+        '<button type="button" class="pane-pill" data-village-filter="all">' + htmlText(tr('village.filter.all', null, '全部')) + '</button>' +
+        '<button type="button" class="pane-pill" data-village-filter="ready">' + htmlText(tr('village.filter.ready', null, '可建造')) + '</button>' +
+        '<button type="button" class="pane-pill" data-village-filter="running">' + htmlText(tr('village.filter.running', null, '运转中')) + '</button>' +
       '</div>' +
       '<div class="pane-density-group">' +
-        '<button type="button" class="pane-pill' + (vDensity === 'detail' ? ' on' : '') + '" data-village-density="detail" aria-pressed="' + (vDensity === 'detail') + '">' + htmlText(tr('village.density.detail', null, '详细')) + '</button>' +
-        '<button type="button" class="pane-pill' + (vDensity === 'compact' ? ' on' : '') + '" data-village-density="compact" aria-pressed="' + (vDensity === 'compact') + '">' + htmlText(tr('village.density.compact', null, '简洁')) + '</button>' +
+        '<button type="button" class="pane-pill" data-village-density="detail">' + htmlText(tr('village.density.detail', null, '详细')) + '</button>' +
+        '<button type="button" class="pane-pill" data-village-density="compact">' + htmlText(tr('village.density.compact', null, '简洁')) + '</button>' +
       '</div>' +
     '</div>';
     var craftResSet = {};
@@ -196,11 +181,11 @@
         if (_cl[_ci] && _cl[_ci].res) craftResSet[_cl[_ci].res] = 1;
       }
     }
-    var totalShown = 0;
+    var totalShown = 0, anyOwned = false, anyReady = false;
     for (var zi = 0; zi < (SB.BUILD_ZONES || []).length; zi++) {
       var z = SB.BUILD_ZONES[zi];
       var zRows = '';
-      var zShown = 0;
+      var zShown = 0, zoneOwned = false, zoneReady = false;
       for (var i = 0; i < SB.BUILDINGS.length; i++) {
         var b = SB.BUILDINGS[i];
         if (b.zone !== z.id) continue;
@@ -210,29 +195,20 @@
          * 否则玩家一花藻食把库存压回阈值以下，刚冒出来的采石场/导流堤会当场消失，
          * 看着像「建筑自己跳出来又自己没了」——猫国 unlockable 同样只进不退。 */
         var lv = s.lvl[b.id] || 0;
-        var isUnlocked = SB.habitat.unlocked(s, b);
         if (SB.habitat.retired && SB.habitat.retired(s, b)) continue;
-        if (lv <= 0 && !(s.seen && s.seen[b.id]) && !isUnlocked) continue;
-        if (isUnlocked) SB.habitat.reveal(s, b);
-        /* ⚠️⚠️ 建筑升级型 = 同一座建筑改名字（2026-10-06 用户两次纠偏定死）。
-         *   本作有四条升级项 desc 写的是「X升级：…」——鱼骨矿井 / 大学 / 城堡 / 深层矿井。
-         *   它们的语义都是**那座建筑买下之后就地改名**，不是另造一座：
-         *     砂矿坑 → 鱼骨矿井 → 深层矿井（两级链）
-         *     研究所 → 大学
-         *     议事厅 → 城堡
-         *   ⇒ 这一行的 id、等级键、造价曲线**全程不变**，只有显示名与效果文案变。
-         *   判据读 UPGRADES 的 `upgradesBuilding` 字段（声明在数据侧，见 config 那段注释），
-         *   UI 侧只做一次通用查找 ⇒ 加第五个这种升级时不必再动这个文件。
-         *   ⚠️【为什么不能靠改 `b.name` 实现】建筑定义是全局常量，被 costOf / 科技 / 分区
-         *      多处共读，在那里改名会让所有跨模块读数一起变。改显示名是**纯 UI 动作**。
-         *   ⚠️【链式取最深一级】矿坑有两级升级（鱼骨矿井 → 深层矿井），两件都装了时
-         *      面板要显示**最后一级**的名字（深层矿井），所以按 UPGRADES 的声明顺序遍历、
-         *      命中即记、继续往后覆盖 —— 而不是「命中就 break」。 */
-        /* ⚠️ 变量名不许叫 `ui`：`SB.ui` 是本模块在文件末尾挂上去的**全局命名空间**
-         *   （SB.ui.openIntro / SB.ui.render）。在这里 `var ui` 会把它遮蔽成循环下标，
-         *   于是模块末尾 `SB.ui = SB.ui || {}` 读到数字 0 → falsy → 整个命名空间重建为空对象，
-         *   页面启动即 `querySelector is not a function`。踩过一次，改名 `_upi`。 */
-        /* 建筑卡与详情弹窗共用当前实际效果文案；移除独立的 desc / buildingDesc 旧文案源。 */
+        if (!(s.seen && s.seen[b.id])) {
+          if (SB.habitat.unlocked(s, b)) SB.habitat.reveal(s, b);
+          else if (lv <= 0) continue;
+        }
+        var c = SB.economy.costOf(s, b.id);
+        var ok = SB.economy.canAfford(s, c);
+        var blocked = !SB.habitat.needMet(s, b);
+        var canalCap = b.id === 'canal' && (s.lvl.canal || 0) >= (s.lvl.lighthouse || 0);
+        var maxReached = !!(b.maxLvl && lv >= b.maxLvl);
+        var ready = ok && !blocked && !canalCap && !maxReached;
+        if (lv > 0) zoneOwned = true;
+        if (ready) zoneReady = true;
+        /* 连锁升级沿用建筑 ID，显示最后一级已购升级的名称。 */
         var dispName = buildingName(b.id, b.name),
             dispDesc = (SB.ui && SB.ui.buildingInfoEffectText)
               ? SB.ui.buildingInfoEffectText(s, b, lv)
@@ -243,38 +219,13 @@
             dispName = SB.i18n && SB.i18n.contentName ? SB.i18n.contentName(_u.id, _u.name) : _u.name;
           }
         }
-        /* 显示口径与信息卡「效果」段一致；卡片仍由 CSS 限行，点建筑名可看完整效果。 */
-        var c = SB.economy.costOf(s, b.id);
-        var ok = SB.economy.canAfford(s, c);
-        var blocked = !SB.habitat.needMet(s, b);
-        /* 按钮文案**一律带成本**。旧写法是「够钱写『建造』、不够才写成本」，于是
-         * 恰好在最该看成本的那一刻（攒够了）成本从按钮上消失，而按钮宽度还会随库存
-         * 反复跳变（够 → 变窄 → 花掉 → 又变宽），点起来像在躲手指。
-         * 等级 >0 用「升级」、首级用「建造」：买的是同一件事，但玩家心里问的是
-         * 「这一级要多少」，用词跟着等级走比一律写「建造」更答得上话。
-         * 前置没满足时只说「需 XX」——那时按钮点不动，成本不是当下该看的信息。 */
         var neededBuilding = b.need ? SB.habitat.buildingById(b.need) : null;
         var neededName = neededBuilding ? buildingName(neededBuilding.id, neededBuilding.name) : '';
         var label = blocked
           ? tr('village.building.requirement.needs', { requiredBuilding: neededName }, '需 ' + neededName)
           : tr(lv > 0 ? 'village.building.action.upgrade' : 'village.building.action.build', null, lv > 0 ? '升级' : '建造') + ' ' + SB.economy.buildCostTxt(s, b.id, c, true);
-        /* ⚠️ buildCostTxt 第 4 参 = true（2026-11-16）：成本串里的「已有」逐 tick 在变，
-         * 不标记的话整个巢穴页每 2 秒整块重建（玩家报的「卡 / 点不动」主源之一）。
-         * 标记只是包 span，DOM 结构不变；回填见 renderCommon.paintLiveCost。 */
-        /* 轻车熟路首建免费（2026-10-28）：costOf 已把资源项乘 0，buildCostTxt 会输出「免费」。
-         *   优先级：blocked / canalCap / maxReached 都在它上面 —— 那三个是「点不动」，
-         *   免费只表示「不用花钱」，不能让一个点不动的按钮看起来可以点。 */
-        /* 王国潮道的跨建筑钳制与 build()/lockReason() 同一条判定——不判它按钮会
-         * 「亮着但点了没反应」（build 内部静默 return false）。 */
-        var canalCap = b.id === 'canal' && (s.lvl.canal || 0) >= (s.lvl.lighthouse || 0);
         if (canalCap) label = tr('village.building.lighthouse_level_required', { lighthouseLevel: s.lvl.lighthouse || 0 }, '需先升灯塔（现 ' + (s.lvl.lighthouse || 0) + ' 级）');
-        /* ERA10 市政（2026-10-20 · 虚境祭坛 `maxLvl:3`）：等级上限与 habitat.build **同判据**
-         * （都读建筑条目的 maxLvl，不烤死数字）。跑到上限时按钮灰掉且文案直说，
-         * 绝不能留一个「亮着但点了静默 return false」的按钮（与 canalCap 同一纪律）。 */
-        var maxReached = !!(b.maxLvl && lv >= b.maxLvl);
         if (maxReached) label = tr('village.building.level_cap', { maxLevel: b.maxLvl }, '已达上限 ' + b.maxLvl + ' 级');
-        if (vFilter === 'ready' && !(ok && !blocked && !canalCap && !maxReached)) continue;
-        if (vFilter === 'running' && !(lv > 0)) continue;
         /* 建造追踪（2026-10-29 · 玩家提议，用户拍板）：只在**这一级买不起**时出现。
          * 买得起就消失——那时该做的是直接点建造，多一个钮只是噪声。
          * 按钮是纯视图入口（只写 s.track），结算/成本一律不经过它。
@@ -536,7 +487,7 @@
           lvTitle = tr('village.building.level.virtual_bonus.tooltip', { wonderName: buildingName('great_library', '大潮纹馆') }, '含大潮纹馆虚级（只算科技产出效果，不算建筑等级、不加建造成本）');
         }
         var rowState = 'bld-row' + (lv > 0 ? ' is-owned' : '') + (blocked || canalCap ? ' is-blocked' : '') +
-          (!blocked && !canalCap && !maxReached && ok ? ' is-ready' : '') +
+          (ready ? ' is-ready' : '') +
           (!blocked && !canalCap && !maxReached && !ok ? ' is-unaffordable' : '') +
           (maxReached ? ' is-maxed' : '');
         /* 仅把“已满足前置、但库存不足”的资源差额展示在卡片上。
@@ -701,7 +652,10 @@
        * 2026-09-30 晚再补折叠：外包一层 .bzone，标题带 data-zfold（点击委托），
        * 正文进 .bzbody；折叠态从 ZONE_FOLDED 重拼（pane 每 2 秒重画，落类会被冲掉）。 */
       if (zShown > 0) {
-        h += '<div class="bzone' + (SB.ui.render.isZoneFolded(z.id) ? ' folded' : '') +
+        anyOwned = anyOwned || zoneOwned;
+        anyReady = anyReady || zoneReady;
+        h += '<div class="bzone' + (zoneOwned ? ' has-owned' : '') + (zoneReady ? ' has-ready' : '') +
+          (SB.ui.render.isZoneFolded(z.id) ? ' folded' : '') +
           '" data-zone="' + z.id + '">' +
           '<div class="bztitle" data-zfold="' + z.id + '" style="--hc:' +
           (SB.ui.render.zoneColor(z.id) || 'var(--dim)') + '" title="' + htmlText(tr('village.zone.collapse_expand.tooltip')) + '">' +
@@ -709,16 +663,16 @@
           '<div class="bzbody">' + zRows + '</div></div>';
       }
     }
-    if (!totalShown) {
-      h += '<div class="row"><div class="ds">' + htmlText(tr('village.filter.empty', null, '当前筛选下没有可显示的建筑，可点上方「全部」查看。')) + '</div></div>';
-    }
-    return '<div class="village-view' + (vDensity === 'compact' ? ' is-compact' : '') + '">' + h + '</div>';
+    h += '<div class="row village-empty"><div class="ds">' + htmlText(tr('village.filter.empty', null, '当前筛选下没有可显示的建筑，可点上方「全部」查看。')) + '</div></div>';
+    return '<div class="village-view' + (totalShown ? ' has-buildings' : '') + (anyOwned ? ' has-owned' : '') +
+      (anyReady ? ' has-ready' : '') + '">' + h + '</div>';
   }
 
   parts.paneVillage = paneVillage;
   parts.refreshLaunchProgress = refreshLaunchProgress;
   parts.setVillageFilter = setVillageFilter;
   parts.setVillageDensity = setVillageDensity;
+  parts.syncVillageToolbar = paintVillageToolbar;
   parts.getVillageFilter = getVillageFilter;
   parts.getVillageDensity = getVillageDensity;
 })(typeof window !== 'undefined' ? window : globalThis);
