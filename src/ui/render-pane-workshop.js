@@ -195,10 +195,24 @@
    * （含 boomcraft / 王座 / 激光 / 工业机器人 / 我们的海 等乘区，见 workshop.craftMul），
    * 与「结算同式、面板===结算」纪律一致；仅不含配方专属加成（火箭引擎 / 物流卡定向），
    * 故顶部 = 通用基线效率，配方行在其上再叠各自的专属加成。 */
+  var craftOnlyReady = false;
+  function toggleCraftOnlyReady() { craftOnlyReady = !craftOnlyReady; return craftOnlyReady; }
+
   function paneWorkshop() {
     var s = SB.game.run();
     if (!s || !s.lvl || !(s.lvl.workshop > 0)) return paneWorkshopLocked();
     var tm = upgradeTabMeta(s);
+    var ret = (SB.ui.track && SB.ui.track.getReturnTarget) ? SB.ui.track.getReturnTarget() : null;
+    var retBar = '';
+    if (ret && workshopView === 'making') {
+      var retText = ret.label
+        ? tr('ui.workshop.craft.return_to_named', { target: ret.label }, '← 返回「' + ret.label + '」')
+        : tr('ui.workshop.craft.return_to_prev', null, '← 返回刚才的建筑');
+      retBar = '<div class="craft-return-bar">' +
+        '<button type="button" class="craft-return-btn" data-craft-return="1">' + escAttr(retText) + '</button>' +
+        '<button type="button" class="craft-return-dismiss" data-craft-return-dismiss="1" aria-label="' + escAttr(tr('ui.action.close', null, '关闭')) + '">×</button>' +
+        '</div>';
+    }
     var tabs = '<div class="panel-subtabs workshop-subtabs" role="group" aria-label="' + tr('ui.workshop.subtabs.aria_label', null, '工坊分区') + '">' +
       '<button type="button" class="subtab' + (workshopView === 'making' ? ' on' : '') +
       '" data-workshop-view="making" aria-pressed="' + (workshopView === 'making') + '">' + tr('ui.workshop.tab.crafting', null, '制造') + '</button>' +
@@ -220,8 +234,11 @@
         (hideDone() ? '<div class="note">' + tr('ui.workshop.hide_completed.upgrades_note', null, '已完成项目当前被隐藏。点上方「显示已完成」可显示其余项目。') + '</div>' : '') +
         '<div class="note">' + tr('ui.workshop.upgrades.management_note', null, '工具、职业加成与容量等升级都在这里统一管理；已买断/装填的效果会持续生效。') + '</div>';
     }
-    return overview + tabs + '<section class="workshop-section"><header class="workshop-section-title"><b>' + tr('ui.workshop.crafting.section_title', null, '工艺制作') + '</b>' +
-      '<small>' + tr('ui.workshop.crafting.section_note', null, '查看每次投入、当前产出与批量选项。') + '</small></header>' +
+    return retBar + overview + tabs + '<section class="workshop-section"><header class="workshop-section-title">' +
+      '<div class="workshop-section-head-copy"><b>' + tr('ui.workshop.crafting.section_title', null, '工艺制作') + '</b>' +
+      '<small>' + tr('ui.workshop.crafting.section_note', null, '查看每次投入、当前产出与批量选项。') + '</small></div>' +
+      '<button type="button" class="pane-pill' + (craftOnlyReady ? ' on' : '') + '" data-craft-only-ready="1" aria-pressed="' + (craftOnlyReady ? 'true' : 'false') + '">' +
+      tr('ui.workshop.crafting.only_ready', null, '只看可造') + '</button></header>' +
       autoSlotSummary(s) + '<div class="workshop-grid workshop-crafts">' + paneCraftRows(s) + '</div></section>' +
       (hideDone() ? '<div class="note">' + tr('ui.workshop.hide_completed.crafting_note', {
         completedCount: doneCount(s)
@@ -263,6 +280,7 @@
        *   ⚠️ 判据仍是 `craftBlocked` 返回值的 `/^需要先/` 前缀（门未开）vs
        *      「还缺…」（材料不足）—— 两者都在 `craftBlocked` 里，见 workshop.js。 */
       if (why && /^需要先/.test(why)) continue;
+      if (craftOnlyReady && why) continue;
       shown++;
       var mul = SB.workshop.craftMul(s, c);
       /* 「已有数量」= 该配方产物的当前库存（s.res[c.res]，见 workshop.js:299 addRes 落点）。
@@ -313,7 +331,9 @@
       }
       h += '</div>' + autoSlotCtl(s, c) + '</div>';
     }
-    if (!shown) return '<div class="row"><div class="nm">' + tr('ui.workshop.crafting.empty', null, '（还没有配方）') + '</div></div>';
+    if (!shown) return '<div class="row"><div class="nm">' + (craftOnlyReady
+      ? tr('ui.workshop.crafting.only_ready.empty', null, '（当前没有材料足够的配方，关闭「只看可造」查看全部）')
+      : tr('ui.workshop.crafting.empty', null, '（还没有配方）')) + '</div></div>';
     var steps = SB.workshop.steps || [], smallOption = steps[0] ? steps[0].label : '+1';
     var largeOption = steps[2] ? steps[2].label : '+100';
     var fullOption = steps.length ? steps[steps.length - 1].label : '100%';
@@ -542,6 +562,7 @@
   parts.paneWorkshop = paneWorkshop;
   parts.setWorkshopView = setWorkshopView;
   parts.toggleHideDone = toggleHideDone;
+  parts.toggleCraftOnlyReady = toggleCraftOnlyReady;
   parts.paneToolRows = paneToolRows;
   parts.paneCraftRows = paneCraftRows;
   parts.paneUpgradeRows = paneUpgradeRows;

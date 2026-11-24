@@ -187,6 +187,75 @@
       SB.ui.render.hideModal();
       return;
     }
+    var setOpenBtn = t.closest && t.closest('[data-settings-open]');
+    if (setOpenBtn || d.settingsOpen !== undefined) {
+      if (SB.ui.render && SB.ui.render.setSettingsOpen) SB.ui.render.setSettingsOpen(true);
+      return;
+    }
+    var setCloseBtn = t.closest && t.closest('[data-settings-close]');
+    if (setCloseBtn || d.settingsClose !== undefined) {
+      if (SB.ui.render && SB.ui.render.setSettingsOpen) SB.ui.render.setSettingsOpen(false);
+      return;
+    }
+    var setTabBtn = t.closest && t.closest('[data-settings-tab]');
+    if (setTabBtn && setTabBtn.dataset && setTabBtn.dataset.settingsTab) {
+      if (SB.ui.render && SB.ui.render.setSettingsTab) SB.ui.render.setSettingsTab(setTabBtn.dataset.settingsTab);
+      return;
+    }
+    var ovOpen = t.closest && t.closest('[data-overview-open]');
+    if (ovOpen || d.overviewOpen !== undefined) {
+      if (SB.ui.render && SB.ui.render.setOverviewDrawerOpen) SB.ui.render.setOverviewDrawerOpen(true);
+      return;
+    }
+    var ovToggle = t.closest && t.closest('[data-overview-toggle]');
+    if (ovToggle || d.overviewToggle !== undefined) {
+      var isOvOpen = root.document && root.document.body && root.document.body.classList && root.document.body.classList.contains('overview-drawer-open');
+      if (SB.ui.render && SB.ui.render.setOverviewDrawerOpen) SB.ui.render.setOverviewDrawerOpen(!isOvOpen);
+      return;
+    }
+    var ovClose = t.closest && t.closest('[data-overview-close]');
+    if (ovClose || d.overviewClose !== undefined) {
+      if (SB.ui.render && SB.ui.render.setOverviewDrawerOpen) SB.ui.render.setOverviewDrawerOpen(false);
+      return;
+    }
+    var logToggleBtn = t.closest && t.closest('[data-log-toggle]');
+    if (logToggleBtn || d.logToggle !== undefined) {
+      var lp = root.document && root.document.getElementById ? root.document.getElementById('logPanel') : null;
+      if (lp && lp.classList) {
+        var nextLogOpen = !lp.classList.contains('is-open');
+        lp.classList.toggle('is-open', nextLogOpen);
+        var ltBtn = logToggleBtn || t;
+        if (ltBtn.setAttribute) ltBtn.setAttribute('aria-expanded', nextLogOpen ? 'true' : 'false');
+        ltBtn.textContent = tr(nextLogOpen ? 'ui.log.history.collapse' : 'ui.log.history.expand') || (nextLogOpen ? '收起' : '日志');
+      }
+      return;
+    }
+    var navGroupBtn = t.closest && t.closest('[data-nav-group-btn]');
+    if (navGroupBtn && navGroupBtn.dataset && navGroupBtn.dataset.navGroupBtn) {
+      if (!navGroupBtn.disabled && SB.ui.render && SB.ui.render.activateNavGroup) {
+        SB.ui.render.activateNavGroup(navGroupBtn.dataset.navGroupBtn);
+      }
+      return;
+    }
+    var hudActBtn = t.closest && t.closest('[data-hud-action]');
+    if (hudActBtn && hudActBtn.dataset && hudActBtn.dataset.hudAction) {
+      var mainActEl = root.document && root.document.getElementById
+        ? root.document.getElementById(hudActBtn.dataset.hudAction === 'cycle' ? 'btnCycle' : 'btnBreak') : null;
+      if (mainActEl && !mainActEl.disabled && mainActEl.onclick) mainActEl.onclick();
+      return;
+    }
+    var hudAdBtn = t.closest && t.closest('[data-hud-ad]');
+    if (hudAdBtn && hudAdBtn.dataset && hudAdBtn.dataset.hudAd) {
+      var mainAdEl = root.document && root.document.getElementById
+        ? root.document.getElementById(hudAdBtn.dataset.hudAd === 'toggle' ? 'btnAdToggle' : 'btnAd') : null;
+      if (mainAdEl && mainAdEl.onclick) mainAdEl.onclick();
+      return;
+    }
+    var trackMini = t.closest && t.closest('#hudTrackMini[data-track-go]');
+    if (trackMini && SB.ui.track && SB.ui.track.jump) {
+      SB.ui.track.jump(trackMini.getAttribute('data-track-go') || '');
+      return;
+    }
 
     var s = run();
     if (!s) return;
@@ -338,6 +407,56 @@
     if (d.buildingIconsToggle !== undefined) {
       SB.ui.render.toggleBuildingIcons();
       SB.ui.render.renderPanes();
+      return;
+    }
+    if (d.villageFilter && SB.ui.render.setVillageFilter) {
+      if (SB.ui.render.setVillageFilter(d.villageFilter)) SB.ui.render.renderPanes();
+      return;
+    }
+    if (d.villageDensity && SB.ui.render.setVillageDensity) {
+      if (SB.ui.render.setVillageDensity(d.villageDensity)) SB.ui.render.renderPanes();
+      return;
+    }
+    if (d.folkFilter && SB.ui.render.setFolkFilter) {
+      if (SB.ui.render.setFolkFilter(d.folkFilter)) SB.ui.render.renderPanes();
+      return;
+    }
+    if (d.folkDensity && SB.ui.render.setFolkDensity) {
+      if (SB.ui.render.setFolkDensity(d.folkDensity)) SB.ui.render.renderPanes();
+      return;
+    }
+    if (d.craftOnlyReady !== undefined && SB.ui.render.toggleCraftOnlyReady) {
+      SB.ui.render.toggleCraftOnlyReady();
+      SB.ui.render.renderPanes();
+      return;
+    }
+    var gotoCraftBtn = t.closest && t.closest('[data-goto-craft-res]');
+    if (gotoCraftBtn && gotoCraftBtn.dataset && gotoCraftBtn.dataset.gotoCraftRes) {
+      var retBld = gotoCraftBtn.dataset.returnBld || '';
+      var retTarget = retBld ? { tab: 'village', anchor: '[data-build="' + retBld + '"]', label: buildingName(retBld) } : null;
+      if (SB.ui.track && SB.ui.track.gotoCraft) SB.ui.track.gotoCraft(gotoCraftBtn.dataset.gotoCraftRes, retTarget);
+      return;
+    }
+    if (d.craftReturn !== undefined && SB.ui.track && SB.ui.track.goBack) {
+      SB.ui.track.goBack();
+      return;
+    }
+    if (d.craftReturnDismiss !== undefined && SB.ui.track && SB.ui.track.clearReturnTarget) {
+      SB.ui.track.clearReturnTarget();
+      SB.ui.render.renderPanes();
+      return;
+    }
+    if (d.researchView && SB.ui.render.setResearchView) {
+      if (SB.ui.render.setResearchView(d.researchView)) SB.ui.render.renderPanes();
+      return;
+    }
+    if (d.researchFilter && SB.ui.render.setResearchFilter) {
+      if (SB.ui.render.setResearchFilter(d.researchFilter)) SB.ui.render.renderPanes();
+      return;
+    }
+    var jumpPreBtn = t.closest && t.closest('[data-jump-prereq]');
+    if (jumpPreBtn && jumpPreBtn.dataset && jumpPreBtn.dataset.jumpPrereq && SB.ui.render.jumpResearchPrereq) {
+      SB.ui.render.jumpResearchPrereq(jumpPreBtn.dataset.jumpPrereq);
       return;
     }
 

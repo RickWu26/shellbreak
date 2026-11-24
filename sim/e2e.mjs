@@ -257,6 +257,9 @@ function mkEl(id) {
         return el._q[cls];
       }
       return null;
+    },
+    querySelectorAll() {
+      return [];
     }
   };
   Object.defineProperty(el, 'className', {
@@ -330,7 +333,7 @@ function makeDoc() {
          *        从「挑战与成就」拆出的新页签。三个都补上，表与 index.html 对齐。 */
         /* 2026-11-11 补 diplomacy：战争系统开发线新增页签时漏进这张硬编码表，
          * 于是 syncTabLocks 的外交锁态在 e2e 里永远测不到（夹具与 index.html 不同步）。 */
-        out = ['village', 'folk', 'tech', 'civic', 'faith', 'diplomacy', 'workshop', 'wonder', 'company', 'meta', 'challenges', 'star-map', 'achievements'].map((t, i) => {
+        out = ['village', 'folk', 'tech', 'civic', 'faith', 'diplomacy', 'workshop', 'wonder', 'company', 'meta', 'challenges', 'star-map', 'achievements', 'veil'].map((t, i) => {
           const e = mkEl('tab-' + t); e.dataset.tab = t; e._tab = i; return e;
         });
       } else if (sel === '.spd') {
@@ -626,7 +629,9 @@ function clickJob(job, d) {
   return s.jobs[job] !== before;
 }
 function tabOn(k) {
-  for (const fn of doc._ev['click'] || []) fn({ target: { dataset: { tab: k } } });
+  const tn = doc.querySelector('.tab[data-tab="' + k + '"]');
+  if (tn && typeof tn.onclick === 'function') tn.onclick();
+  else if (SB.game && SB.game.setTab) SB.game.setTab(k);
 }
 
 /* ---------------- 帧驱动 ---------------- */
@@ -915,6 +920,8 @@ console.log('\n=== 开局解锁链 ===');
    *    economy 侧因为有 `(s.jobs.x || 0)` 保护而没出 NaN，所以这次是**静默的假动作**：
    *    玩家看得见职业行，点 ＋ 雇不到人，而没有任何报错。根因已修（state 补键 + render 补 || 0）。 */
   {
+    const _prevFolkTab = SB.game.getTab();
+    SB.game.setTab('folk');
     SB.ui.render.renderPanes();
     const html = doc.getElementById('pane-folk').innerHTML;
     const ids = SB.JOBS.map(j => j.id);
@@ -924,12 +931,15 @@ console.log('\n=== 开局解锁链 ===');
     check('族民页只渲染已解锁的职业（未解锁的整行不出现）',
       shown.join() === want.join() && shown.indexOf('gather') >= 0 && want.length < ids.length,
       '渲染=' + shown.join('/') + ' 应为=' + want.join('/') + '（共 ' + ids.length + ' 个职业）');
+    SB.game.setTab(_prevFolkTab);
   }
   /* 改称机制上屏：掌握「种植」后，族民页上采集者那一行的**显示名**要变成农民。
    * 这条是补上一个静默失效——jobName 原先只有科技页在读，族民页直接印数据表的 name，
    * 于是同一个职业在两页上叫两个名字。测渲染字符串里有没有那个名字，而不是测
    * folk.jobName 的返回值（后者早就对了，坏的是「没人调用它」）。 */
   {
+    const _prevFolkTab2 = SB.game.getTab();
+    SB.game.setTab('folk');
     SB.ui.render.renderPanes();
     const plain = doc.getElementById('pane-folk').innerHTML;
     const hadOldName = plain.indexOf('采集者') >= 0, hadNewName = plain.indexOf('农民') >= 0;
@@ -941,6 +951,7 @@ console.log('\n=== 开局解锁链 ===');
       '改称前=采集者(' + hadOldName + ')/农民(' + hadNewName + ') 改称后含农民=' + (grown.indexOf('农民') >= 0));
     delete s.techs.plant;
     SB.ui.render.renderPanes();
+    SB.game.setTab(_prevFolkTab2);
   }
 
   /* ironWill（猫国：无猫不饿死）× 首名族民免口粮（2026-10-25 用户拍板）：

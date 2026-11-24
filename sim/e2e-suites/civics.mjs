@@ -1601,11 +1601,11 @@ console.log('\n=== 市政 ===');
     SB.companyState(cpRun, 'coral').epoch = 1;
     cpRun.t = 1;
     cpRun.companyNames = SB.pickCompanyNames();
+    SB.game.setTab('company');
     SB.ui.render.renderPanes();
     const cpBody = (doc.getElementById('pane-company-body') || {})._html || '';
     check('公司页：宏观经济学后渲染出两家公司（非空、且藻食公司非"未命名"）',
       cpBody.indexOf('藻食') >= 0 && cpBody.indexOf('未命名') < 0, 'len=' + cpBody.length);
-    SB.game.setTab('company');
     check('公司页：setTab("company") 后 #pane-company 不再 hidden',
       !(doc.getElementById('pane-company')._classes || new Set()).has('hidden'));
 
@@ -2181,6 +2181,9 @@ console.log('\n=== 市政 ===');
     Math.abs(adopt.res.culture - (5000 - _topC / 5)) < 1e-9,
     'culture=' + adopt.res.culture + ' 收费=' + (_topC / 5));
 
+  const _prevCivHall = SB.game.run().lvl.hall;
+  if (!(_prevCivHall > 0)) SB.game.run().lvl.hall = 1;
+  SB.game.setTab('civic');
   SB.ui.render.setCivicView('tree');
   SB.game.markDirty(); SB.game.render();
   const civicPane = g('pane-civic');
@@ -2210,6 +2213,7 @@ console.log('\n=== 市政 ===');
       ' civicScroll / techScroll 容器没找到');
   }
   SB.ui.render.setCivicView('government');
+  SB.game.run().lvl.hall = _prevCivHall;
   SB.game.markDirty(); SB.game.render();
 }
 

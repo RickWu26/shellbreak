@@ -80,6 +80,7 @@
     var tabs = document.querySelectorAll('.tab');
     for (i = 0; i < tabs.length; i++)
       tabs[i].classList.toggle('on', tabs[i].dataset.tab === k);
+    if (SB.ui.render && SB.ui.render.syncNavShell) SB.ui.render.syncNavShell(k);
     if (prevTab === 'star-map' && k !== 'star-map' && SB.ui.render.notifyStarMapActive) {
       SB.ui.render.notifyStarMapActive(false);
     }
@@ -220,8 +221,16 @@
     if (node) {
       node.innerHTML = logLines.slice().reverse().map(function (x) { return '<div>' + x + '</div>'; }).join('');
     }
+    var latest = document.getElementById('logLatest');
+    if (latest) latest.textContent = '· ' + msg;
   }
-  function clearLog() { logLines = []; var n = document.getElementById('log'); if (n) n.innerHTML = ''; }
+  function clearLog() {
+    logLines = [];
+    var n = document.getElementById('log');
+    if (n) n.innerHTML = '';
+    var latest = document.getElementById('logLatest');
+    if (latest) latest.textContent = '';
+  }
 
   function startRun(options) {
     loop.job = null;
@@ -3169,7 +3178,8 @@
     /* 帷幕之后 · 掀幕按钮（学完《掀起帘幕》才由 renderBreakBtn 显示）。 */
     var _btnVeil = document.getElementById('btnVeil');
     if (_btnVeil) _btnVeil.onclick = function () { askVeil(); };
-    document.getElementById('btnWipe').onclick = function () {
+    var _btnWipe = document.getElementById('btnWipe');
+    if (_btnWipe) _btnWipe.onclick = function () {
       SB.ui.render.confirmPanel({
         title: gameText('save.clear.confirm.title', null, '清空存档？'),
         body: '<div class="warnbox">' + gameHtml(gameText('save.clear.confirm.warning', null,

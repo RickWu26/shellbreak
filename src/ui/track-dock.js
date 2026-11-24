@@ -39,6 +39,8 @@
                           * 每帧重算一次 costOf 纯属白烧 —— 5Hz 已比 tick 快。 */
   var MAX = 4;           /* 用户 2026-10-30 拍板：同时最多 4 个目标 */
   var SEP = '|';
+  var returnTarget = null;
+  var lastMiniSig = '';
 
   function doc() { return root.document || null; }
   function el(id) { var d = doc(); return d ? d.getElementById(id) : null; }
@@ -426,6 +428,7 @@
       if (emptyBox) emptyBox.innerHTML = '';
       if (!node.classList || !node.classList.contains('hidden')) cls(node, true);
       lastHtml = ''; lastState = '';
+      paintMiniHud([]);
       return;
     }
 
@@ -434,6 +437,7 @@
       if (!alive[i].info.ready) allReady = false;
       html += rowHtml(alive[i], s);
     }
+    paintMiniHud(alive);
     /* 整块比字符串：只有真变了才写 innerHTML。
      * 每帧重写会让长按选中失败、也会把 :active 打断（同原实现的理由）。 */
     if (html !== lastHtml) {
@@ -566,11 +570,75 @@
    *    所以这里串三次 rAF：切页 → 展开分区 → 滚动。
    * ⚠️ 分区折叠时行节点仍在 DOM 里（只是 .bzbody 被 CSS 隐藏），
    *    所以「先查行、再拿它祖先的分区 id」这条路是可行的，不用另存区名。 */
+  function paintMiniHud(alive) {
+    var mini = el('hudTrackMini');
+    if (!mini) return;
+    if (!alive || !alive.length) {
+      if (!mini.hidden) mini.hidden = true;
+      lastMiniSig = '';
+      return;
+    }
+    var top = alive[0];
+    var inf = top.info;
+    var readyCls = !!inf.ready;
+    var label = inf.title || '';
+    if (inf.ready) {
+      label = tr('ui.hud.track_ready_prefix', { title: label }, '★ 可建: {title}');
+    } else if (inf.parts && inf.parts.length) {
+      label += ' · ' + inf.parts[0].text;
+    }
+    var sig = (readyCls ? '1' : '0') + '|' + top.key + '|' + label;
+    if (sig !== lastMiniSig) {
+      lastMiniSig = sig;
+      mini.textContent = label;
+      mini.setAttribute('data-track-go', top.key);
+      if (mini.classList) mini.classList.toggle('is-ready', readyCls);
+    }
+    if (mini.hidden) mini.hidden = false;
+  }
+
   /* 追踪坞里「去制造」链接：跳到工坊制造子页并把对应配方滚到视野中。
    * 与 jump 的 craft 分支同一条落点，只是按「产物资源键」定位而不是配方 id。 */
-  function gotoCraft(res) {
+  function setReturnTarget(target) {
+    if (!target || !target.anchor) { returnTarget = null; return null; }
+    returnTarget = {
+      tab: target.tab || 'village',
+      anchor: String(target.anchor),
+      label: target.label ? String(target.label) : ''
+    };
+    return returnTarget;
+  }
+  function getReturnTarget() {
+    return returnTarget;
+  }
+  function clearReturnTarget() {
+    returnTarget = null;
+  }
+  function goBack() {
+    var tgt = returnTarget;
+    if (!tgt || !tgt.anchor) return false;
+    returnTarget = null;
+    if (SB.game && SB.game.setTab) SB.game.setTab(tgt.tab || 'village');
+    if (SB.ui.render && SB.ui.render.renderPanes) SB.ui.render.renderPanes();
+    var raf = root.requestAnimationFrame || function (f) { return setTimeout(f, 16); };
+    raf(function () {
+      var dd = doc();
+      var node = dd ? dd.querySelector(tgt.anchor) : null;
+      var zone = node && node.closest ? node.closest('.bzone') : null;
+      var zid = zone && zone.dataset ? zone.dataset.zone : '';
+      if (zid && SB.ui.render && SB.ui.render.isZoneFolded && SB.ui.render.isZoneFolded(zid)) {
+        SB.ui.render.toggleZoneFold(zid);
+        if (SB.ui.render.renderPanes) SB.ui.render.renderPanes();
+      }
+      raf(function () { scrollTo(tgt.anchor); });
+    });
+    return true;
+  }
+
+  function gotoCraft(res, retTarget) {
     var s = run();
     if (!s || !res) return;
+    if (retTarget && retTarget.anchor) setReturnTarget(retTarget);
     if (SB.game && SB.game.setTab) SB.game.setTab('workshop');
     if (SB.ui.render && SB.ui.render.setWorkshopView) {
       try { SB.ui.render.setWorkshopView('making'); } catch (e) {}
@@ -782,7 +850,9 @@
 
   ui.track = {
     init: bind, paint: paint, track: track, untrack: drop, clear: clear, jump: jump,
-    gotoCraft: gotoCraft, resolve: resolve, costRows: costRows, isTracked: isTracked, keys: keys,
+    gotoCraft: gotoCraft, setReturnTarget: setReturnTarget, getReturnTarget: getReturnTarget,
+    clearReturnTarget: clearReturnTarget, goBack: goBack,
+    resolve: resolve, costRows: costRows, isTracked: isTracked, keys: keys,
     syncButtons: syncButtons, hint: hint, MAX: MAX
   };
 })(typeof window !== 'undefined' ? window : globalThis);

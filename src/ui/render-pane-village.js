@@ -51,8 +51,39 @@
     }
   }
 
+  var VILLAGE_FILTER_ALLOWED = ['all', 'ready', 'running'];
+  var VILLAGE_DENSITY_ALLOWED = ['detail', 'compact'];
+  var villageFilterFallback = 'all';
+  var villageDensityFallback = 'detail';
+  function getVillageFilter() {
+    var S = SB.store;
+    if (S && S.prefGetStr) return S.prefGetStr('village.filter', VILLAGE_FILTER_ALLOWED, 'all');
+    return villageFilterFallback;
+  }
+  function setVillageFilter(val) {
+    if (VILLAGE_FILTER_ALLOWED.indexOf(val) < 0) return false;
+    villageFilterFallback = val;
+    var S = SB.store;
+    if (S && S.prefSetStr) S.prefSetStr('village.filter', val, VILLAGE_FILTER_ALLOWED);
+    return true;
+  }
+  function getVillageDensity() {
+    var S = SB.store;
+    if (S && S.prefGetStr) return S.prefGetStr('village.density', VILLAGE_DENSITY_ALLOWED, 'detail');
+    return villageDensityFallback;
+  }
+  function setVillageDensity(val) {
+    if (VILLAGE_DENSITY_ALLOWED.indexOf(val) < 0) return false;
+    villageDensityFallback = val;
+    var S = SB.store;
+    if (S && S.prefSetStr) S.prefSetStr('village.density', val, VILLAGE_DENSITY_ALLOWED);
+    return true;
+  }
+
   function paneVillage() {
     var s = SB.game.run(); let h = '';
+    var vFilter = getVillageFilter();
+    var vDensity = getVillageDensity();
     var buildingIconsShown = !!(SB.ui.render && SB.ui.render.buildingIconsShown && SB.ui.render.buildingIconsShown());
     /* 猫国开局唯一产能是手动点 "Gather catnip"（点一下 +1 猫薄荷）。
      * 本作对应物：点一下 +1 藻食——对齐 docs/DESIGN_v0.3.md §4「采集者 gatherer |
@@ -146,6 +177,25 @@
      *   满转给数值、停产给「（停产时为 0）」占位——与信息卡口径对齐，消耗类型永远可见。 */
     /* 2026-10-21：drawTag 已提升为共享 SB.ui.drawTag（render-info.js），巢穴页控件行直接调它，
      * 与信息卡、星图建筑管理三处同源，不再各写一份。 */
+    h += '<div class="pane-toolbar" role="toolbar" aria-label="' + htmlText(tr('village.toolbar.aria_label', null, '建筑筛选与视图')) + '">' +
+      '<div class="pane-filter-group">' +
+        '<button type="button" class="pane-pill' + (vFilter === 'all' ? ' on' : '') + '" data-village-filter="all" aria-pressed="' + (vFilter === 'all') + '">' + htmlText(tr('village.filter.all', null, '全部')) + '</button>' +
+        '<button type="button" class="pane-pill' + (vFilter === 'ready' ? ' on' : '') + '" data-village-filter="ready" aria-pressed="' + (vFilter === 'ready') + '">' + htmlText(tr('village.filter.ready', null, '可建造')) + '</button>' +
+        '<button type="button" class="pane-pill' + (vFilter === 'running' ? ' on' : '') + '" data-village-filter="running" aria-pressed="' + (vFilter === 'running') + '">' + htmlText(tr('village.filter.running', null, '运转中')) + '</button>' +
+      '</div>' +
+      '<div class="pane-density-group">' +
+        '<button type="button" class="pane-pill' + (vDensity === 'detail' ? ' on' : '') + '" data-village-density="detail" aria-pressed="' + (vDensity === 'detail') + '">' + htmlText(tr('village.density.detail', null, '详细')) + '</button>' +
+        '<button type="button" class="pane-pill' + (vDensity === 'compact' ? ' on' : '') + '" data-village-density="compact" aria-pressed="' + (vDensity === 'compact') + '">' + htmlText(tr('village.density.compact', null, '简洁')) + '</button>' +
+      '</div>' +
+    '</div>';
+    var craftResSet = {};
+    if (SB.workshop && SB.workshop.crafts) {
+      var _cl = SB.workshop.crafts();
+      for (var _ci = 0; _ci < _cl.length; _ci++) {
+        if (_cl[_ci] && _cl[_ci].res) craftResSet[_cl[_ci].res] = 1;
+      }
+    }
+    var totalShown = 0;
     for (var zi = 0; zi < (SB.BUILD_ZONES || []).length; zi++) {
       var z = SB.BUILD_ZONES[zi];
       var zRows = '';
@@ -222,6 +272,8 @@
          * 绝不能留一个「亮着但点了静默 return false」的按钮（与 canalCap 同一纪律）。 */
         var maxReached = !!(b.maxLvl && lv >= b.maxLvl);
         if (maxReached) label = tr('village.building.level_cap', { maxLevel: b.maxLvl }, '已达上限 ' + b.maxLvl + ' 级');
+        if (vFilter === 'ready' && !(ok && !blocked && !canalCap && !maxReached)) continue;
+        if (vFilter === 'running' && !(lv > 0)) continue;
         /* 建造追踪（2026-10-29 · 玩家提议，用户拍板）：只在**这一级买不起**时出现。
          * 买得起就消失——那时该做的是直接点建造，多一个钮只是噪声。
          * 按钮是纯视图入口（只写 s.track），结算/成本一律不经过它。
@@ -510,8 +562,14 @@
              * 不标记的话，只要有一行差额在动，整个巢穴页就每 2 秒整块重建（2026-11-16）。 */
             var _sfFn = SB.ui && SB.ui.renderCommon && SB.ui.renderCommon.shortfallItemText;
             var _sfTxt = _sfFn ? _sfFn(s, _shortKey, c[_shortKey]) : '';
-            _shortfallItems.push('<span class="bld-shortfall-item" data-live-short="' + _shortKey +
-              '" data-live-need="' + c[_shortKey] + '">' + htmlText(_sfTxt) + '</span>');
+            var _sfItem = '<span class="bld-shortfall-item" data-live-short="' + _shortKey +
+              '" data-live-need="' + c[_shortKey] + '">' + htmlText(_sfTxt) + '</span>';
+            if ((s.lvl && s.lvl.workshop > 0) && craftResSet[_shortKey]) {
+              _sfItem = '<span class="bld-shortfall-wrap">' + _sfItem +
+                '<button type="button" class="bld-goto-craft" data-goto-craft-res="' + _shortKey +
+                '" data-return-bld="' + b.id + '">' + htmlText(tr('village.shortfall.goto_craft', null, '去制造 ↗')) + '</button></span>';
+            }
+            _shortfallItems.push(_sfItem);
           }
           if (_storageCapBlocked) {
             _shortfallItems.unshift('<span class="bld-storage-cap-warning">' + htmlText(tr('village.building.storage_cap.insufficient')) + '</span>');
@@ -624,8 +682,10 @@
           '" aria-haspopup="dialog" title="' + htmlText(tr('village.building.info.tooltip', { buildingName: dispName }, '查看' + dispName + '的效果与建造信息')) + '">' + htmlText(dispName) + '</button>' +
           ' <span class="tag" data-lv="' + b.id + '" title="' + htmlText(lvTitle) + '">' + htmlText(tr('village.building.level.label', { levelText: lvValueTxt }, '等级 ' + lvValueTxt)) + '</span>' +
           (_coTagHTML ? '<span class="co-tag-wrap">' + _coTagHTML + '</span>' : '') +
-          (elBtn ? '<span class="launch-mode-anchor">' + elBtn + '</span>' : '') +
-          (_inlineRunControlsHTML ? '<span class="bld-run-controls">' + _inlineRunControlsHTML + '</span>' : '') +
+          ((elBtn || _inlineRunControlsHTML) ? '<span class="bld-ctrl-bar">' +
+            (elBtn ? '<span class="launch-mode-anchor">' + elBtn + '</span>' : '') +
+            (_inlineRunControlsHTML ? '<span class="bld-run-controls">' + _inlineRunControlsHTML + '</span>' : '') +
+          '</span>' : '') +
           '</span>' + (_bldOpsHTML ? '<span class="bld-ops">' + _bldOpsHTML + '</span>' : '') + '</div>' +
           '<div class="ds">' + dispDesc + (blocked ? htmlText(tr('village.building.prerequisite.note', { requiredBuilding: neededName }, '（需先建成' + neededName + '）')) : '') +
           '</div></div></div>' +
@@ -633,6 +693,7 @@
           '<button class="btn buy" data-build="' + b.id + '"' + (ok && !blocked && !canalCap && !maxReached ? '' : ' disabled') + '><span class="bld-action-label">' + label + '</span></button>' +
           trackBtn + '</div></div>';
         zShown++;
+        totalShown++;
       }
       /* 区标题按区着色（2026-09-30 晚）：--hc 交给 CSS 画左色条 + 同色文字，
        * 与最外层 cardhd 同一套语言（见 ZONE_COLOR）。
@@ -647,9 +708,16 @@
           '<div class="bzbody">' + zRows + '</div></div>';
       }
     }
-    return h;
+    if (!totalShown) {
+      h += '<div class="row"><div class="ds">' + htmlText(tr('village.filter.empty', null, '当前筛选下没有可显示的建筑，可点上方「全部」查看。')) + '</div></div>';
+    }
+    return '<div class="village-view' + (vDensity === 'compact' ? ' is-compact' : '') + '">' + h + '</div>';
   }
 
   parts.paneVillage = paneVillage;
   parts.refreshLaunchProgress = refreshLaunchProgress;
+  parts.setVillageFilter = setVillageFilter;
+  parts.setVillageDensity = setVillageDensity;
+  parts.getVillageFilter = getVillageFilter;
+  parts.getVillageDensity = getVillageDensity;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -226,9 +226,64 @@
   var RES_CELLS = Object.create(null);
   var RES_LAST_BASE_ORDER = [];
   var RES_LAST_CRAFT_ORDER = [];
+  var HUD_RES_KEYS = ['coral', 'kelp', 'stone', 'iron', 'science', 'culture', 'faith', 'metal'];
+  var HUD_RES_CELLS = Object.create(null);
+  var HUD_RES_LAST_ORDER = [];
 
   function setNodeText(node, txt) {
     if (node && node.textContent !== txt) node.textContent = txt;
+  }
+  function makeHudResCell(d, k) {
+    var chip = d.createElement('button');
+    chip.type = 'button';
+    chip.className = 'hud-res-chip';
+    chip.setAttribute('data-res-detail', k);
+    var nm = d.createElement('span');
+    nm.className = 'hr-nm';
+    var amt = d.createElement('span');
+    amt.className = 'hr-amt';
+    var rt = d.createElement('span');
+    rt.className = 'hr-rt';
+    chip.appendChild(nm);
+    chip.appendChild(amt);
+    chip.appendChild(rt);
+    return { key: k, chip: chip, nmEl: nm, amtEl: amt, rtEl: rt, hasRt: true, lastNm: '', lastAmt: '', lastRt: '', lastRtCls: 'hr-rt' };
+  }
+  function syncHudQuickRes(d, s, rate) {
+    var box = el('hudQuickRes');
+    if (!box || !d || !d.createElement || !d.createTextNode) return;
+    if (!box._sbDomInit) { box.innerHTML = ''; box._sbDomInit = true; }
+    var order = [], nodes = [];
+    for (var i = 0; i < HUD_RES_KEYS.length && order.length < 5; i++) {
+      var k = HUD_RES_KEYS[i];
+      if (!SB.RESS[k] || !SB.economy.resUnlocked(s, k)) continue;
+      var cell = HUD_RES_CELLS[k] || (HUD_RES_CELLS[k] = makeHudResCell(d, k));
+      var nm = (SB.i18n && SB.i18n.resourceName) ? SB.i18n.resourceName(k, SB.RESS[k].name) : SB.RESS[k].name;
+      if (k === 'faith' && SB.civic && SB.civic.faithDisplayName) {
+        var fn = SB.civic.faithDisplayName(s);
+        if (fn) nm = fn;
+      }
+      var v = (s.res && s.res[k]) || 0;
+      var amtTxt = SB.economy.fmtAmt(v);
+      var r = (rate && rate[k]) || 0;
+      var showRt = Math.abs(r) >= 0.005;
+      if (cell.lastNm !== nm) { setNodeText(cell.nmEl, nm); cell.lastNm = nm; }
+      if (cell.lastAmt !== amtTxt) { setNodeText(cell.amtEl, amtTxt); cell.lastAmt = amtTxt; }
+      if (showRt !== cell.hasRt) {
+        if (showRt) cell.chip.appendChild(cell.rtEl);
+        else if (cell.rtEl.parentNode === cell.chip) cell.chip.removeChild(cell.rtEl);
+        cell.hasRt = showRt;
+      }
+      if (showRt) {
+        var rtCls = 'hr-rt' + (r > 0 ? ' up' : ' down');
+        if (cell.lastRtCls !== rtCls) { cell.rtEl.className = rtCls; cell.lastRtCls = rtCls; }
+        var rtTxt = (r > 0 ? '+' : '') + SB.economy.fmtAbbr(r, Math.abs(r) >= 100 ? Math.round(r) : r.toFixed(1));
+        if (cell.lastRt !== rtTxt) { setNodeText(cell.rtEl, rtTxt); cell.lastRt = rtTxt; }
+      }
+      order.push(k);
+      nodes.push(cell.chip);
+    }
+    HUD_RES_LAST_ORDER = syncOrder(box, HUD_RES_LAST_ORDER, order, nodes);
   }
   function makeResCell(d, k, isMilitaryPower) {
     var box = d.createElement('div');
@@ -472,6 +527,7 @@
       var wrap = el('res-craft-wrap');
       if (wrap) wrap.hidden = (craftOrder.length === 0);
     }
+    syncHudQuickRes(d, s, rate);
     if (SB.ui.walkPanel && SB.ui.walkPanel.paint) SB.ui.walkPanel.paint(s, rate);
   }
 
@@ -632,8 +688,14 @@
     lblMode: '', lblLocale: '', txtMode: '',
     fillW: '', fillCls: '', dysonCls: null, hint: '',
     txtA: '', txtB: '', txtC: '', cold: null, coldTxt: '',
+    hudTxt: '', hudW: '',
     mainNode: null, stageSpan: null, capSpan: null, coldSpan: null
   };
+  function syncHudShell(wStr, txt) {
+    var hf = el('hudShellFill'), ht = el('hudShellTxt');
+    if (hf && SHELL_CACHE.hudW !== wStr) { hf.style.width = wStr; SHELL_CACHE.hudW = wStr; }
+    if (ht && SHELL_CACHE.hudTxt !== txt) { setNodeText(ht, txt); SHELL_CACHE.hudTxt = txt; }
+  }
   function updateShellLabel(lbl, mode, locale, iconSrc, text) {
     var d = root.document;
     if (!lbl || !d || !d.createElement) return;
@@ -759,6 +821,7 @@
           stageCount: stageCount, stageContributionPercent: stageContributionPercent.toFixed(0)
         }, '五阶段各代表总工程的 20%；进度取太阳帆与戴森球节点中较慢的一项，两项都达标后工程竣工。');
         if (SHELL_CACHE.hint !== dHint) { setNodeText(hint, dHint); SHELL_CACHE.hint = dHint; }
+        syncHudShell(dysonPercent + '%', s.dysonDone ? tr('ui.shell.dyson.project.complete', null, '★ 戴森球已竣工') : (tr('ui.hud.dyson_short', { pct: dysonPercent.toFixed(1) }, '戴森 ' + dysonPercent.toFixed(1) + '%')));
         return;
       }
       var cap = SB.challenges && SB.challenges.starCap ? SB.challenges.starCap(s) : (SB.CFG.STAR_CAP || 0);
@@ -788,6 +851,9 @@
         var sHint = tr('ui.shell.star_exploration.progress_hint', null, '破壳后由文明推力（人口/建筑/科技/轮回增益）被动累积，满槽即太空时代达成。卫星/空间站各自的「开几座」开关可单独停掉它们的星空贡献。');
         if (SHELL_CACHE.hint !== sHint) { setNodeText(hint, sHint); SHELL_CACHE.hint = sHint; }
       }
+      syncHudShell(Math.max(0, Math.min(100, p)) + '%', s.starComplete
+        ? tr('ui.shell.star_exploration.complete', null, '★ 太空时代达成')
+        : tr('ui.hud.star_short', { pct: p.toFixed(1) }, '星空 ' + p.toFixed(1) + '%'));
       return;
     }
     /* 破壳前：原有天壳条逻辑 */
@@ -810,6 +876,7 @@
       var cBadge = tr('ui.shell.thickness.frozen_badge', null, '· 本季冰封');
       if (SHELL_CACHE.coldTxt !== cBadge) { setNodeText(SHELL_CACHE.coldSpan, cBadge); SHELL_CACHE.coldTxt = cBadge; }
     }
+    syncHudShell(Math.max(0, p2) + '%', tr('ui.hud.shell_short', { pct: p2.toFixed(1) }, '天壳 ' + p2.toFixed(1) + '%') + (cold ? ' · ' + tr('ui.hud.cold_short', null, '冰封') : ''));
     var floorPct = Math.round((CFG.FLOOR_AT || 0) * 100);
     var hint2 = tr('ui.shell.thickness.hint.passive_limit', { shellFloorPercent: floorPct },
       '被动削壳：族民、建筑、科技推高它，但最多只能把天壳削到 ' + floorPct + '%——最后一段要靠建成奇观「天穹钻机」来凿。');
@@ -1004,6 +1071,35 @@
     var on = canReplayTerra();
     if (block.hidden !== !on) block.hidden = !on;
   }
+  function setOverviewDrawerOpen(on) {
+    var doc = root.document; if (!doc || !doc.body) return;
+    var open = !!on;
+    doc.body.classList.toggle('overview-drawer-open', open);
+    var bd = el('overviewBackdrop');
+    if (bd && bd.classList) bd.classList.toggle('hidden', !open);
+  }
+  function setSettingsOpen(on) {
+    var doc = root.document;
+    var det = (doc && doc.getElementById && doc.getElementById('uiSettings')) || (doc && doc.querySelector && doc.querySelector('details.ui-settings'));
+    if (!det) return false;
+    det.open = !!on;
+    if (on) syncTerraReplayRow();
+    return true;
+  }
+  function setSettingsTab(tabKey) {
+    var pop = el('uiSettingsPopover');
+    if (!pop) return false;
+    var k = tabKey || 'display';
+    pop.setAttribute('data-active-settings', k);
+    var doc = root.document;
+    var tabs = doc && doc.querySelectorAll ? doc.querySelectorAll('[data-settings-tab]') : [];
+    for (var i = 0; i < tabs.length; i++) {
+      var on = tabs[i].getAttribute('data-settings-tab') === k;
+      tabs[i].classList.toggle('on', on);
+      tabs[i].setAttribute('aria-selected', on ? 'true' : 'false');
+    }
+    return true;
+  }
   function bindSettingsExtras() {
     var btn = el('btnReplayTerra');
     if (btn) btn.onclick = replayTerraSequence;
@@ -1011,6 +1107,7 @@
     if (det && det.addEventListener && !det._terraReplayBound) {
       det._terraReplayBound = true;
       det.addEventListener('toggle', syncTerraReplayRow);
+      det.addEventListener('click', function (e) { if (e && e.target === det) setSettingsOpen(false); });
     }
     syncTerraReplayRow();
   }
@@ -1961,6 +2058,15 @@
         ? 'ui.render.render_break_btn.end_this_run_to_earn_prestige_points'
         : 'ui.render.render_break_btn.theology_isn_t_researched_this_will_restart');
     }
+    var hudAct = el('hudActionPill');
+    if (hudAct) {
+      var shellZero = (s.shell <= 0 && s.shellOpened);
+      var actLabel = opened ? tr(LABEL_KEY[mode]) : (qual && !shellZero ? tr('ui.action.prestige') : tr('ui.render.render_break_btn.break_through_the_ice_shell'));
+      var actDisabled = opened ? !shellZero : (!qual && !shellZero);
+      if (hudAct.textContent !== actLabel) setNodeText(hudAct, actLabel);
+      if (hudAct.disabled !== actDisabled) hudAct.disabled = actDisabled;
+      hudAct.setAttribute('data-hud-action', (!opened && qual && !shellZero) ? 'cycle' : 'break');
+    }
 
     /* 帷幕之后 · 掀幕按钮（ERA11 spec §6 决策 #10）：学完《掀起帘幕》才出现，
      * 放在轮回按钮下方静态 .foot 行。预估/门槛/拆分数字全部走 prestige.veilPeriod()，
@@ -2280,7 +2386,12 @@
     var ctrl = el('adCtrl'); if (!ctrl) return;
     /* 广告不可用（没 SDK / 没配 space_id，且非 ?adtest）⇒ 整块隐藏。
      * 否则会留下一个「点了没反应」的死按钮，也暗示玩家这里该有东西。 */
-    if (SB.ad && SB.ad.available && !SB.ad.available()) { ctrl.style.display = 'none'; return; }
+    if (SB.ad && SB.ad.available && !SB.ad.available()) {
+      ctrl.style.display = 'none';
+      var hudAdOff = el('hudAdPill');
+      if (hudAdOff) hudAdOff.hidden = true;
+      return;
+    }
     ctrl.style.display = '';
     var watch = el('btnAd'), tog = el('btnAdToggle'), rem = el('adRemain');
     var ad = s.ad || { ms: 0, on: true };
@@ -2309,6 +2420,21 @@
         : tr('ui.ad.boost.toggle.default', null, '2× 加速');
       tog.title = tr('ui.ad.boost.toggle.tooltip', null, '开关 2× 加速（关着时剩余时间不流逝）');
       tog.disabled = ad.ms <= 0;                  // 没余额时开关无意义（中性灰，不显示开/关）
+    }
+    var hudAd = el('hudAdPill');
+    if (hudAd) {
+      hudAd.hidden = false;
+      if (ad.ms > 0) {
+        var adTot = ad.ms / 1000, adMm = Math.floor(adTot / 60), adSs = Math.floor(adTot % 60);
+        var adDur = adMm + ':' + (adSs < 10 ? '0' + adSs : adSs);
+        var adTxt = ad.on ? ('2× ' + adDur) : (tr('ui.ad.boost.paused_short', null, '暂停 ') + adDur);
+        if (hudAd.textContent !== adTxt) setNodeText(hudAd, adTxt);
+        hudAd.setAttribute('data-hud-ad', 'toggle');
+      } else {
+        var watchShort = tr('ui.ad.boost.watch_short', null, '+2× 加速');
+        if (hudAd.textContent !== watchShort) setNodeText(hudAd, watchShort);
+        hudAd.setAttribute('data-hud-ad', 'watch');
+      }
     }
     /* 「看广告 +1 轮回点」：按钮文案固定；副文本显示当日已看次数/上限；达上限禁用并提示。 */
     var rb = el('btnAdRebirth'), rbRem = el('adRebirthRemain');
@@ -3259,6 +3385,7 @@
       sm.classList.toggle('locked', !sop);
       sm.title = sop ? '' : tr('ui.render.sync_tab_locks.break_through_the_shell_to_unlock_the');
     }
+    syncNavShell();
   }
 
   /* 科技 / 市政页签的「可研究」红点：各自分类存在当前即可研究的项时点亮（活指示，不记 localStorage）。
@@ -3321,6 +3448,7 @@
       wkt.classList.toggle('avail', wkOn);
       if (wkOn) wkt.title = (wkt.title ? wkt.title + ' · ' : '') + tr('ui.tab.workshop.upgrades_available');
     }
+    syncNavShell();
   }
 
 
@@ -3330,6 +3458,87 @@
    * ⚠️ 2026-10-13 改「单独关闭」：逐家公司独立展示各自的等级 / 升级倒计时 / 关闭 / 重建，
    *   关闭某一家的按钮只解散那一家，不影响其他家。 */
 
+
+  var NAV_GROUPS = [
+    { id: 'colony', tabs: ['village', 'folk', 'tech', 'civic'] },
+    { id: 'industry', tabs: ['workshop', 'wonder'] },
+    { id: 'faith', tabs: ['faith', 'diplomacy', 'company'] },
+    { id: 'cycle', tabs: ['star-map', 'meta', 'challenges', 'achievements', 'veil'] }
+  ];
+  var LAST_GROUP_TAB = { colony: 'village', industry: 'workshop', faith: 'faith', cycle: 'meta' };
+  function groupOfTab(tabId) {
+    for (var i = 0; i < NAV_GROUPS.length; i++) {
+      if (NAV_GROUPS[i].tabs.indexOf(tabId) >= 0) return NAV_GROUPS[i].id;
+    }
+    return 'colony';
+  }
+  function syncNavShell(activeTab) {
+    var doc = root.document;
+    if (!doc) return;
+    var cur = activeTab || (SB.game && SB.game.getTab ? SB.game.getTab() : 'village') || 'village';
+    var activeGroup = groupOfTab(cur);
+    var tabNodes = doc.querySelectorAll ? doc.querySelectorAll('.tab') : [];
+    var tabMap = Object.create(null);
+    for (var i = 0; i < tabNodes.length; i++) {
+      var tid = tabNodes[i].dataset ? tabNodes[i].dataset.tab : '';
+      if (tid) tabMap[tid] = tabNodes[i];
+    }
+    if (tabMap[cur] && tabMap[cur].classList && !tabMap[cur].classList.contains('locked')) {
+      LAST_GROUP_TAB[activeGroup] = cur;
+    }
+    var unlockedGroups = 0;
+    var groupState = Object.create(null);
+    for (var gi = 0; gi < NAV_GROUPS.length; gi++) {
+      var grp = NAV_GROUPS[gi], hasOpen = false, hasAvail = false;
+      for (var ti = 0; ti < grp.tabs.length; ti++) {
+        var tn = tabMap[grp.tabs[ti]];
+        if (!tn || !tn.classList) continue;
+        var locked = tn.classList.contains('locked');
+        if (!locked) hasOpen = true;
+        if (!locked && tn.classList.contains('avail')) hasAvail = true;
+      }
+      if (hasOpen || grp.id === activeGroup) unlockedGroups++;
+      groupState[grp.id] = { open: hasOpen, avail: hasAvail };
+    }
+    var showMulti = unlockedGroups > 1;
+    if (doc.body && doc.body.classList) {
+      doc.body.classList.toggle('has-multi-nav-groups', showMulti);
+      if (doc.body.dataset) doc.body.dataset.activeGroup = activeGroup;
+    }
+    var tabsWrap = doc.querySelector ? doc.querySelector('.tabs') : null;
+    if (tabsWrap && tabsWrap.dataset) tabsWrap.dataset.activeGroup = activeGroup;
+    var bar = el('appNavGroups');
+    if (bar) {
+      bar.hidden = !showMulti;
+      var btns = bar.querySelectorAll ? bar.querySelectorAll('[data-nav-group-btn]') : [];
+      for (var bi = 0; bi < btns.length; bi++) {
+        var btn = btns[bi], gid = btn.getAttribute('data-nav-group-btn');
+        var st = groupState[gid] || { open: false, avail: false };
+        if (btn.classList) {
+          btn.classList.toggle('on', gid === activeGroup);
+          btn.classList.toggle('locked', !st.open);
+          btn.classList.toggle('avail', st.avail);
+        }
+        btn.disabled = !st.open;
+      }
+    }
+  }
+  function activateNavGroup(groupId) {
+    var doc = root.document;
+    var grp = null;
+    for (var i = 0; i < NAV_GROUPS.length; i++) if (NAV_GROUPS[i].id === groupId) { grp = NAV_GROUPS[i]; break; }
+    if (!grp) return false;
+    var cand = [], last = LAST_GROUP_TAB[groupId];
+    if (last && grp.tabs.indexOf(last) >= 0) cand.push(last);
+    for (var ti = 0; ti < grp.tabs.length; ti++) if (grp.tabs[ti] !== last) cand.push(grp.tabs[ti]);
+    for (var ci = 0; ci < cand.length; ci++) {
+      var tn = doc && doc.querySelector ? doc.querySelector('.tab[data-tab="' + cand[ci] + '"]') : null;
+      if (tn && tn.classList && tn.classList.contains('locked')) continue;
+      if (SB.game && SB.game.setTab) SB.game.setTab(cand[ci]);
+      return true;
+    }
+    return false;
+  }
 
   function initTabs() {
     var tabs = document.querySelectorAll('.tab'), i;
@@ -3482,9 +3691,15 @@
   if (typeof document !== 'undefined' && document.addEventListener) {
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') {
-        /* ⓘ 浮层最浅 → 先关它，再轮到 intro / 弹窗（与层级顺序一致）。 */
+        /* ⓘ 浮层最浅 → 先关它，再轮到抽屉 / 设置 / intro / 弹窗（与层级顺序一致）。 */
         var hi0 = el('hoverInfoLayer');
         if (hi0 && !hi0.classList.contains('hidden')) { hi0.classList.add('hidden'); return; }
+        if (document.body && document.body.classList && document.body.classList.contains('overview-drawer-open')) {
+          setOverviewDrawerOpen(false);
+          return;
+        }
+        var detEsc = el('uiSettings') || (document.querySelector && document.querySelector('details.ui-settings'));
+        if (detEsc && detEsc.open) { detEsc.open = false; return; }
         var intro = el('introMask'), modal = el('modal');
         if (intro && !intro.classList.contains('hidden')) closeIntro();
         else if (modal && !modal.classList.contains('hidden') &&
@@ -3595,6 +3810,19 @@
      *   调用方（input.js 委托）负责重画。 */
     toggleHideDone: SB.ui.renderParts.toggleHideDone,
     toggleWonderHideDone: SB.ui.renderParts.toggleWonderHideDone,
+    toggleCraftOnlyReady: SB.ui.renderParts.toggleCraftOnlyReady,
+    setVillageFilter: SB.ui.renderParts.setVillageFilter,
+    setVillageDensity: SB.ui.renderParts.setVillageDensity,
+    setFolkFilter: SB.ui.renderParts.setFolkFilter,
+    setFolkDensity: SB.ui.renderParts.setFolkDensity,
+    setResearchView: SB.ui.renderParts.research && SB.ui.renderParts.research.setResearchView,
+    setResearchFilter: SB.ui.renderParts.research && SB.ui.renderParts.research.setResearchFilter,
+    jumpResearchPrereq: SB.ui.renderParts.research && SB.ui.renderParts.research.jumpResearchPrereq,
+    syncNavShell: syncNavShell,
+    activateNavGroup: activateNavGroup,
+    setOverviewDrawerOpen: setOverviewDrawerOpen,
+    setSettingsOpen: setSettingsOpen,
+    setSettingsTab: setSettingsTab,
     PANE_KEYS: PANE_KEYS,
     notifyStarMapActive: notifyStarMapActive,
     paneTech: SB.ui.renderParts.research && SB.ui.renderParts.research.paneTech,

@@ -314,6 +314,99 @@
   function res() { return SB.game.run(); }
   var techViewEra = 0;
   var civicViewEra = 0, civicEraChosen = false;
+  var RESEARCH_VIEW_ALLOWED = ['auto', 'list', 'tree'];
+  var RESEARCH_FILTER_ALLOWED = ['all', 'ready', 'unrevealed'];
+  var researchViewFallback = 'auto';
+  var researchFilterFallback = 'all';
+  function getResearchViewMode() {
+    var S = SB.store;
+    if (S && S.prefGetStr) return S.prefGetStr('research.view', RESEARCH_VIEW_ALLOWED, 'auto');
+    return researchViewFallback;
+  }
+  function setResearchView(v) {
+    if (RESEARCH_VIEW_ALLOWED.indexOf(v) < 0) return false;
+    researchViewFallback = v;
+    var S = SB.store;
+    if (S && S.prefSetStr) S.prefSetStr('research.view', v, RESEARCH_VIEW_ALLOWED);
+    return true;
+  }
+  function getResearchFilter() {
+    var S = SB.store;
+    if (S && S.prefGetStr) return S.prefGetStr('research.filter', RESEARCH_FILTER_ALLOWED, 'all');
+    return researchFilterFallback;
+  }
+  function setResearchFilter(v) {
+    if (RESEARCH_FILTER_ALLOWED.indexOf(v) < 0) return false;
+    researchFilterFallback = v;
+    var S = SB.store;
+    if (S && S.prefSetStr) S.prefSetStr('research.filter', v, RESEARCH_FILTER_ALLOWED);
+    return true;
+  }
+  function resolvedResearchView() {
+    var mode = getResearchViewMode();
+    if (mode === 'tree' || mode === 'list') return mode;
+    var w = (root && typeof root.innerWidth === 'number') ? root.innerWidth : 0;
+    return (w > 0 && w <= 760) ? 'list' : 'tree';
+  }
+  function researchToolbarHTML(isList) {
+    var mode = getResearchViewMode();
+    var flt = getResearchFilter();
+    var h = '<div class="research-toolbar" role="toolbar" aria-label="' + tr('research.toolbar.aria_label', null, '视图与筛选') + '">';
+    h += '<div class="pane-filter-group">' +
+      '<button type="button" class="pane-pill' + (mode === 'auto' ? ' on' : '') + '" data-research-view="auto" aria-pressed="' + (mode === 'auto') + '">' + tr('research.view.auto', null, '自适应') + '</button>' +
+      '<button type="button" class="pane-pill' + (mode === 'list' ? ' on' : '') + '" data-research-view="list" aria-pressed="' + (mode === 'list') + '">' + tr('research.view.list', null, '列表') + '</button>' +
+      '<button type="button" class="pane-pill' + (mode === 'tree' ? ' on' : '') + '" data-research-view="tree" aria-pressed="' + (mode === 'tree') + '">' + tr('research.view.tree', null, '长卷') + '</button>' +
+      '</div>';
+    if (isList) {
+      h += '<div class="pane-filter-group">' +
+        '<button type="button" class="pane-pill' + (flt === 'all' ? ' on' : '') + '" data-research-filter="all" aria-pressed="' + (flt === 'all') + '">' + tr('village.filter.all', null, '全部') + '</button>' +
+        '<button type="button" class="pane-pill' + (flt === 'ready' ? ' on' : '') + '" data-research-filter="ready" aria-pressed="' + (flt === 'ready') + '">' + tr('research.filter.ready', null, '可研究') + '</button>' +
+        '<button type="button" class="pane-pill' + (flt === 'unrevealed' ? ' on' : '') + '" data-research-filter="unrevealed" aria-pressed="' + (flt === 'unrevealed') + '">' + tr('research.filter.unrevealed', null, '未揭示') + '</button>' +
+        '</div>';
+    }
+    return h + '</div>';
+  }
+  function firstMissingPrereq(doneMap, item) {
+    var reqs = item && item.reqs ? item.reqs : [];
+    for (var i = 0; i < reqs.length; i++) {
+      if (reqs[i] && (!doneMap || !doneMap[reqs[i]])) return reqs[i];
+    }
+    return '';
+  }
+  function jumpResearchPrereq(spec) {
+    if (!spec) return false;
+    var p = String(spec).indexOf(':');
+    if (p < 0) return false;
+    var kind = spec.slice(0, p), id = spec.slice(p + 1);
+    if (!id) return false;
+    if (getResearchFilter() !== 'all') setResearchFilter('all');
+    var s = res();
+    if (resolvedResearchView() === 'tree') {
+      if (kind === 'tech') {
+        var t = SB.tech && SB.tech.byId ? SB.tech.byId(id) : null;
+        if (t && t.era) techGoEra(t.era);
+      } else if (kind === 'civic') {
+        var C = SB.CIVICS || [], c = null;
+        for (var i = 0; i < C.length; i++) if (C[i].id === id) { c = C[i]; break; }
+        if (c && c.era) civicGoEra(c.era);
+      }
+      if (SB.ui.render && SB.ui.render.renderPanes) SB.ui.render.renderPanes();
+      return true;
+    }
+    if (SB.ui.render && SB.ui.render.renderPanes) SB.ui.render.renderPanes();
+    var raf = root.requestAnimationFrame || function (f) { return setTimeout(f, 16); };
+    raf(function () {
+      var doc = root.document;
+      var target = doc && doc.getElementById ? doc.getElementById((kind === 'tech' ? 'techlist-' : 'civiclist-') + id) : null;
+      if (target && target.scrollIntoView) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (target && target.classList) {
+        target.classList.remove('is-jump-flash');
+        void target.offsetWidth;
+        target.classList.add('is-jump-flash');
+      }
+    });
+    return true;
+  }
   var ERA_LOCALE_SLUGS = {
     1: 'undercurrent', 2: 'coldfire', 3: 'sulfur_vent', 4: 'ocean_current',
     5: 'shellbreak', 6: 'emergence', 7: 'stars', 8: 'exploration',
@@ -821,6 +914,74 @@
     return h + '</div>';
   }
 
+  function techList(s) {
+    var era = s.era || 1, E = SB.ERAS || [], T = SB.TECHS || [], flt = getResearchFilter();
+    var h = '<div class="research-list-eras">';
+    var totalShown = 0;
+    for (var e = 1; e <= era && e <= E.length; e++) {
+      var er = eraOf(e), cards = '', st = eraStats(s, e);
+      for (var i = 0; i < T.length; i++) {
+        var t = T[i];
+        if ((t.era || 1) !== e || !visOf(s, t, era)) continue;
+        var lv = SB.tech.level(s, t.id), maxLv = SB.tech.maxLevel(t);
+        var done = lv >= maxLv;
+        var lit = SB.tech.metOf(s, t);
+        var why = done ? null : SB.tech.studyBlocked(s, t.id);
+        if (flt === 'ready' && (done || !lit || why)) continue;
+        if (flt === 'unrevealed' && (done || lit)) continue;
+        var sciShort = !done && lit && typeof why === 'string' && why.indexOf('科技点不足：') === 0;
+        var status = done ? tr('tree.detail.status.mastered', null, '已掌握')
+          : (lv > 0 && !done) ? tr('research.tech.partial_level.status', { level: lv, maxLevel: maxLv }, '等级 ' + lv + '/' + maxLv)
+          : !lit ? tr('tree.detail.status.unrevealed', null, '未揭示')
+          : sciShort ? tr('tree.detail.status.not_enough_research_points', null, '科技点不足')
+          : why ? tr('tree.detail.status.unavailable', null, '暂不可研究')
+          : tr('tree.detail.status.ready_to_research', null, '可研究');
+        var nodeTitle = lit ? techName(t) : tr('tree.detail.unrevealed.title', { nodeType: tr('tree.node_type.technology', null, '科技') }, '未揭露的科技');
+        var eureka = t.cond && t.cond.t !== 'default' && !lit ? SB.tech.condShort(s, t.cond) : null;
+        var _lk = 'tech:' + t.id, _liveCond = !!(t.cond && LIVE_COND_TYPES[t.cond.t]);
+        var condLine = '';
+        if (!lit) {
+          condLine = '<div class="research-list-card-desc"' + (_liveCond ? ' data-live-cond="' + _lk + '"' : '') + '>' +
+            tr('tree.condition.eureka.heading', null, '尤里卡') + ' · ' + (eureka ? eureka.txt : tr('tree.condition.eureka.default', null, '达成条件后揭示')) + '</div>';
+          if (eureka && eureka.need > 0) {
+            var ep = Math.max(0, Math.min(100, eureka.now / eureka.need * 100));
+            condLine += '<span class="tree-eureka-meter"><span class="tree-eureka-track"><i data-live-bar style="width:' + ep.toFixed(1) + '%"></i></span><b' +
+              (_liveCond ? ' data-live-pct="' + _lk + '"' : '') + '>' + ep.toFixed(0) + '%</b></span>';
+          }
+        } else {
+          var tDesc = trComplete('tech.' + t.id + '.description', null, t.desc || '');
+          condLine = '<div class="research-list-card-desc">' + escapeHTML(tDesc || (why || '')) + '</div>';
+          if (sciShort) {
+            var scCost = SB.tech.researchCost(s, t), scNow = Math.max(0, Number(s.res && s.res.science) || 0);
+            var scPct = scCost > 0 ? Math.max(0, Math.min(100, scNow / scCost * 100)) : 0;
+            condLine += '<span class="tree-science-meter"><span class="tree-science-values"><span>' + tr('content.science.name', null, '科技') + '</span><b data-live-num="' + _lk + '">' +
+              SB.economy.fmtAmt(scNow) + '</b><i>/</i><b>' + SB.economy.fmtAmt(scCost) + '</b></span><span class="tree-science-track"><i data-live-bar data-live-sci="' + _lk + '" style="width:' + scPct.toFixed(1) + '%"></i></span></span>';
+          }
+        }
+        var missPre = !done && lit && why ? firstMissingPrereq(s.techs, t) : '';
+        var starHtml = (!lit && t.cond && t.cond.t !== 'default')
+          ? '<span class="tree-track' + ((SB.ui.track && SB.ui.track.isTracked && SB.ui.track.isTracked('tech', t.id)) ? ' on' : '') +
+            '" role="button" data-track-toggle="tech:' + t.id + '" title="' + tr('tree.track.eureka', null, '追踪尤里卡') + '">★</span>' : '';
+        var prereqHtml = missPre ? '<button type="button" class="btn research-prereq-btn" data-jump-prereq="tech:' + missPre + '">' + tr('research.prereq.jump', null, '看前置') + '</button>' : '';
+        cards += '<article class="research-list-card' + (done ? ' is-done' : !lit ? ' is-unrevealed' : !why ? ' is-ready' : '') +
+          '" id="techlist-' + t.id + '" data-tree-node="1" data-tree-type="tech" data-tree-id="' + t.id + '">' +
+          '<div class="research-list-card-top"><span class="research-list-card-name">' + escapeHTML(nodeTitle) + '</span>' +
+          '<span class="research-list-card-status">' + escapeHTML(status) + '</span></div>' +
+          condLine +
+          '<div class="research-list-card-foot">' + (lit ? '<span>' + escapeHTML(tr('content.science.name', null, '科技') + ' ' + SB.economy.fmtAmt(SB.tech.researchCost(s, t))) + '</span>' : '') +
+          '<div class="research-list-actions">' + prereqHtml + starHtml + '</div></div></article>';
+        totalShown++;
+      }
+      if (cards) {
+        h += '<section class="research-era-group"><header class="research-era-head"><span class="research-era-title" style="color:' + er.color + '">' +
+          (er.glyph || '') + ' ' + escapeHTML(er.name) + '</span><span class="research-era-count">' + st.learned + '/' + st.total + '</span></header>' +
+          '<div class="research-list-cards">' + cards + '</div></section>';
+      }
+    }
+    if (!totalShown) h += '<div class="row"><div class="ds">' + tr('research.list.empty', null, '当前筛选下没有可显示的科技项目。') + '</div></div>';
+    return h + '</div>';
+  }
+
   function paneTech() {
     var s = res();
     /* 门与 tab 的灰读同一份派生值（SB.tech.panelOpen），不在这里另算一次。 */
@@ -831,8 +992,13 @@
     var sel = (techViewEra >= 1 && techViewEra <= E.length) ? techViewEra : era;
     techViewEra = sel;
 
-    var h = autoResearchSwitch('tech') + eraNav(s, era, sel);
-    h += techTree(s, sel);
+    var isList = resolvedResearchView() === 'list';
+    var h = autoResearchSwitch('tech') + researchToolbarHTML(isList);
+    if (isList) {
+      h += techList(s);
+    } else {
+      h += eraNav(s, era, sel) + techTree(s, sel);
+    }
     h += '<div class="note">' + tr('research.technology.explanation.note', null,
       '尤里卡只「揭示」节点本身，不折算研究进度（设计已定）。研究是即时扣费：科技够了点一下就掌握，没有队列。') + '</div>';
     return h;
@@ -1281,8 +1447,70 @@
    *   ② 节点是三态（已完成 / 已揭示 / 未揭露），比科技的「亮 / 不亮」多一档：
    *      未揭露时**藏名字与 desc**，与科技一致；差别在于市政的「鼓舞」是揭示的前置，
    *      所以未揭露态要连鼓舞条件与进度一起摆出来，玩家的下一步动作才是明确的。 */
+  function civicList(s) {
+    var C = SB.CIVICS || [], Civ = SB.civic, E = SB.ERAS || [], flt = getResearchFilter();
+    var visibleEra = Civ.visibleEra ? Civ.visibleEra(s) : (s.era || 1);
+    var h = '<div class="research-list-eras">';
+    var totalShown = 0;
+    for (var e = 1; e <= visibleEra && e <= E.length; e++) {
+      var er = eraOf(e), cards = '', st = civicEraStats(s, e);
+      for (var i = 0; i < C.length; i++) {
+        var c = C[i];
+        if ((c.era || 1) !== e) continue;
+        if (c.challengeOnly && Civ.challengeAllows && !Civ.challengeAllows(s, c)) continue;
+        var done = !!(s.civics && s.civics[c.id]);
+        var rev = Civ.isRevealed(s, c.id);
+        var why = done ? null : Civ.blocked(s, c);
+        if (flt === 'ready' && (done || !rev || why)) continue;
+        if (flt === 'unrevealed' && (done || rev)) continue;
+        var status = done ? tr('tree.detail.status.mastered', null, '已掌握')
+          : !rev ? tr('tree.detail.status.unrevealed', null, '未揭示')
+          : why ? tr('tree.detail.status.unavailable', null, '暂不可研究')
+          : tr('tree.detail.status.ready_to_research', null, '可研究');
+        var title = rev ? civicName(c) : tr('tree.detail.unrevealed.title', { nodeType: tr('tree.node_type.civic', null, '市政') }, '未揭露的市政');
+        var boost = !rev && c.boost ? SB.tech.condShort(s, c.boost) : null;
+        var _ck = 'civic:' + c.id, _cLive = !!(c.boost && LIVE_COND_TYPES[c.boost.t]);
+        var descHtml = '';
+        if (!rev) {
+          descHtml = '<div class="research-list-card-desc"' + (_cLive ? ' data-live-cond="' + _ck + '"' : '') + '>' +
+            tr('tree.condition.inspiration.heading', null, '鼓舞') + ' · ' + (boost ? boost.txt : c.boost ? tr('civic.reveal.inspiration.condition_hint', null, '达成鼓舞条件后揭示') : tr('civic.boost.not_required', null, '无需鼓舞')) + '</div>';
+          if (boost && boost.need > 0) {
+            var bp = Math.max(0, Math.min(100, boost.now / boost.need * 100));
+            descHtml += '<span class="tree-eureka-meter"><span class="tree-eureka-track"><i data-live-bar style="width:' + bp.toFixed(1) + '%"></i></span><b' +
+              (_cLive ? ' data-live-pct="' + _ck + '"' : '') + '>' + bp.toFixed(0) + '%</b></span>';
+          }
+        } else {
+          descHtml = '<div class="research-list-card-desc">' + escapeHTML(trComplete('civic.data.' + c.id + '.description', null, c.desc || '')) + '</div>';
+        }
+        var missPre = !done && rev && why ? firstMissingPrereq(s.civics, c) : '';
+        var starHtml = (!rev && c.boost && c.boost.t !== 'default')
+          ? '<span class="tree-track' + ((SB.ui.track && SB.ui.track.isTracked && SB.ui.track.isTracked('civic', c.id)) ? ' on' : '') +
+            '" role="button" data-track-toggle="civic:' + c.id + '" title="' + tr('tree.track.inspiration', null, '追踪鼓舞') + '">★</span>' : '';
+        var prereqHtml = missPre ? '<button type="button" class="btn research-prereq-btn" data-jump-prereq="civic:' + missPre + '">' + tr('research.prereq.jump', null, '看前置') + '</button>' : '';
+        cards += '<article class="research-list-card' + (done ? ' is-done' : !rev ? ' is-unrevealed' : !why ? ' is-ready' : '') +
+          '" id="civiclist-' + c.id + '" data-tree-node="1" data-tree-type="civic" data-tree-id="' + c.id + '">' +
+          '<div class="research-list-card-top"><span class="research-list-card-name">' + escapeHTML(title) + '</span>' +
+          '<span class="research-list-card-status">' + escapeHTML(status) + '</span></div>' +
+          descHtml +
+          '<div class="research-list-card-foot">' + (rev ? '<span>' + escapeHTML((tr('content.culture.name', null, '市政点')) + ' ' + SB.economy.fmtAmt(c.cost || 0)) + '</span>' : '') +
+          '<div class="research-list-actions">' + prereqHtml + starHtml + '</div></div></article>';
+        totalShown++;
+      }
+      if (cards) {
+        h += '<section class="research-era-group"><header class="research-era-head"><span class="research-era-title" style="color:' + er.color + '">' +
+          (er.glyph || '') + ' ' + escapeHTML(er.name) + '</span><span class="research-era-count">' + st.completed + '/' + st.total + '</span></header>' +
+          '<div class="research-list-cards">' + cards + '</div></section>';
+      }
+    }
+    if (!totalShown) h += '<div class="row"><div class="ds">' + tr('research.civic.list.empty', null, '当前筛选下没有可显示的市政项目。') + '</div></div>';
+    h += '</div><div class="note"><span data-live-num="civic:points">' + civicPointsNote(s) + '</span></div>';
+    return h;
+  }
+
   function civicTree(s) {
     if (!SB.civic || !SB.civic.layout) return '<div class="note">' + tr('civic.tree.geometry_not_loaded', null, '市政树几何尚未加载。') + '</div>';
+    var isList = resolvedResearchView() === 'list';
+    if (isList) return researchToolbarHTML(true) + civicList(s);
     var desktop = !!(SB.tech && SB.tech.isDesktopTreeViewport && SB.tech.isDesktopTreeViewport());
     var L = SB.civic.layout(desktop), G = L.geo;
     var gameEra = s.era || 1, E = SB.ERAS || [];
@@ -1309,7 +1537,7 @@
     }
     var treeH = G.PADY * 2 + treeMaxRow * L.rowPitch + G.H;
 
-    var h = civicEraNav(s, gameEra, visibleEra, sel) + civicEraDetail(s, gameEra, visibleEra, sel) +
+    var h = researchToolbarHTML(false) + civicEraNav(s, gameEra, visibleEra, sel) + civicEraDetail(s, gameEra, visibleEra, sel) +
       '<div class="techscroll tree-civic" id="civicScroll"><div class="techcanvas"' +
       ' style="width:' + treeW + 'px;height:' + treeH + 'px">';
 
@@ -1577,6 +1805,8 @@
     setCivicView: setCivicView, civicNoticeState: civicNoticeState,
     armCard: armCard, disarmCard: disarmCard, getArmedCard: getArmedCard,
     cycleJobStep: cycleJobStep, getJobStep: getJobStep,
-    techGoEra: techGoEra, civicGoEra: civicGoEra
+    techGoEra: techGoEra, civicGoEra: civicGoEra,
+    setResearchView: setResearchView, setResearchFilter: setResearchFilter,
+    jumpResearchPrereq: jumpResearchPrereq
   };
 })(typeof window !== 'undefined' ? window : globalThis);
