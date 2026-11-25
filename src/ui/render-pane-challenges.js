@@ -452,6 +452,12 @@
   }
   loadAchvFold();
 
+  var ACHV_LOCALE_SLUGS = {
+    challengeVeilNoFaith: 'challenge_veil_nofaith',
+    rebirth10: 'rebirth_10',
+    relic10: 'relic_10',
+    relic25: 'relic_25'
+  };
   function achievementText(def, field) {
     if (!def) return '';
     var property = field === 'title' ? 'name' : 'desc';
@@ -463,7 +469,7 @@
     }
     if (def.key === 'driftTerra' && field === 'title')
       return tr('challenge.definition.drift_terra.name', {}, fallback);
-    var slug = String(def.key || '').replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
+    var slug = ACHV_LOCALE_SLUGS[def.key] || String(def.key || '').replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
     return tr('achievement.' + slug + '.' + field, {}, fallback);
   }
 

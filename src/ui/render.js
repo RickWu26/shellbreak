@@ -2309,7 +2309,11 @@
       var action = !opened && qual ? 'cycle' : 'break';
       var sourceButton = action === 'cycle' ? cyc : btn;
       var actDisabled = !sourceButton || !!(sourceButton.disabled || sourceButton.hidden);
-      if (sourceButton) setNodeText(hudAct, sourceButton.textContent);
+      if (sourceButton) {
+        var hudLabel = (action === 'break' && !opened && englishLocale()) ? 'Break Shell' : sourceButton.textContent;
+        setNodeText(hudAct, hudLabel);
+        hudAct.title = sourceButton.textContent || '';
+      }
       if (hudAct.disabled !== actDisabled) hudAct.disabled = actDisabled;
       if (hudAct.getAttribute('data-hud-action') !== action) hudAct.setAttribute('data-hud-action', action);
     }

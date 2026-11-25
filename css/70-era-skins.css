@@ -878,7 +878,8 @@ html[data-era] #card-res .res-details {
   line-height: 1.3;
 }
 html[data-era] #card-res .res-label .res-name { color: var(--pilot-copy); }
-html[data-era] #card-res #res-craft .res-name { overflow-wrap: normal; }
+html[data-era] #card-res #res-craft .res-name,
+html[lang^="en"][data-era] #card-res .res-name { overflow-wrap: normal; word-break: normal; }
 html[data-era] #card-res .res i.cap { color: var(--dim); font-size: 11px; }
 html[data-era] #card-res .res i.rate { font-size: 11px; font-weight: 650; }
 html[data-era] .overview-grid .res i.sd,
@@ -964,9 +965,9 @@ html[data-era] .overview-grid .res i.sd .lux-burn { color: var(--red); }
   html[data-era] #card-res .res i.rate,
   html[data-era] #card-res .res i.sd { font-size: clamp(8.5px, 1.75cqi, 9.5px); }
 
-  html[lang^="en"][data-era] #card-res #res-craft .res > .res-icon { grid-row: 1; }
-  html[lang^="en"][data-era] #card-res #res-craft .res-content > b { grid-column: 2; }
-  html[lang^="en"][data-era] #card-res #res-craft .res-details { grid-column: 1 / -1; }
+  html[lang^="en"][data-era] #card-res .res > .res-icon { grid-row: 1; }
+  html[lang^="en"][data-era] #card-res .res-content > b { grid-column: 2; }
+  html[lang^="en"][data-era] #card-res .res-details { grid-column: 1 / -1; }
 }
 @container resource-panel (max-width: 275px) {
   html[lang^="en"][data-era] #card-res #res-craft { grid-template-columns: repeat(2, minmax(0, 1fr)); }

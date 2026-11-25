@@ -935,9 +935,19 @@
    * 面板不能把生 id 印给玩家（2026-10-07 截图里印成「shellcutter、presspipe」就是这病）。 */
   function _wNames(ids) {
     var out = [], i, w;
+    var info = SB.ui && SB.ui.renderParts && SB.ui.renderParts.info;
+    var runState = SB.game && SB.game.run ? SB.game.run() : null;
     for (i = 0; i < ids.length; i++) {
       w = (SB.wonder && SB.wonder.byId) ? SB.wonder.byId(ids[i]) : null;
-      out.push(w ? localizedName('wonder.' + snakeCase(ids[i]).replace(/^wonder_/, '') + '.name', w.name) : '未知奇观');
+      if (!w) {
+        out.push('未知奇观');
+      } else if (info && typeof info.localizedWonderName === 'function') {
+        out.push(info.localizedWonderName(runState, ids[i], w.name));
+      } else if (SB.i18n && typeof SB.i18n.contentName === 'function') {
+        out.push(SB.i18n.contentName(ids[i], w.name));
+      } else {
+        out.push(localizedName('wonder.' + snakeCase(ids[i]).replace(/^wonder_/, '') + '.name', w.name));
+      }
     }
     return out.join(isEnglishLocale() ? ', ' : '、');
   }

@@ -545,7 +545,7 @@
       var techLabel = tr('wonder.requirement.technology_label', null, '（科技）');
       var techStatus = tr(s.techs && s.techs[techIds[i]] ? 'ui.status.met' : 'ui.status.not_met', null,
         s.techs && s.techs[techIds[i]] ? '已满足' : '未满足');
-      add(techName + techLabel + ' · ' + techStatus, !!(s.techs && s.techs[techIds[i]]));
+      add(techName + (englishLocale() ? ' ' : '') + techLabel + ' · ' + techStatus, !!(s.techs && s.techs[techIds[i]]));
     }
 
     civicIds = idList(b.requiredCivic);
@@ -555,7 +555,7 @@
       var civicLabel = tr('wonder.requirement.civic_label', null, '（市政）');
       var civicMet = !!(s.civics && s.civics[civicIds[i]]);
       var civicStatus = tr(civicMet ? 'ui.status.met' : 'ui.status.not_met', null, civicMet ? '已满足' : '未满足');
-      add(civicName + civicLabel + ' · ' + civicStatus, civicMet);
+      add(civicName + (englishLocale() ? ' ' : '') + civicLabel + ' · ' + civicStatus, civicMet);
     }
 
     var requiredBuilding = b.need ? SB.habitat.buildingById(b.need) : null;
@@ -1505,7 +1505,7 @@
         ? tr('building.consume.shortage.stopped', { resourceName: lackName }, '。当前状态：缺' + lackName + '，已停产（没有产出）')
         : tr('building.consume.shortage.reduced', { resourceName: lackName, loadPct: loadPct }, '。当前状态：缺' + lackName + '，只能按 ' + loadPct + '% 负荷运转');
     }
-    return parts.join(englishLocale() ? '; ' : '；') + tr('building.consume.full_load.note', null,
+    return parts.join(englishLocale() ? '; ' : '；') + (englishLocale() ? ' ' : '') + tr('building.consume.full_load.note', null,
       '（满负荷运转：按当前开着的座数折算，缺料按比例降产）') + stateTxt;
   }
 

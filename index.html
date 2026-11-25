@@ -31,7 +31,7 @@
     document.write(scripts);
   })();/*HEAD_LOCALE_LOADER_END*/
 </script>
-<link rel="stylesheet" href="css/main.css?v=355" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
+<link rel="stylesheet" href="css/main.css?v=357" data-page-node-id="jos3u2xHTl442XupCZ3nlQ">
 </head>
 <body data-page-node-id="6EizOSKr1rrrICybgB8xui">
 <div class="atmosphere" id="atmosphere" aria-hidden="true">
@@ -456,7 +456,7 @@
 <!-- 科技树数据层 + 玩法层。必须早于 state/economy/shell 的首次调用：
      state.migrateRun 要读 SB.TECHS 过滤老档科技，economy 每 tick 读 SB.tech.mul。 -->
 <script src="src/techs.js?v=161"></script>
-<script src="src/tech.js?v=144"></script>
+<script src="src/tech.js?v=145"></script>
 <!-- 市政数据层 + 玩法层。它读 tech.condMet 判鼓舞、被 economy 每 tick 当纯读数调用
      （晚于 economy.js 的**加载**也不要紧，那次调用是运行期才发生的），
      但必须早于 game.js 的首次 pump，否则第一次扫描会漏掉全部市政。 -->
@@ -501,13 +501,13 @@
      must load before render.js, via SB.ui.renderContent / renderCommon / renderParts. -->
 <script src="src/ui/render-content.js?v=28"></script>
 <script src="src/ui/render-common.js?v=13"></script>
-<script src="src/ui/render-info.js?v=60"></script>
+<script src="src/ui/render-info.js?v=61"></script>
 <script src="src/ui/render-pane-research.js?v=60"></script>
 <script src="src/ui/render-pane-village.js?v=57"></script>
 <script src="src/ui/render-pane-folk.js?v=9"></script>
 <script src="src/ui/render-talent-tree.js?v=7"></script>
 <script src="src/ui/render-pane-meta.js?v=24"></script>
-<script src="src/ui/render-pane-challenges.js?v=38"></script>
+<script src="src/ui/render-pane-challenges.js?v=39"></script>
 <script src="src/ui/render-pane-company.js?v=6"></script>
 <script src="src/ui/render-pane-faith.js?v=7"></script>
 <script src="src/ui/render-pane-war.js?v=19"></script>
@@ -521,7 +521,7 @@
 <script src="src/ui/star-map-iframe.js?v=1"></script>
 <script src="src/ui/render-pane-workshop.js?v=34"></script>
 <script src="src/ui/render-environment.js?v=30"></script>
-<script src="src/ui/render.js?v=330"></script>
+<script src="src/ui/render.js?v=331"></script>
 <!-- 帷幕之后 · 飞升路径界面（2026-11-17）：外层三路径卡 + 内层弹窗 + 硅基装配台。
      加载早于 game.js；它对 SB.game 的读取都在运行期（点按钮时），无加载期依赖。 -->
 <script src="src/ui/veil-hub-ui.js?v=21"></script>

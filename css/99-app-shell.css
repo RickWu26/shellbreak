@@ -721,7 +721,7 @@ html[data-ui-theme="day"] .ui-settings-tab.on {
     container: app-shell / inline-size;
   }
 }
-@container app-shell (min-width: 1320px) {
+@container app-shell (min-width: 1280px) {
   .shell-main {
     display: grid;
     grid-template-columns: minmax(280px, 315px) minmax(0, 1fr) minmax(280px, 315px);
@@ -759,22 +759,47 @@ html[data-ui-theme="day"] .ui-settings-tab.on {
     padding-bottom: calc(74px + env(safe-area-inset-bottom, 0px));
   }
   .brandline {
+    align-items: center;
     margin-bottom: 8px;
     gap: 8px;
+  }
+  .brandline > div:not(.header-actions) {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
   }
   .brandmark {
     width: 34px;
     height: 34px;
+    display: block;
   }
   .brandline h1 {
     font-size: 16px;
     letter-spacing: .06em;
+    line-height: 1.18;
+    margin: 0;
   }
   html[lang^="en"] .brandline h1 {
-    font-size: 15.5px;
-    letter-spacing: .01em;
+    font-size: 13.5px;
+    letter-spacing: .005em;
+    line-height: 1.18;
+    margin: 0;
   }
   .brandline .sub {
+    display: none;
+  }
+  .brandline .header-actions {
+    align-items: center;
+    gap: 0;
+    flex: none;
+  }
+  .brandline .theme-switch button {
+    min-height: 30px;
+    padding: 4px 7px;
+    white-space: nowrap;
+  }
+  .brandline .ui-settings > summary {
     display: none;
   }
 
@@ -807,7 +832,7 @@ html[data-ui-theme="day"] .ui-settings-tab.on {
   .mhud-shell {
     position: relative;
     flex: 1 1 auto;
-    min-width: 0;
+    min-width: 82px;
     min-height: 34px;
     padding: 4px 8px;
     border-radius: 8px;
@@ -855,6 +880,10 @@ html[data-ui-theme="day"] .ui-settings-tab.on {
     white-space: nowrap;
   }
   .mhud-pill--action {
+    min-width: 0;
+    max-width: 46%;
+    overflow: hidden;
+    text-overflow: ellipsis;
     border-color: rgba(167, 139, 250, .55);
     background: rgba(126, 92, 255, .24);
     color: #efe9ff;
